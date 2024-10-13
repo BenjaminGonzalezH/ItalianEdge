@@ -39,7 +39,7 @@ class TestReadSolution(unittest.TestCase):
             for i in range(0,101):
                 row = generate_solution(i,20)
                 writer.writerow(row)
-                compareMatrix.append([row[1:len(row)+1]])
+                compareMatrix.append(row[1:len(row)+1])
             compareMatrix = np.array(compareMatrix, dtype=int)
 
             # close tempfile to re-open it later.
@@ -56,6 +56,12 @@ class TestReadSolution(unittest.TestCase):
             self.assertEqual(genes, dumb_genes)
             self.assertEqual(num_genes, 20)
             npt.assert_array_equal(Matrix, compareMatrix)
+
+    def test_read_filenotfound(self):
+        # Function trying to read a non-existing file.
+        Output = ReadInputcsv("NoFile")
+        # Recieve error code.
+        self.assertCountEqual(Output,"FNF")
         
 
 if __name__ == '__main__':
