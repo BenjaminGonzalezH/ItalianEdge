@@ -35,3 +35,7 @@ def ReadInputcsv(filepath):
     
     except FileNotFoundError:
         return "FNF"
+    except OSError:
+        return "I/O_E"
+    except EOFError:
+        return "EOF_E"
