@@ -1,42 +1,63 @@
 ######### Libraries #########
+import itertools
 import os
 import numpy as np
 import csv
+from concurrent.futures import ThreadPoolExecutor
 
 ######### Functions #########
 
-def ReadInputcsv(filepath):
-    """
-    ReadInput (function)
-        Input:
-            - filepath: filepath of your Multiobjective
-              gene clustering results.
-        Output:
-            - Matrix: Integer values matrix thar allocates
-            numbers of clusters associated with every gene.
-            - gene: List of the genes used in the study.
-            - n: amount of genes.
-
-        Description: This function reads a .csv file with the
-        following format.
-                    Gene 1 | Gene 2 | Gene 3 | ... | Gene n
-        Solution 1|    1        3       4               2
-        Solution 2|    3        4       1               2
-        Solution 3|
-        ...
-        Solution k|
-
-        Every cell in the "dataframe" allocates the number
-        of the cluster where the gene is in the actual solution.
-    """
+def read_csv_part(filepath, start_row, chunk_size):  
     try:
-        # Gene clustering results matrix.
-        Matrix = []
+        list_rows = []
+        with open(filepath, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            
+            for _ in range(start_row):
+                next(reader, None)
 
+            for _ in range(chunk_size):
+                row = next(reader, None)
+                if row:
+                    list_rows.append(row[1:])
+        return list_rows
+
+    except FileNotFoundError:
+        raise ValueError(f"File in {filepath} does not exist.")
+    except OSError:
+        raise ValueError("Cannot read the file due to an I/O error.")
+    except StopIteration:
+        return list_rows
+    
+def read_csv_part_NoID(filepath, start_row, chunk_size):  
+    try:
+        list_rows = []
+        with open(filepath, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            
+            for _ in range(start_row):
+                next(reader, None)
+
+            for _ in range(chunk_size):
+                row = next(reader, None)
+                if row:
+                    list_rows.append(row)
+        return list_rows
+
+    except FileNotFoundError:
+        raise ValueError(f"File in {filepath} does not exist.")
+    except OSError:
+        raise ValueError("Cannot read the file due to an I/O error.")
+    except StopIteration:
+        return list_rows
+
+def ReadInputCSV(filepath, chunk_size=10, n_threads=1):
+    try:
         # Empty file verification.
         if os.path.getsize(filepath) == 0:
             raise ValueError("Empty file.")
         
+        # Read First Line.
         # Open CSV file.
         with open(filepath, mode = "r") as file:
             # Start reading process.
@@ -45,48 +66,30 @@ def ReadInputcsv(filepath):
             # List of genes.
             genes = next(Csvfile)
             n = len(genes)
-
-            # Read every line.
-            for line in Csvfile:        
-                # Take just int values.
-                Matrix.append(line[1:n+1])
-
-        return np.array(Matrix, dtype=int), genes, n
+        
+        # Calling multiple threads to read the file.
+        with ThreadPoolExecutor(max_workers=n_threads) as executor:
+            futures = []
+            for i in range(n_threads):
+                start_row = i*chunk_size + 1
+                futures.append(executor.submit(read_csv_part, filepath,start_row, chunk_size))
+        results = [future.result() for future in futures]
+        Matrix = list(itertools.chain.from_iterable(results))
+        
+        return genes, n, np.array(Matrix, dtype=int)
     
     except FileNotFoundError:
         raise ValueError(f"File in {filepath} does not exists.")
     except OSError:
         raise ValueError("Can not read the file due to a I/O error.")
-    
-def ReadInputcsv_noID(filepath):
-    """
-    ReadInput (function)
-        Input:
-            - filepath: filepath of your Multiobjective
-              gene clustering results.
-        Output:
-            - Matrix: Integer values matrix thar allocates
-            numbers of clusters associated with every gene.
-            - gene: List of the genes used in the study.
-            - n: amount of genes.
 
-        Description: This function reads a .csv file with the
-        following format.
-        Gene 1 | Gene 2 | Gene 3 | ... | Gene n
-            1        3       4               2
-            3        4       1               2  
-
-        Every cell in the "dataframe" allocates the number
-        of the cluster where the gene is in the actual solution.
-    """
+def ReadInputCSV_NoID(filepath, chunk_size=10, n_threads=1):
     try:
-        # Gene clustering results matrix.
-        Matrix = []
-
         # Empty file verification.
         if os.path.getsize(filepath) == 0:
             raise ValueError("Empty file.")
         
+        # Read First Line.
         # Open CSV file.
         with open(filepath, mode = "r") as file:
             # Start reading process.
@@ -95,13 +98,17 @@ def ReadInputcsv_noID(filepath):
             # List of genes.
             genes = next(Csvfile)
             n = len(genes)
-
-            # Read every line.
-            for line in Csvfile:        
-                # Take just int values.
-                Matrix.append(line[0:n+1])
-
-        return np.array(Matrix, dtype=int), genes, n
+        
+        # Calling multiple threads to read the file.
+        with ThreadPoolExecutor(max_workers=n_threads) as executor:
+            futures = []
+            for i in range(n_threads):
+                start_row = i*chunk_size + 1
+                futures.append(executor.submit(read_csv_part_NoID, filepath,start_row, chunk_size))
+        results = [future.result() for future in futures]
+        Matrix = list(itertools.chain.from_iterable(results))
+        
+        return genes, n, np.array(Matrix, dtype=int)
     
     except FileNotFoundError:
         raise ValueError(f"File in {filepath} does not exists.")
