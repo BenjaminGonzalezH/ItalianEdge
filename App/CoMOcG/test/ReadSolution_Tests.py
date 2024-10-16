@@ -110,7 +110,7 @@ class TestReadSolutionMT(unittest.TestCase):
             temp_csv.close()
             
             # function.
-            genes, num_genes, Matrix = ReadInputCSV(temp_csv.name, n_threads=2)
+            genes, num_genes, Matrix = ReadInputCSV(temp_csv.name, n_threads=4)
 
             # Delete the file. Also, NamedTemporaryFile do it, but
             # this happend when you close the file.
@@ -272,7 +272,7 @@ class TestReadSolution_NoIDMT(unittest.TestCase):
             temp_csv.close()
             
             # function.
-            genes, num_genes, Matrix = ReadInputCSV_NoID(temp_csv.name, n_threads=3)
+            genes, num_genes, Matrix = ReadInputCSV_NoID(temp_csv.name, n_threads=4)
 
             # Delete the file. Also, NamedTemporaryFile do it, but
             # this happend when you close the file.
