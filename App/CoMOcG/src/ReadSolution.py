@@ -4,6 +4,7 @@ import os                   # OS callings.
 import numpy as np          # Math and Structures.
 import csv                  # Read csv.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
+import mmap                 # Mapping data in memory.
 
 ######### Functions #########
 
@@ -39,8 +40,7 @@ def read_csv_part(filepath, start_row, chunk_size):
             reader = csv.reader(csvfile)
 
             # Skip rows.
-            for _ in range(start_row):
-                next(reader, None)
+            reader = itertools.islice(reader, start_row, None)
             for _ in range(chunk_size):
                 row = next(reader, None)
                 # Skip 'None' rows and 'Solition ID'. 
@@ -90,8 +90,7 @@ def read_csv_part_NoID(filepath, start_row, chunk_size):
             reader = csv.reader(csvfile)
             
             # Skip rows
-            for _ in range(start_row):
-                next(reader, None)
+            reader = itertools.islice(reader, start_row, None)
             for _ in range(chunk_size):
                 # Skip 'None' rows.
                 row = next(reader, None)
@@ -155,7 +154,8 @@ def ReadInputCSV(filepath, n_threads=1):
             n = len(genes)
 
             # Calculates total of rows.
-            total_rows = sum(1 for _ in file)
+            mmapped_file = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+            total_rows = mmapped_file.read().count(b'\n')
 
         # Determinate rows for threads.
         chunk_size = (total_rows + n_threads - 1) // n_threads
@@ -230,7 +230,8 @@ def ReadInputCSV_NoID(filepath, n_threads=1):
             n = len(genes)
 
             # Calculates total of rows.
-            total_rows = sum(1 for _ in file)
+            mmapped_file = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+            total_rows = mmapped_file.read().count(b'\n')
 
         # Determinate rows for threads.
         chunk_size = (total_rows + n_threads - 1) // n_threads
