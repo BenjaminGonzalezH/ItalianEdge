@@ -1,10 +1,10 @@
 ######### Libraries #########
-import itertools            # Eficient iterations.
-import os                   # OS callings.
-import numpy as np          # Math and Structures.
-import csv                  # Read csv.
+import itertools                                    # Eficient iterations.
+import os                                           # OS callings.
+import numpy as np                                  # Math and Structures.
+import csv                                          # Read csv.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
-import mmap                 # Mapping data in memory.
+import mmap                                         # Mapping data in memory.
 
 ######### Functions #########
 
