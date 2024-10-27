@@ -5,13 +5,8 @@ import os
 import io
 from contextlib import redirect_stdout
 from scipy.sparse import csr_matrix
-import csv
-import tempfile
-import random
-import string
 import numpy as np
 from scipy.sparse import csr_matrix
-import numpy.testing as npt
 
 ######### Module Path #########
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
