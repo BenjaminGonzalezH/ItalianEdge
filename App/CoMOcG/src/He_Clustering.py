@@ -1,20 +1,21 @@
 ######### Libraries #########
 import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import squareform
-from sklearn.cluster import AgglomerativeClustering
-from scipy.spatial.distance import squareform
-import pandas as pd
+import os
 
 ######### Functions #########
 
-def He_clustering(ProportionMatrix, num_groups=4, dendrogram_file="dendrogram.png"):
+def He_clustering(ProportionMatrix, num_groups=4, dendrogram_file="dendrogram.png", show_flag=1):
     """
     He_clustering(function)
         Input:
             - ProportionMatrix: Result from 'ProportionMatrix_Similarity'
             function that creates a new solution.
-            - num_groups: number of cluster for the solution.
+            - num_groups: number of cluster for the consensus solution.
+            - dendrogram_file: Name of the solution.
+            - show_flag: flag that indicates the desire of ploting the
+            debndogram result.
         Output:
             - ConsensusSolution: Consensus cluster for comparitions.
         
@@ -22,25 +23,36 @@ def He_clustering(ProportionMatrix, num_groups=4, dendrogram_file="dendrogram.pn
         performances of all solutions.
     """
     try:
-        # Transformar la matriz en formato comprimido para el clustering jerárquico
-        condensed_distance = squareform(ProportionMatrix)
+        # Convert matrix into a condensed matrix (list
+        # of pairs with distance of each pair of
+        # elements).
+        condensed_dist_matrix = squareform(ProportionMatrix)
+
+        # Create the heiracial cluster.
+        Z = linkage(condensed_dist_matrix, method='average', metric='precomputed')
+
+        # Define the consensus cluster.
+        ConsensusSolution = fcluster(Z, num_groups, criterion='maxclust')
+
+        # Plot Dendogram.
+        plt.figure(figsize=(8, 4))
+        dendro = dendrogram(Z, labels=['A', 'B', 'C', 'D'])
+
+        # Add cut line.
+        plt.axhline(y=Z[-(num_groups - 1), 2], c='red', linestyle='--')
+        plt.title(f'Dendrograma con {num_groups} grupos')
+        plt.xlabel('Elementos')
+        plt.ylabel('Distancia')
+        if(show_flag == 1):
+            plt.show()
+
+        # Obtain Downloads dir of the user computer and put
+        # the final image on that.
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        plt.savefig(downloads_dir + "\\" + dendrogram_file)
+        plt.close()
         
-        # Crear el dendrograma y guardarlo en un archivo
-        linked = linkage(condensed_distance, method='average')
-        plt.figure(figsize=(10, 7))
-        dendrogram(linked, orientation='top', distance_sort='descending', show_leaf_counts=True)
-        plt.title("Dendrograma de Clustering Jerárquico")
-        plt.xlabel("Muestras de datos")
-        plt.ylabel("Distancia")
-        plt.savefig(dendrogram_file)  # Guardar el dendrograma en un archivo
-        plt.close()  # Cerrar la figura para liberar memoria
-        print(f"Dendrograma guardado en '{dendrogram_file}'")
-
-        # Aplicar el clustering jerárquico
-        hc = AgglomerativeClustering(n_clusters=num_groups, metric='euclidean', linkage='average')
-        ConsensusSolution = hc.fit_predict(ProportionMatrix)
-
-        return ConsensusSolution
+        return list(ConsensusSolution)
 
     except Exception as e:
         print(f"Ocurrió un error inesperado: {e}")
