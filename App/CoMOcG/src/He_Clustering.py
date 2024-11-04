@@ -6,7 +6,7 @@ import os
 
 ######### Functions #########
 
-def He_clustering(ProportionMatrix, num_groups=4, dendrogram_file="dendrogram.png", show_flag=1):
+def He_clustering(ProportionMatrix, genes, num_groups=4, dendrogram_file="dendrogram.png", show_flag=1):
     """
     He_clustering(function)
         Input:
@@ -29,20 +29,20 @@ def He_clustering(ProportionMatrix, num_groups=4, dendrogram_file="dendrogram.pn
         condensed_dist_matrix = squareform(ProportionMatrix)
 
         # Create the heiracial cluster.
-        Z = linkage(condensed_dist_matrix, method='average', metric='precomputed')
+        Z = linkage(condensed_dist_matrix, method='average')
 
         # Define the consensus cluster.
         ConsensusSolution = fcluster(Z, num_groups, criterion='maxclust')
 
         # Plot Dendogram.
-        plt.figure(figsize=(8, 4))
-        dendro = dendrogram(Z, labels=['A', 'B', 'C', 'D'])
+        plt.figure(figsize=(10, 5))
+        dendro = dendrogram(Z, labels=genes)
 
         # Add cut line.
         plt.axhline(y=Z[-(num_groups - 1), 2], c='red', linestyle='--')
         plt.title(f'Dendrograma con {num_groups} grupos')
-        plt.xlabel('Elementos')
-        plt.ylabel('Distancia')
+        plt.xlabel('Genes')
+        plt.ylabel('Distance')
         if(show_flag == 1):
             plt.show()
 
