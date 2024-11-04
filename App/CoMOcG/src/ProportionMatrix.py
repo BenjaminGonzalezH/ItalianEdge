@@ -34,7 +34,7 @@ def compute_connectivity(solution):
     
         # Check match of every pair of genes.
         for i in range(n):
-            for j in range(i + 1, n):
+            for j in range(i, n):
                 # It is symetric.
                 if solution[i] == solution[j]:
                     aux_matrix[i, j] = 1
