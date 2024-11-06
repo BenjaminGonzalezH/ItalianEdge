@@ -3,6 +3,7 @@ import sys
 import os
 import numpy as np
 from scipy.sparse import csr_matrix
+import csv
 
 # Librerias propias.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'App\CoMOcG', 'src')))
@@ -17,7 +18,9 @@ from He_Clustering import He_clustering
 from SolutionClusterMatrix import (
     SolutionClusterMatrix_GeneID
 )
-
+from GoEnrischment import (
+    enrich_go
+)
 
 
 # Data.
@@ -28,10 +31,21 @@ csv_path_2 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\id_y_clu
 genes, num_genes, Matrix = ReadInputCSV(csv_path_1, n_threads=8)
 genes.pop(0)
 
+#SolutionClusterMatrix = SolutionClusterMatrix_GeneID(Matrix, genes)
+
 con_m = connectivityMatrix(Matrix.tolist(), max_workers=8)
 sum_m = sum_connectivity_matrices(con_m)
 pro_m = ProportionMatrix_Similarity(sum_m, total_solutions=25)
 pro_m_d = ProportionMatrix_Disimilarity(pro_m)
 
-cluster = He_clustering(pro_m_d.toarray().tolist(), genes, 4, "dendograma.png", 0)
-print(list(map(int, cluster)))
+print(genes.index("AT1G01470"))
+print(genes.index("AT5G66570"))
+print(pro_m_d[99][97])
+print(pro_m_d[97][99])
+
+#cluster = He_clustering(pro_m_d, genes, 4, "dendograma.png", 0)
+#print(list(map(int, cluster)))
+#path_obo = r"C:\Users\benja\OneDrive\Escritorio\go-basic.obo"
+#path_on = r"C:\Users\benja\OneDrive\Escritorio\gene2go"
+#result = enrich_go(SolutionClusterMatrix[0][0],path_obo, path_on)
+#print(result)
