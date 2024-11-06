@@ -1,4 +1,5 @@
 ######### Libraries #########
+import numpy as np
 from scipy.sparse import lil_matrix                 # List of list matrix.
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
@@ -160,7 +161,7 @@ def ProportionMatrix_Similarity(summed_matrix, total_solutions):
             raise ValueError("El número total de soluciones no puede ser cero.")
 
         # Output.
-        Proportion_matrix = summed_matrix / total_solutions
+        Proportion_matrix = summed_matrix.toarray() / total_solutions
         return Proportion_matrix
 
     # Exceptions block.
@@ -187,9 +188,9 @@ def ProportionMatrix_Disimilarity(matrix):
     """
     try:
         # Output.
-        dense_matrix = matrix.toarray()
+        dense_matrix = matrix
         subtracted_matrix = 1 - dense_matrix
-        return csr_matrix(subtracted_matrix)
+        return subtracted_matrix
     
     # Exceptions block.
     except AttributeError as e:

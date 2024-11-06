@@ -29,13 +29,13 @@ def He_clustering(ProportionMatrix, genes, num_groups=4, dendrogram_file="dendro
         condensed_dist_matrix = squareform(ProportionMatrix)
 
         # Create the heiracial cluster.
-        Z = linkage(condensed_dist_matrix, method='average')
+        Z = linkage(condensed_dist_matrix, method='single')
 
         # Define the consensus cluster.
         ConsensusSolution = fcluster(Z, num_groups, criterion='maxclust')
 
         # Plot Dendogram.
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(80, 35))
         dendro = dendrogram(Z, labels=genes)
 
         # Add cut line.
