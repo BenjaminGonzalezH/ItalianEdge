@@ -23,10 +23,10 @@ class TestComputeConnectivity(unittest.TestCase):
     def test_simple_case(self):
         # Test case.
         solution = [1, 2, 2, 1]
-        expected_matrix = np.array([[0, 0, 0, 1],
-                                    [0, 0, 1, 0],
-                                    [0, 1, 0, 0],
-                                    [1, 0, 0, 0]])
+        expected_matrix = np.array([[1, 0, 0, 1],
+                                    [0, 1, 1, 0],
+                                    [0, 1, 1, 0],
+                                    [1, 0, 0, 1]])
 
         # Convert expected matrix into CSR.
         expected_csr = csr_matrix(expected_matrix)
@@ -73,6 +73,7 @@ class TestComputeConnectivity(unittest.TestCase):
         self.assertEqual(result_csr,None)
 
 class TestConnectivityMatrix(unittest.TestCase):
+
     def test_connectivityMatrix(self):
         # Test case with multiple solutions.
         SolutionsMatrix = [
@@ -83,33 +84,33 @@ class TestConnectivityMatrix(unittest.TestCase):
         ]
 
         expected_matrices = [
-            csr_matrix(np.array([[0, 1, 0, 0, 0, 0],
-                                 [1, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 1, 0, 0],
-                                 [0, 0, 1, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 1],
-                                 [0, 0, 0, 0, 1, 0]])),
-    
-            csr_matrix(np.array([[0, 1, 1, 0, 0, 0],
-                                 [1, 0, 1, 0, 0, 0],
+            csr_matrix(np.array([[1, 1, 0, 0, 0, 0],
                                  [1, 1, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 1],
-                                 [0, 0, 0, 0, 1, 0]])),
-    
-            csr_matrix(np.array([[0, 1, 1, 1, 1, 1],
-                                 [1, 0, 1, 1, 1, 1],
-                                 [1, 1, 0, 1, 1, 1],
-                                 [1, 1, 1, 0, 1, 1],
-                                 [1, 1, 1, 1, 0, 1],
-                                 [1, 1, 1, 1, 1, 0]])),
-    
-            csr_matrix(np.array([[0, 1, 0, 0, 0, 0],
-                                 [1, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0],
+                                 [0, 0, 1, 1, 0, 0],
+                                 [0, 0, 1, 1, 0, 0],
                                  [0, 0, 0, 0, 1, 1],
-                                 [0, 0, 0, 1, 0, 1],
-                                 [0, 0, 0, 1, 1, 0]]))
+                                 [0, 0, 0, 0, 1, 1]])),
+    
+            csr_matrix(np.array([[1, 1, 1, 0, 0, 0],
+                                 [1, 1, 1, 0, 0, 0],
+                                 [1, 1, 1, 0, 0, 0],
+                                 [0, 0, 0, 1, 0, 0],
+                                 [0, 0, 0, 0, 1, 1],
+                                 [0, 0, 0, 0, 1, 1]])),
+    
+            csr_matrix(np.array([[1, 1, 1, 1, 1, 1],
+                                 [1, 1, 1, 1, 1, 1],
+                                 [1, 1, 1, 1, 1, 1],
+                                 [1, 1, 1, 1, 1, 1],
+                                 [1, 1, 1, 1, 1, 1],
+                                 [1, 1, 1, 1, 1, 1]])),
+    
+            csr_matrix(np.array([[1, 1, 0, 0, 0, 0],
+                                 [1, 1, 0, 0, 0, 0],
+                                 [0, 0, 1, 0, 0, 0],
+                                 [0, 0, 0, 1, 1, 1],
+                                 [0, 0, 0, 1, 1, 1],
+                                 [0, 0, 0, 1, 1, 1]]))
         ]
     
         # RUN.
@@ -120,6 +121,7 @@ class TestConnectivityMatrix(unittest.TestCase):
             self.assertTrue((result_csr != expected_csr).nnz == 0, "La matriz CSR generada no es igual a la esperada.")
 
 class TestSumConnectivityMatrix(unittest.TestCase):
+
     def test_sum_connectivity_matrices(self):
         # Test case with multiple solutions.
         SolutionsMatrix = [
@@ -129,12 +131,12 @@ class TestSumConnectivityMatrix(unittest.TestCase):
             [10, 10, 11, 12, 12, 12],
         ]
 
-        expected_matrix = csr_matrix(np.array([[0, 4, 2, 1, 1, 1],
-                                               [4, 0, 2, 1, 1, 1],
-                                               [2, 2, 0, 2, 1, 1],
-                                               [1, 1, 2, 0, 2, 2],
-                                               [1, 1, 1, 2, 0, 4],
-                                               [1, 1, 1, 2, 4, 0]], dtype=float))
+        expected_matrix = csr_matrix(np.array([[4, 4, 2, 1, 1, 1],
+                                               [4, 4, 2, 1, 1, 1],
+                                               [2, 2, 4, 2, 1, 1],
+                                               [1, 1, 2, 4, 2, 2],
+                                               [1, 1, 1, 2, 4, 4],
+                                               [1, 1, 1, 2, 4, 4]], dtype=float))
 
         # RUN.
         connectivity_matrices = connectivityMatrix(SolutionsMatrix)
@@ -179,6 +181,7 @@ class TestSumConnectivityMatrix(unittest.TestCase):
         self.assertEqual(summed_matrix,None)
 
 class TestProportionMatrix_Similarity(unittest.TestCase):
+
     def test_divide_by_total_solutions(self):
         # Example Matrix.
         summed_matrix = csr_matrix(np.array([[2, 4], [4, 6]]))
@@ -191,7 +194,7 @@ class TestProportionMatrix_Similarity(unittest.TestCase):
         divided_matrix = ProportionMatrix_Similarity(summed_matrix, total_solutions)
 
         # Check.
-        self.assertTrue(np.array_equal(divided_matrix.toarray(), expected_matrix), 
+        self.assertTrue(np.array_equal(divided_matrix, expected_matrix), 
                         "La matriz dividida no es igual a la esperada.")
         
     def test_not_a_list(self):
@@ -248,7 +251,7 @@ class TestProportionMatrix_Similarity(unittest.TestCase):
 class TestProportionMatrix_Disimilarity(unittest.TestCase):
     def test_subtract_from_one(self):
         # Matriz de ejemplo después de la división
-        divided_matrix = csr_matrix(np.array([[0.5, 0.25], [0.25, 0.75]]))
+        divided_matrix = np.array([[0.5, 0.25], [0.25, 0.75]])
 
         # Matriz esperada después de restar cada valor a 1
         expected_matrix = np.array([[0.5, 0.75], [0.75, 0.25]])
@@ -257,7 +260,7 @@ class TestProportionMatrix_Disimilarity(unittest.TestCase):
         subtracted_matrix = ProportionMatrix_Disimilarity(divided_matrix)
 
         # Comparar la matriz resultante con la esperada
-        self.assertTrue(np.array_equal(subtracted_matrix.toarray(), expected_matrix), 
+        self.assertTrue(np.array_equal(subtracted_matrix, expected_matrix), 
                         "La matriz restada no es igual a la esperada.")
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@ import numpy as np
 from scipy.sparse import lil_matrix                 # List of list matrix.
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
+from itertools import combinations
 
 ######### Functions #########
 
@@ -199,3 +200,70 @@ def ProportionMatrix_Disimilarity(matrix):
         print(f"Error: tipo de datos incorrecto en la matriz. Detalles: {e}")
     except Exception as e:
         print(f"Ha ocurrido un error inesperado. Detalles: {e}")
+
+
+def connectivity_matrices_function(input_matrix, cant_row, cant_col):
+    # Diccionario para almacenar matrices de conectividad en formato CSR
+    connectivity_matrices = {}
+
+    id_genes = range(cant_col)
+
+    # Iterar sobre cada solución
+    for solution_idx in range(0, cant_row):
+        print(solution_idx)
+        # Crear una lista de tuplas para construir la matriz de conectividad de manera eficiente
+        rows, cols, data = [], [], []
+        
+        # Generar todas las combinaciones de pares de genes
+        gene_pairs = list(combinations(id_genes, 2))
+        
+        # Para cada par de genes, verificar si están conectados
+        for first_gene, second_gene in gene_pairs:
+            # Si los valores son iguales en ambos genes, existe una conexión
+            if input_matrix[solution_idx, first_gene] == input_matrix[solution_idx, second_gene]:
+                rows.append(first_gene)
+                cols.append(second_gene)
+                data.append(1)
+        
+        # Crear matriz dispersa en formato CSR con los valores recolectados
+        connectivity_matrix = csr_matrix((data, (rows, cols)), shape=(cant_col, cant_col))
+        
+        # Guardar la matriz en el diccionario
+        connectivity_matrices[solution_idx] = connectivity_matrix
+    
+    return connectivity_matrices
+
+
+def consensus_matrix_function(connectivity_matrices_result, cant_col, cant_row):
+    # Crear matrices de ceros en formato denso para almacenar la suma de conexiones
+    sum_connectivity_num = np.zeros((cant_col, cant_col))
+    
+    # Crear la matriz de denominador, donde solo el triángulo superior tiene unos
+    connectivity_denom = np.triu(np.ones((cant_col, cant_col), dtype=int), k=1)
+    
+    # Matriz para almacenar el denominador de la matriz de consenso
+    sum_connectivity_denom = np.zeros((cant_col, cant_col))
+    
+    # Iterar sobre cada fila y columna para acumular las conexiones
+    for i in range(cant_col):
+        for j in range(cant_col):
+            for con_matrix_key in range(cant_row):
+                # Extraer el valor actual de la matriz de conectividad en csr_matrix
+                aux = connectivity_matrices_result[con_matrix_key][i, j] if (i < cant_col and j < cant_col) else 0
+                
+                # Sumar el valor en las coordenadas correspondientes en la matriz de numerador
+                sum_connectivity_num[i, j] += aux
+                sum_connectivity_num[j, i] += aux
+                
+                # Sumar el valor de la matriz de denominador
+                sum_connectivity_denom[i, j] += connectivity_denom[i, j]
+                sum_connectivity_denom[j, i] += connectivity_denom[i, j]
+
+    # Calcular la matriz de consenso dividiendo el numerador por el denominador
+    with np.errstate(divide='ignore', invalid='ignore'):
+        consensus_matrix = np.divide(sum_connectivity_num, sum_connectivity_denom)
+    
+    # Reemplazar NaN por 0 en la matriz de consenso final
+    consensus_matrix = np.nan_to_num(consensus_matrix)
+    
+    return csr_matrix(consensus_matrix)
