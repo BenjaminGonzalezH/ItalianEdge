@@ -33,7 +33,7 @@ from GoEnrischment import (
 
 # Data.
 csv_path_1 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\id_y_cluster_GSE10797_10600genes_exp03.csv"
-csv_path_2 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\archivo_prueba_1.csv"
+csv_path_2 = r"C:\Users\Benjamin Gonzalez\Desktop\Workspace\ItalianEdge\archivo_prueba_1.csv"
 
 # Procesamiento.
 genes, num_genes, Matrix = ReadInputCSV_NoID(csv_path_2, n_threads=8)
@@ -70,9 +70,10 @@ con_m = connectivityMatrix(Matrix.tolist(), max_workers=8)
 #cluster = consensus_cluster_function(sum_m_1,4)
 
 sum_m = sum_connectivity_matrices(con_m)
-pro_m = ProportionMatrix_Similarity(sum_m, total_solutions=117)
-pro_m_d = ProportionMatrix_Disimilarity(pro_m)
-np.fill_diagonal(pro_m_d, 0)
+print(sum_m)
+#pro_m = ProportionMatrix_Similarity(sum_m, total_solutions=117)
+#pro_m_d = ProportionMatrix_Disimilarity(pro_m)
+#np.fill_diagonal(pro_m_d, 0)
 
 """diferencias = np.where(sum_m.toarray().astype(int) != matriz)
 
@@ -83,8 +84,8 @@ print("Índices donde los valores son diferentes:", coordenadas_diferencias)
 print(sum_m.toarray()[0,1])
 print(matriz[0,1])"""
 
-cluster = He_clustering(pro_m_d.tolist(), genes, 4, "dendograma.png", 0)
-print(list(map(int, cluster)))
+#cluster = He_clustering(pro_m_d.tolist(), genes, 4, "dendograma.png", 0)
+#print(list(map(int, cluster)))
 #path_obo = r"C:\Users\benja\OneDrive\Escritorio\go-basic.obo"
 #path_on = r"C:\Users\benja\OneDrive\Escritorio\gene2go"
 #result = enrich_go(SolutionClusterMatrix[0][0],path_obo, path_on)
