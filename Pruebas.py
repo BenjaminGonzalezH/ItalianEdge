@@ -11,7 +11,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'App\CoMOcG', 'src')))
 from ReadSolution import ReadInputCSV_NoID
 from ReadSolution import ReadInputCSV
-from ProportionMatrix import (
+from ConnectivityMatrix import (
     connectivityMatrix,
     sum_connectivity_matrices,
     ProportionMatrix_Similarity,

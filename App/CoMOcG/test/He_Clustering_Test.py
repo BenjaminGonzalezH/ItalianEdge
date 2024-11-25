@@ -23,10 +23,11 @@ class TestHeClustering(unittest.TestCase):
             [0.5, 0.8, 0.5, 0.0]
         ])
         num_groups = 4
-        expected_result = [2, 1, 1, 2]
+        genes = ['1', '2', '3', '4']
+        expected_result = [1, 1, 1, 1]
 
         # Llamada a la función
-        cluster = He_clustering(ProportionMatrix, num_groups, "dendograma.png", 0)
+        cluster = He_clustering(ProportionMatrix, genes, num_groups, "dendograma.png", 0)
         self.assertEqual(cluster,expected_result)
 
 
@@ -36,13 +37,14 @@ class TestHeClustering(unittest.TestCase):
             [0.0, 1.0, 1.5],
             [1.0, 0.0, 1.2]
         ])
+        genes = ['1', '2', '3', '4']
         num_groups = 4
 
         # Not using the print message.
         f = io.StringIO()
         with redirect_stdout(f):
             #RUN.
-            cluster = He_clustering(ProportionMatrix, num_groups, "dendograma.png", 0)
+            cluster = He_clustering(ProportionMatrix, genes, num_groups, "dendograma.png", 0)
         # Take message.
         mensaje_impreso = f.getvalue()
 
