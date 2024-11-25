@@ -1,0 +1,1 @@
+valores distintos de 1 = [48, 256, 483]

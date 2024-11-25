@@ -1,0 +1,27 @@
+Ejecución 1:
+Tiempo de ejecución (lectura) : 0.139000 segundos
+Tiempo de ejecución (conectividad) : 6.959001 segundos
+Tiempo de ejecución (suma conectividad) : 6.634034 segundos
+Tiempo de ejecución (Proporción) : 0.103003 segundos
+Tiempo de ejecución (Cluster) : 29.776022 segundos
+
+Ejecución 2:
+Tiempo de ejecución (lectura) : 0.139002 segundos
+Tiempo de ejecución (conectividad) : 6.403001 segundos
+Tiempo de ejecución (suma conectividad) : 6.825581 segundos
+Tiempo de ejecución (Proporción) : 0.094995 segundos
+Tiempo de ejecución (Cluster) : 29.844012 segundos
+
+Ejecución 3
+Tiempo de ejecución (lectura) : 0.140000 segundos
+Tiempo de ejecución (conectividad) : 6.549997 segundos
+Tiempo de ejecución (suma conectividad) : 6.697292 segundos
+Tiempo de ejecución (Proporción) : 0.096992 segundos
+Tiempo de ejecución (Cluster) : 29.852026 segundos
+
+Ejecución 4
+Tiempo de ejecución (lectura) : 0.139001 segundos
+Tiempo de ejecución (conectividad) : 6.670722 segundos
+Tiempo de ejecución (suma conectividad) : 6.672052 segundos
+Tiempo de ejecución (Proporción) : 0.094993 segundos
+Tiempo de ejecución (Cluster) : 29.620018 segundos
