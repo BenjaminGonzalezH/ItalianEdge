@@ -21,11 +21,6 @@ def compute_connectivity(Solution: list[int]) -> csr_matrix:
         Description: Procedure where the process are going to
         check de solution and creates a connectivity matrix.
     """
-
-    # Check correct type of input data (list or equivalent).
-    if not isinstance(Solution, (list, tuple)):
-        raise ValueError("La solución debe ser una lista o una secuencia.")
-        
     # Check not empty list.
     if len(Solution) == 0:
         raise ValueError("La solución no puede estar vacía.")
@@ -76,8 +71,12 @@ def connectivityMatrix_threads(SolutionsMatrix: list[list[int]], n_threads: int 
         That is for every solution in solution matrix.
     """
     # Input Check.
-    if not isinstance(SolutionsMatrix, list) or not all(isinstance(x, list) for x in SolutionsMatrix):
-        raise ValueError("SolutionsMatrix must be a list of lists.")
+    if isinstance(SolutionsMatrix, list):
+        if not all(isinstance(row, list) for row in SolutionsMatrix):
+            raise ValueError("SolutionsMatrix debe ser una lista de listas.")
+    elif isinstance(SolutionsMatrix, np.ndarray):
+        if SolutionsMatrix.ndim != 2:
+            raise ValueError("SolutionsMatrix debe ser un arreglo NumPy 2D.")
     if n_threads <= 0:
         raise ValueError("n_threads must be a positive integer.")
     
