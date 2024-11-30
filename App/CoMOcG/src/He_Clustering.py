@@ -3,9 +3,6 @@ import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import squareform
 import os
-import pandas as pd
-import seaborn as sns
-import numpy as np
 
 ######### Functions #########
 
