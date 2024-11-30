@@ -2,7 +2,6 @@
 import numpy as np
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from itertools import combinations
-from collections import Counter
 
 ######### AUX Functions #########
 
