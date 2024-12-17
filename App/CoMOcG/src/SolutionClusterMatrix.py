@@ -47,9 +47,9 @@ def ProcessSolution_IDs(solution, genes):
         # Create a list of list of genes IDs.
         clusters = []
         for key in Index_values.keys():
-            cluster = []
+            cluster = set()
             for value in Index_values[key]:
-                cluster.append(genes[value])
+                cluster.add(genes[value])
             clusters.append(cluster)
         
         # Output.

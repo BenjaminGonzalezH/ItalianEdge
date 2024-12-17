@@ -1,33 +1,40 @@
-# Import.
-from goatools.obo_parser import GODag
-from goatools.anno.genetogo_reader import Gene2GoReader
-from goatools.gosubdag.gosubdag import GoSubDag
-from goatools.anno.gaf_reader import GafReader
-from goatools.associations import read_ncbi_gene2go
-from goatools.go_enrichment import GOEnrichmentStudy
-import concurrent.futures
+# Import
+import gzip
+import os
+from Bio import Entrez
 
-from goatools.obo_parser import GODag
-from goatools.anno.genetogo_reader import Gene2GoReader
-from goatools.go_enrichment import GOEnrichmentStudy
 
-def enrich_go(gene_list, obo_file='go-basic.obo', gene2go_file='gene2go', taxid=3702):
-    godag = GODag(obo_file)
-    gene2go = Gene2GoReader(gene2go_file, taxids=[taxid]).get_id2gos("BP")
+def get_entrez_id(gene_symbol, mail, taxonomy):
+    Entrez.email = mail
     
-    goea = GOEnrichmentStudy(
-        gene_list,
-        gene2go,
-        godag,
-        methods=['fdr_bh']
-    )
+    # Search the NCBI Gene database with the gene symbol
+    handle = Entrez.esearch(db="gene", term=gene_symbol+"[Gene] AND txid"+str(taxonomy), retmode="xml")
+    record = Entrez.read(handle)
+    handle.close()
+
+    # Check if results were found
+    if record["Count"] == "0":
+        print(f"No Entrez ID found for {gene_symbol}")
+        return None
+    else:
+        # Extract the Entrez ID
+        entrez_id = record["IdList"][0]
+        return entrez_id
     
-    results = goea.run_study(gene_list)
+def get_GOannotation_fromID(entrez_id, mail):
     
-    significant_results = [
-        (res.GO, res.name, res.p_fdr_bh, res.study_items) 
-        for res in results if res.p_fdr_bh < 0.05
-    ]
-    
-    return significant_results
+    Entrez.email = mail
+    fetch_handle = Entrez.efetch(db="gene", id=entrez_id, retmode="xml")
+    gene_record = Entrez.read(fetch_handle)
+    fetch_handle.close()
+
+    go_annotations = []
+    for feature in gene_record[0]['Entrezgene_locus']:
+        if 'Gene-commentary_products' in feature:
+            for product in feature['Gene-commentary_products']:
+                if 'Gene-commentary_comment' in product:
+                    for comment in product['Gene-commentary_comment']:
+                        if 'Gene-commentary_type' in comment and comment['Gene-commentary_type'] == 'GO':
+                            go_annotations.append(comment['Gene-commentary_text'])
+    return go_annotations
 
