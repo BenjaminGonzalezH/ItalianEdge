@@ -9,6 +9,7 @@ import numpy as np
 import time
 from goatools.obo_parser import GODag
 from goatools.associations import read_ncbi_gene2go
+import pandas as pd
 
 # Librerias propias.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'App\CoMOcG', 'src')))
@@ -20,6 +21,7 @@ import SolutionClusterMatrix as SCM
 import ProportionMatrixSC as PMSC
 import JaccardValues as JV
 import GoEnrischment as GOe
+import Go_Plots as plots
 
 # Obtain test files.
 file_1 = r"C:\Users\benja\OneDrive\Escritorio\Workspace\ItalianEdge\test_files_reals\archivo_prueba_1_116_500.csv"
@@ -59,29 +61,51 @@ SolutionClusterMatrix = SCM.SolutionClusterMatrix_GeneID(Matrix, genes, max_work
 end_time = time.time()
 print(f"Tiempo de ejecución (SolutionClusterMatrix) : {end_time - start_time:.6f} segundos")
 
-
 """start_time = time.time()
 JVMatrix = JV.process_JaccardValues(Matrix, n_threads=8)
 Distance = 1-JVMatrix
 end_time = time.time()
 print(f"Tiempo de ejecución (Jaccard) : {end_time - start_time:.6f} segundos")
+print(Distance)
 
 start_time = time.time()
 JMatrix = JV.Jaccar_AmountGenes(SolutionClusterMatrix[0], SolutionClusterMatrix[1])
 end_time = time.time()
 print(f"Tiempo de ejecución (AmountGenes) : {end_time - start_time:.6f} segundos")
-"""
-start_time = time.time()
-entrezID = GOe.get_entrez_id(gene_symbol="VSTM2L", mail="bren122324@gmail.com", taxonomy=9606)
-#Annotations = GOe.get_GOannotation_fromID(entrezID, "bren122324@gmail.com")
-end_time = time.time()
-print(entrezID)
-#print(Annotations)
-print(f"Tiempo de ejecución (Prepare annotations) : {end_time - start_time:.6f} segundos")
+print(JMatrix)"""
 
-go_dag = GODag("go-basic.obo")
-gene2go = read_ncbi_gene2go("gene2go")
-entrez_id = entrezID
-if entrez_id in gene2go:
-    go_terms = gene2go[entrez_id]
-    print(f"GO terms for Entrez ID {entrez_id}:", go_terms)
+start_time = time.time()
+GOe.setup_r_environment()
+end_time = time.time()
+print(f"Tiempo de ejecución (Set R) : {end_time - start_time:.6f} segundos")
+
+#start_time = time.time()
+#entrezID = GOe.convert_symbols_to_entrez(genes)
+#end_time = time.time()
+#print(f"Tiempo de ejecución (ConverID) : {end_time - start_time:.6f} segundos")
+#print(entrezID)
+
+start_time = time.time()
+df = GOe.perform_go_enrichment(list(SolutionClusterMatrix[0][0]), convert_ids=True)
+end_time = time.time()
+print(f"Tiempo de ejecución (Enrichment) : {end_time - start_time:.6f} segundos")
+#print(df)
+#print(df.columns)
+#print(df['geneID'])
+
+start_time = time.time()
+wang = GOe.perform_wang_similarity(df)
+end_time = time.time()
+print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
+#print(wang)
+
+start_time = time.time()
+genes_terms = plots.map_genes_to_go_terms(df)
+end_time = time.time()
+print(f"Tiempo de ejecución (Dict_Genes) : {end_time - start_time:.6f} segundos")
+#print(genes_terms[161742])
+
+start_time = time.time()
+plots.generate_heatmap_from_genes(wang,genes_terms)
+end_time = time.time()
+print(f"Tiempo de ejecución (Plot) : {end_time - start_time:.6f} segundos")
