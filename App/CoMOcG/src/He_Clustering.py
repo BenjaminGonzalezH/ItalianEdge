@@ -58,4 +58,3 @@ def He_clustering(ProportionMatrix, genes, num_groups=4, dendrogram_file="dendro
     except Exception as e:
         print(f"Ocurrió un error inesperado: {e}")
         return None
-    
