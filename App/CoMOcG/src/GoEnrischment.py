@@ -2,8 +2,10 @@
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import PackageNotInstalledError
 import pandas as pd
 import numpy as np
+import logging
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
@@ -44,32 +46,43 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     
     return entrez_ids
 
-
 def setup_r_environment():
-    """Install and load required R packages"""
-    pandas2ri.activate()
-    # Create R vector of packages to install
-    utils = importr('utils')
+    """
+    Configure el entorno R e instale los paquetes necesarios.
     
-    # Define the packages we need
-    packages = ['clusterProfiler', 'org.Hs.eg.db', 'DOSE']
+    Returns:
+    --------
+    tuple
+        Referencias a los paquetes R importados
+    """
+    try:
+        pandas2ri.activate()
+        # Importar paquetes base de R
+        base = importr('base')
+        utils = importr('utils')
+        
+        # Lista de paquetes necesarios
+        required_packages = ['clusterProfiler', 'org.Hs.eg.db', 'DOSE', 'Gostats',
+                             'GO.db', 'GOstats', 'graph', 'Rgraphviz']
+        
+        # Verificar e instalar paquetes faltantes
+        for package in required_packages:
+            try:
+                importr(package)
+            except PackageNotInstalledError:
+                print(f"Instalando paquete R: {package}")
+                utils.install_packages(package)
+        
+        # Importar paquetes después de la instalación
+        go_db = importr('GO.db')
+        gostats = importr('GOstats')
+        graph = importr('graph')
+        rgraphviz = importr('Rgraphviz')
+        
+        return base, utils, go_db, gostats, graph, rgraphviz
     
-    # Install packages if not already installed
-    r_code = '''
-        install_if_missing <- function(p) {
-            if (!requireNamespace(p, quietly = TRUE)) {
-                BiocManager::install(p)
-            }
-        }
-    '''
-    robjects.r(r_code)
-    
-    # Install BiocManager if not present
-    robjects.r('if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")')
-    
-    # Install each package
-    for pkg in packages:
-        robjects.r(f'install_if_missing("{pkg}")')
+    except Exception as e:
+        raise Exception(f"Error configurando el entorno R: {str(e)}")
 
 def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_ids=True):
     """

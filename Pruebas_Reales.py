@@ -10,6 +10,7 @@ import time
 from goatools.obo_parser import GODag
 from goatools.associations import read_ncbi_gene2go
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Librerias propias.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'App\CoMOcG', 'src')))
@@ -74,10 +75,10 @@ end_time = time.time()
 print(f"Tiempo de ejecución (AmountGenes) : {end_time - start_time:.6f} segundos")
 print(JMatrix)"""
 
-start_time = time.time()
-GOe.setup_r_environment()
-end_time = time.time()
-print(f"Tiempo de ejecución (Set R) : {end_time - start_time:.6f} segundos")
+#start_time = time.time()
+#GOe.setup_r_environment()
+#end_time = time.time()
+#print(f"Tiempo de ejecución (Set R) : {end_time - start_time:.6f} segundos")
 
 #start_time = time.time()
 #entrezID = GOe.convert_symbols_to_entrez(genes)
@@ -105,7 +106,28 @@ end_time = time.time()
 print(f"Tiempo de ejecución (Dict_Genes) : {end_time - start_time:.6f} segundos")
 #print(genes_terms[161742])
 
-start_time = time.time()
+"""start_time = time.time()
 plots.generate_heatmap_from_genes(wang,genes_terms)
 end_time = time.time()
 print(f"Tiempo de ejecución (Plot) : {end_time - start_time:.6f} segundos")
+
+start_time = time.time()
+plots.plot_gene_ratio(wang)
+end_time = time.time()
+print(f"Tiempo de ejecución (Plot_ratio) : {end_time - start_time:.6f} segundos")
+
+start_time = time.time()
+plots.plot_qscore(wang)
+end_time = time.time()
+print(f"Tiempo de ejecución (Plot_qscore) : {end_time - start_time:.6f} segundos")
+
+start_time = time.time()
+a = plots.create_emmaplot_network(wang, similarity_threshold=0.3)
+a.show()
+end_time = time.time()
+print(f"Tiempo de ejecución (Plot_net) : {end_time - start_time:.6f} segundos")"""
+print(wang['ID'])
+start_time = time.time()
+plots.create_go_graph_rpy2(wang, save_path=r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\grafico_go.pdf")
+end_time = time.time()
+print(f"Tiempo de ejecución (Plot_heracial) : {end_time - start_time:.6f} segundos")
