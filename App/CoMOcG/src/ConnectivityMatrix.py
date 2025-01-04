@@ -1,25 +1,29 @@
 ######### Libraries #########
-import numpy as np
-import os
-import itertools
+import numpy as np                                  # Efficient Math Operations.
+import os                                           # OS callings.
+import itertools                                    # Efficient iterations.
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from concurrent.futures import ProcessPoolExecutor  # Process Administration.
 from concurrent.futures import ThreadPoolExecutor   # Threads Administration.
 
 ######### AUX Functions #########
 
+"""
+This block contains all functions that are used repeatedly in other functions.
+In addition, their are used by threads for process concurrency.
+"""
+
 def compute_connectivity(Solution: list[int]) -> csr_matrix:
     """
-    compute_connectivity(function)
-        Input:
-            - Solution: a list that allocates the number of 
-            cluster where the gene is in.
+    compute_connectivity(function): 
+    Description: Procedure where the process are going to
+    check de solution and creates a connectivity matrix.
+    
+    Parameters:
+    Solution (list)
         Output:
             - connectivity Matrix: Matrix that indicates pair of
             genes in the same cluster in csr_format.
-        
-        Description: Procedure where the process are going to
-        check de solution and creates a connectivity matrix.
     """
     # Check not empty list.
     if len(Solution) == 0:

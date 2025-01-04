@@ -2,7 +2,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import networkx as nx
+import networkx as nx # type: ignore
 from matplotlib.patches import Circle
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
