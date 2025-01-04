@@ -1,10 +1,7 @@
 ######### Libraries #########
 import numpy as np                                  # Efficient Math Operations.
-import os                                           # OS callings.
-import itertools                                    # Efficient iterations.
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from concurrent.futures import ThreadPoolExecutor   # Threads Administration.
-from scipy.sparse import dok_matrix                 # Structure for efficient csr construction.
 
 ######### AUX Functions #########
 
