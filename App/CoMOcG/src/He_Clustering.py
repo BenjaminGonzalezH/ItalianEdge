@@ -1,60 +1,75 @@
 ######### Libraries #########
-import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
-from scipy.spatial.distance import squareform
-import os
+import numpy as np                                                  # Efficient Math Operations.
+import matplotlib.pyplot as plt                                     # Graph construction.
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster   # Create clustering.
+from scipy.spatial.distance import squareform                       # Create dendogram.
+import os                                                           # OS callings.
 
 ######### Functions #########
 
-def He_clustering(ProportionMatrix, genes, num_groups=4, dendrogram_file="dendrogram.png", show_flag=1):
+def He_clustering(distance_matrix: np.ndarray, 
+                  genes: list[str], 
+                  num_groups: int = 4,
+                  save_path: str = "dendrogram", 
+                  dendrogram_file: str = "dendrogram.png", 
+                  show_flag: bool = True) -> list:
     """
-    He_clustering(function)
-        Input:
-            - ProportionMatrix: Result from 'ProportionMatrix_Similarity'
-            function that creates a new solution.
-            - genes: Genes identificators.
-            - num_groups: number of cluster for the consensus solution.
-            - dendrogram_file: Name of the solution.
-            - show_flag: flag that indicates the desire of ploting the
-            debndogram result.
-        Output:
-            - ConsensusSolution: Consensus cluster for comparitions.
+    He_clustering(function): Perform hierarchical clustering and generate a dendrogram with labels
+    showing gene names and their positions in the list.
+
+    Parameters:
+    - distance_matrix (np.ndarray): Square distance matrix between genes.
+    - genes (list[str]): Gene identifiers.
+    - num_groups (int): Number of clusters for the consensus solution.
+    - save_path (str): Directory to save the dendrogram.
+    - dendrogram_file (str): Name of the output file.
+    - show_flag (bool): Whether to display the dendrogram. Default is True.
         
-        Description: Creation of the consensus cluster thar represents the
-        performances of all solutions.
+    Returns:
+    - list: Consensus clustering solution.
     """
     try:
-        # Convert matrix into a condensed matrix (list
-        # of pairs with distance of each pair of
-        # elements).
-        condensed_dist_matrix = squareform(ProportionMatrix)
+        # Convert the matrix to condensed form if necessary
+        if distance_matrix.shape[0] != distance_matrix.shape[1]:
+            raise ValueError("Distance matrix must be square.")
+        
+        condensed_dist_matrix = squareform(distance_matrix)
 
-        # Create the heiracial cluster.
+        # Perform hierarchical clustering
         Z = linkage(condensed_dist_matrix, method='single')
 
-        # Define the consensus cluster.
-        ConsensusSolution = fcluster(Z, num_groups, criterion='maxclust')
+        # Define the consensus clusters
+        consensus_solution = fcluster(Z, num_groups, criterion='maxclust')
 
-        # Plot Dendogram.
-        plt.figure(figsize=(80, 35))
-        dendro = dendrogram(Z, labels=genes)
+        # Generate labels with gene names and their positions
+        labels = [f"{i}-{gene}" for i, gene in enumerate(genes)]
 
-        # Add cut line.
+        # Plot the dendrogram
+        plt.figure(figsize=(20, 10))
+        dendro = dendrogram(Z, labels=labels)
+
+        # Add a horizontal line for cluster separation
         plt.axhline(y=Z[-(num_groups - 1), 2], c='red', linestyle='--')
-        plt.title(f'Dendrograma con {num_groups} grupos')
-        plt.xlabel('Genes')
+        plt.title(f'Dendrogram with {num_groups} clusters')
+        plt.xlabel('Genes (Index-Name)')
         plt.ylabel('Distance')
-        if(show_flag == 1):
-            plt.show()
 
-        # Obtain Downloads dir of the user computer and put
-        # the final image on that.
-        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
-        plt.savefig(downloads_dir + "\\" + dendrogram_file)
-        plt.close()
+        # Save the dendrogram
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        plt.savefig(os.path.join(save_path, dendrogram_file), dpi=300)
+        print(f"Dendrogram saved at: {os.path.join(save_path, dendrogram_file)}")
         
-        return list(ConsensusSolution)
+        # Show the plot if flag is True
+        if show_flag:
+            plt.show()
+        plt.close()
 
+        return list(consensus_solution)
+
+    except ValueError as ve:
+        print(f"ValueError: {ve}")
+        return None
     except Exception as e:
-        print(f"Ocurrió un error inesperado: {e}")
+        print(f"Unexpected error: {e}")
         return None

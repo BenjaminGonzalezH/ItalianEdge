@@ -1,13 +1,11 @@
 ######### Libraries #########
 import numpy as np
-import os
-import itertools
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
-from concurrent.futures import ProcessPoolExecutor  # Process Administration.
 from concurrent.futures import ThreadPoolExecutor   # Threads Administration.
 
 def compute_jaccard(Solution1, Solution2) -> csr_matrix:
     """
+    compute_jaccard(function): Compute Jaccard D
     """
     # Convertir a arrays de NumPy
     vector1 = np.array(Solution1)
@@ -87,7 +85,7 @@ def Jaccar_similarityClusters(Solution1, Solution2):
 
     return MatrixJaccard
 
-def Jaccar_AmountGenes(Solution1, Solution2):
+def AmountGenes_Equals(Solution1, Solution2):
 
     n = len(Solution1)
     MatrixJaccard = np.zeros((n,n))

@@ -17,7 +17,6 @@ import ConnectivityMatrix as CM
 import ProportionMatrix as PM
 import He_Clustering as He
 import SolutionClusterMatrix as SCM
-import ProportionMatrixSC as PMSC
 import JaccardValues as JV
 import GoEnrischment as GOe
 import Go_Plots as plots
@@ -49,3 +48,14 @@ print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segund
 PM.plot_and_save_heatmaps(Prop_m, Dist_m, 
                           save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results")
 
+start_time = time.time()
+cons_cluster = He.He_clustering(Dist_m, genes, 4, 
+                                save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results",
+                                dendrogram_file="Dendogram_file_1.png")
+end_time = time.time()
+print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
+
+start_time = time.time()
+
+end_time = time.time()
+print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
