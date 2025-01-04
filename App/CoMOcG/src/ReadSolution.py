@@ -5,7 +5,7 @@ import numpy as np                                  # Efficient Math Operations.
 import csv                                          # Read csv.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 import mmap                                         # Mapping data in memory.
-from typing import Tuple
+from typing import Tuple                            # Multiple returns doc.
 
 ######### Functions #########
 
@@ -16,15 +16,15 @@ def read_csv_part(filepath: str, start_row: int,
         multiple process that creates for input reading.
 
     Parameters:
-    filepath (str): Path that allocates the file in the computer.
-    start_row (int) Row where the thread is going to start reading the file.
-    chunk_size (int): Amount of rows that thread is gonna read.
-    flag_id (int): Flag that indicates if the CSV file uses ID for indicate order in his solutions.
+    - filepath (str): Path that allocates the file in the computer.
+    - start_row (int) Row where the thread is going to start reading the file.
+    - chunk_size (int): Amount of rows that thread is gonna read.
+    - flag_id (int): Flag that indicates if the CSV file uses ID for indicate order in his solutions.
                 - 0: There is solutions ID.
                 - 1: Opposite of 0.
 
     Returns: 
-    list_rows (list): All the rows readed.
+    - list_rows (list): All the rows readed.
     """
     # Exception handling: This allows the program to handle common
     # errors in this task.
@@ -77,7 +77,7 @@ def read_csv_part(filepath: str, start_row: int,
 def ReadInputCSV_threads(filepath: str, 
                         n_workers: int = 1, 
                         solutions_id_colum: int = 0
-                        ) -> Tuple[list, int, np.ndarray]:
+                        ) -> Tuple[list, int, list[np.ndarray]]:
     """
     ReadInputCSV(function): This function reads a .csv matrix with the following formats:
 
@@ -98,17 +98,17 @@ def ReadInputCSV_threads(filepath: str,
     1;1;2;4;1
 
     Parameters:
-    filepath (str): Path that allocates the file in the computer.
-    n_jobs (int): Number of threads that are gonna read equals portions of the input file. 
+    - filepath (str): Path that allocates the file in the computer.
+    - n_jobs (int): Number of threads that are gonna read equals portions of the input file. 
     if you use -1 the function use all core of your computer.
     solutions_id_colum (int): flag that indicates presence of id for solutions.
         - 0: There is solutions ID.
         - 1: Opposite of 0.
         
     Returns:
-    genes (list): List of genes names (or ID's).
-    n (int): Number of genes.
-    Matrix (numpy.ndarray): Clusters results matrix.
+    - genes (list): List of genes names (or ID's).
+    - n (int): Number of genes.
+    - Matrix (numpy.ndarray): Clusters results matrix.
     """
     # Exception handling: This allows the program to handle common
     # errors in this task.
@@ -163,6 +163,7 @@ def ReadInputCSV_threads(filepath: str,
         # Remove id solutions space from first row.
         if(solutions_id_colum == 0):
             genes.pop(0)
+            n = n-1
         
         # Output.
         return genes, n, np.array(Matrix, dtype=int)
