@@ -28,13 +28,24 @@ file_2 = r"C:\Users\benja\Desktop\workspace\ItalianEdge\test_files_reals\archivo
 file_3 = r"C:\Users\benja\Desktop\workspace\ItalianEdge\test_files_reals\archivo_prueba_3_25_133.csv"
 
 start_time = time.time()
-genes, num_genes, Matrix  = RD.ReadInputCSV_threads(file_1, n_workers = 2, solutions_id_colum=0)
+genes, num_genes, Matrix  = RD.ReadInputCSV_threads(file_1, n_workers = 8, solutions_id_colum=1)
 end_time = time.time()
 print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
 start_time = time.time()
 connec_sum = CM.connectivityMatrix_threads(Matrix,8)
 connec_sum = CM.sum_connectivity_matrices(connec_sum)
-#CM.save_connectivity_matrix_as_csv(connec_sum,"C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Connectivity_Matrix_file_1.csv")
+CM.save_connectivity_matrix_as_csv(connec_sum,"C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Connectivity_Matrix_file_1.csv")
 end_time = time.time()
 print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
+
+start_time = time.time()
+Prop_m, Dist_m = PM.ProportionsMatrix(connec_sum)
+PM.save_matrices(Prop_m, Dist_m,
+                 "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Prop_matrix.csv",
+                 "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Dist_matrix.csv")
+end_time = time.time()
+print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
+PM.plot_and_save_heatmaps(Prop_m, Dist_m, 
+                          save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results")
+
