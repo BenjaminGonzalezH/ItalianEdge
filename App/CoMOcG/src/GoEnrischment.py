@@ -5,30 +5,30 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import PackageNotInstalledError
 import pandas as pd
 import numpy as np
-import logging
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
-    Convert gene symbols to Entrez IDs
-    
+    convert_symbols_to_entrez(function): 
+    Convert gene symbols to Entrez IDs.
+
     Parameters:
-    gene_symbols (list): List of gene symbols
-    organism (str): Organism database to use
-    
+    - gene_symbols (list): List of gene symbols.
+    - organism (str): Organism database to use.
+
     Returns:
-    list: List of corresponding Entrez IDs
+    - list: List of corresponding Entrez IDs.
     """
-    # Load required R packages
+    # Load required R packages.
     robjects.r(f'''
         library({organism})
         library(clusterProfiler)
     ''')
     
-    # Convert Python list to R vector and assign it
+    # Convert Python list to R vector and assign it.
     r_genes = robjects.StrVector(gene_symbols)
     robjects.r.assign("gene_symbols", r_genes)
     
-    # R code for conversion
+    # R code for conversion.
     r_code = (
         'entrez_ids <- mapIds(x = ' + organism + ', '
         'keys = gene_symbols, '
@@ -38,67 +38,85 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
         'entrez_ids <- na.omit(entrez_ids)'
     )
     
-    # Run the conversion
+    # Run the conversion.
     robjects.r(r_code)
     
-    # Get the converted IDs from R
+    # Get the converted IDs from R.
     entrez_ids = list(robjects.r('entrez_ids'))
     
     return entrez_ids
 
 def setup_r_environment():
     """
-    Configure el entorno R e instale los paquetes necesarios.
-    
+    setup_r_environment(function): 
+    Configure the R environment and install necessary packages.
+
     Returns:
-    --------
-    tuple
-        Referencias a los paquetes R importados
+    - dict: References to the imported R packages.
     """
     try:
         pandas2ri.activate()
-        # Importar paquetes base de R
+        
+        # Import base R packages
         base = importr('base')
         utils = importr('utils')
         
-        # Lista de paquetes necesarios
-        required_packages = ['clusterProfiler', 'org.Hs.eg.db', 'DOSE', 'Gostats',
-                             'GO.db', 'GOstats', 'graph', 'Rgraphviz']
+        # List of required R packages
+        required_packages = [
+            'clusterProfiler', 'org.Hs.eg.db', 'DOSE',
+            'GO.db', 'GOstats', 'graph', 'Rgraphviz'
+        ]
         
-        # Verificar e instalar paquetes faltantes
+        def is_package_installed(package_name):
+            """
+            Check if an R package is installed.
+            """
+            return base.requireNamespace(package_name, quietly=True)[0]
+        
+        def install_package(package_name):
+            """
+            Install an R package if not already installed.
+            """
+            if not is_package_installed(package_name):
+                print(f"Installing R package: {package_name}")
+                utils.install_packages(package_name)
+            else:
+                print(f"R package already installed: {package_name}")
+        
+        # Install and load all required packages
+        for package in required_packages:
+            install_package(package)
+        
+        # Import installed packages
+        loaded_packages = {}
         for package in required_packages:
             try:
-                importr(package)
-            except PackageNotInstalledError:
-                print(f"Instalando paquete R: {package}")
-                utils.install_packages(package)
+                loaded_packages[package] = importr(package)
+                print(f"Successfully loaded R package: {package}")
+            except Exception as e:
+                print(f"Failed to load R package {package}: {e}")
         
-        # Importar paquetes después de la instalación
-        go_db = importr('GO.db')
-        gostats = importr('GOstats')
-        graph = importr('graph')
-        rgraphviz = importr('Rgraphviz')
-        
-        return base, utils, go_db, gostats, graph, rgraphviz
+        return loaded_packages
     
     except Exception as e:
-        raise Exception(f"Error configurando el entorno R: {str(e)}")
+        raise Exception(f"Error configuring R environment: {str(e)}")
 
 def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_ids=True):
     """
-    Perform GO enrichment analysis on a list of genes
-    
+    perform_go_enrichment(function): 
+    Perform GO enrichment analysis on a list of genes.
+
     Parameters:
-    gene_list (list): List of gene symbols or Entrez IDs
-    organism (str): Organism database to use
-    ont (str): GO ontology to use (BP: Biological Process, MF: Molecular Function, CC: Cellular Component)
-    convert_ids (bool): Whether to convert gene symbols to Entrez IDs
-    
+    - gene_list (list): List of gene symbols or Entrez IDs.
+    - organism (str): Organism database to use.
+    - ont (str): GO ontology to use (BP: Biological Process, MF: Molecular Function, CC: Cellular Component).
+    - convert_ids (bool): Whether to convert gene symbols to Entrez IDs.
+
     Returns:
-    pandas.DataFrame: Enrichment results
+    - pandas.DataFrame: Enrichment results.
     """
     try:
-        # Convert gene symbols to Entrez IDs if needed
+        # Convert gene symbols to Entrez IDs if needed.
         if convert_ids:
             entrez_ids = convert_symbols_to_entrez(gene_list, organism)
             print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
@@ -108,17 +126,17 @@ def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_
         if not entrez_ids:
             raise ValueError("No valid Entrez IDs were provided.")
         
-        # Convert Python list to R vector
+        # Convert Python list to R vector.
         r_genes = robjects.StrVector(entrez_ids)
         robjects.r.assign("gene_list", r_genes)
         
-        # Load necessary libraries in R
+        # Load necessary libraries in R.
         robjects.r(f'''
             library(clusterProfiler)
             library({organism})
         ''')
         
-        # Perform enrichment analysis
+        # Perform enrichment analysis.
         robjects.r(f'''
             go_result <- enrichGO(
                 gene = gene_list,
@@ -130,45 +148,46 @@ def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_
             )
         ''')
         
-        # Extract the results
+        # Extract the results.
         r_results = robjects.r("as.data.frame(go_result)")
         
-        # Convert R DataFrame to pandas DataFrame
+        # Convert R DataFrame to pandas DataFrame.
         result_df = pandas2ri.rpy2py(r_results)
         
         return result_df
     except Exception as e:
         print(f"An error occurred during GO enrichment analysis: {e}")
         return pd.DataFrame()
-    
+
 def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
     """
+    perform_wang_similarity(function): 
     Calculate Wang semantic similarity between GO terms in a DataFrame.
-    
+
     Parameters:
-    dataframe (pd.DataFrame): DataFrame with a column 'ID' containing GO terms.
-    organism (str): Organism database to use (e.g., "org.Hs.eg.db").
-    ont (str): Ontology to use (BP, MF, or CC).
-    
+    - dataframe (pd.DataFrame): DataFrame with a column 'ID' containing GO terms.
+    - organism (str): Organism database to use (e.g., "org.Hs.eg.db").
+    - ont (str): Ontology to use (BP, MF, or CC).
+
     Returns:
-    pd.DataFrame: Original DataFrame with an additional column for Wang similarity.
+    - pandas.DataFrame: Original DataFrame with an additional column for Wang similarity.
     """
     try:
-        # Check if 'ID' column exists
+        # Check if 'ID' column exists.
         if 'ID' not in dataframe.columns:
             raise ValueError("The DataFrame must contain a column named 'ID' with GO terms.")
 
-        # Extract GO terms
+        # Extract GO terms.
         go_terms = dataframe['ID'].dropna().unique()
         if len(go_terms) < 2:
-            # If fewer than 2 terms, similarity is not meaningful
+            # If fewer than 2 terms, similarity is not meaningful.
             dataframe['wang_similarity'] = 1.0
             return dataframe
 
-        # Convert GO terms to R vector
+        # Convert GO terms to R vector.
         r_go_terms = robjects.StrVector(go_terms)
 
-        # Load necessary R libraries
+        # Load necessary R libraries.
         robjects.r(f'''
             library(GOSemSim)
             go_db <- godata(annoDb = "{organism}", 
@@ -176,7 +195,7 @@ def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
                             computeIC = TRUE)
         ''')
 
-        # Assign GO terms in R and calculate similarity matrix
+        # Assign GO terms in R and calculate similarity matrix.
         robjects.r.assign("go_terms", r_go_terms)
         robjects.r('''
             sim_matrix <- mgoSim(GO1 = go_terms, 
@@ -189,11 +208,11 @@ def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
             result_df <- data.frame(GO = go_terms, wang_similarity = mean_sims)
         ''')
         
-        # Retrieve results as pandas DataFrame
+        # Retrieve results as pandas DataFrame.
         r_result_df = robjects.r('result_df')
         similarity_df = pandas2ri.rpy2py(r_result_df)
 
-        # Merge similarities back to the original DataFrame
+        # Merge similarities back to the original DataFrame.
         dataframe = dataframe.merge(
             similarity_df,
             left_on='ID',
@@ -207,3 +226,29 @@ def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
         print(f"Error calculating Wang similarity: {e}")
         dataframe['wang_similarity'] = np.nan
         return dataframe
+
+def save_results(dataframe, filepath, format="csv"):
+    """
+    save_results(function): 
+    Save the results of a DataFrame to a file.
+
+    Parameters:
+    - dataframe (pd.DataFrame): DataFrame containing the results to save.
+    - filepath (str): Path to save the file, including the desired filename and extension.
+    - format (str): File format to save the DataFrame. Options are "csv" or "excel". Default is "csv".
+
+    Returns:
+    - None
+    """
+    try:
+        # Check the format and save the DataFrame.
+        if format.lower() == "csv":
+            dataframe.to_csv(filepath, index=False)
+            print(f"Results saved as CSV file at: {filepath}")
+        elif format.lower() == "excel":
+            dataframe.to_excel(filepath, index=False, engine='openpyxl')
+            print(f"Results saved as Excel file at: {filepath}")
+        else:
+            raise ValueError("Unsupported format. Please use 'csv' or 'excel'.")
+    except Exception as e:
+        print(f"An error occurred while saving the file: {e}")
