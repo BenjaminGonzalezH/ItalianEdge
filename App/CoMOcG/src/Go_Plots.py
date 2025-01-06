@@ -8,6 +8,7 @@ import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import StrVector
 from GoEnrischment import setup_r_environment
+import seaborn as sns
 
 def map_genes_to_go_terms(df):
     """
@@ -115,16 +116,26 @@ def plot_gene_ratio(wang_similarity_df):
     None: Displays the plot.
     """
     try:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(12, 8))
         sorted_df = wang_similarity_df.sort_values("GeneRatio", ascending=False)
-        sns.barplot(
-            y=sorted_df["Description"],
+        size = sorted_df["Count"]  # Assuming 'Count' column represents the number of genes
+        color = sorted_df["p.adjust"]  # Assuming 'p.adjust' column represents the adjusted p-values
+        
+        scatter = plt.scatter(
             x=sorted_df["GeneRatio"],
-            palette="viridis"
+            y=sorted_df["Description"],
+            s=size * 10,  # Scale size for better visualization
+            c=color,
+            cmap="coolwarm",  # Color map ranging from blue to red
+            alpha=0.7,
+            edgecolors="w",
+            linewidth=0.5
         )
+        
         plt.xlabel("Gene Ratio")
         plt.ylabel("GO Terms")
         plt.title("Gene Ratio for GO Terms")
+        plt.colorbar(scatter, label="Adjusted p-value")
         plt.tight_layout()
         plt.show()
     except Exception as e:
@@ -176,209 +187,148 @@ def plot_go_interaction_network(wang_similarity_df, threshold=0.7):
         # Add nodes and edges
         for _, row in wang_similarity_df.iterrows():
             go_term = row['ID']
-            G.add_node(go_term, label=row['Description'])
+            G.add_node(go_term, label=row['Description'], size=row['Count'])
             
-            # Check for high similarity between terms
             for _, other_row in wang_similarity_df.iterrows():
-                if row['ID'] != other_row['ID']:
-                    if row['wang_similarity'] >= threshold:
-                        G.add_edge(row['ID'], other_row['ID'], weight=row['wang_similarity'])
+                if row['ID'] != other_row['ID'] and row['wang_similarity'] >= threshold:
+                    G.add_edge(row['ID'], other_row['ID'], weight=row['wang_similarity'])
         
         # Draw the network
         pos = nx.spring_layout(G)
-        plt.figure(figsize=(12, 12))
+        sizes = [G.nodes[node]['size'] * 100 for node in G.nodes]  # Scale size for better visualization
+        widths = [G[u][v]['weight'] * 10 for u, v in G.edges]  # Scale width for better visualization
+        
+        plt.figure(figsize=(14, 14))
         nx.draw(
-            G, pos, with_labels=True, node_size=700, node_color="skyblue",
-            font_size=10, font_color="black", edge_color="gray"
+            G, pos, with_labels=True, node_size=sizes, node_color="skyblue",
+            font_size=10, font_color="black", edge_color="gray", width=widths
         )
         plt.title("GO Interaction Network")
         plt.show()
     except Exception as e:
         print(f"Error plotting GO interaction network: {e}")
 
-def create_emmaplot_network(df, similarity_threshold=0.7, min_fold_enrichment=2.0):
+def plot_go_interaction_network_rpy2(df, organism="org.Hs.eg.db", aspect="BP", similarity_threshold=0.7, save_path=None):
     """
-    Creates an emmaplot-style network visualization of GO terms.
-    
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame containing GO terms analysis results with columns:
-        'ID', 'Description', 'GeneRatio', 'p.adjust', 'Count', etc.
-    similarity_threshold : float
-        Minimum similarity score to create an edge between nodes
-    min_fold_enrichment : float
-        Minimum fold enrichment to include a term
-    """
-    # Create graph
-    G = nx.Graph()
-    
-    # Filter significant terms
-    significant_terms = df[df['FoldEnrichment'] >= min_fold_enrichment]
-    
-    # Add nodes
-    for idx, row in significant_terms.iterrows():
-        # Extract GeneRatio numerator and denominator
-        gene_ratio = [float(x) for x in row['GeneRatio'].split('/')]
-        ratio = gene_ratio[0] / gene_ratio[1]
-        
-        G.add_node(row['ID'],
-                  description=row['Description'],
-                  gene_count=row['Count'],
-                  p_adjust=row['p.adjust'],
-                  gene_ratio=ratio)
-    
-    # Add edges based on similarity
-    nodes = list(G.nodes())
-    for i in range(len(nodes)):
-        for j in range(i + 1, len(nodes)):
-            term1, term2 = nodes[i], nodes[j]
-            similarity = df.loc[df['ID'] == term1, 'wang_similarity'].iloc[0]
-            
-            if isinstance(similarity, (int, float)) and similarity >= similarity_threshold:
-                G.add_edge(term1, term2, weight=similarity)
-    
-    # Create figure
-    plt.figure(figsize=(12, 12))
-    
-    # Calculate layout (using spring layout for better spacing)
-    pos = nx.spring_layout(G, k=2, iterations=100)
-    
-    # Draw edges first
-    edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
-    nx.draw_networkx_edges(G, pos, 
-                          width=np.array(edge_weights) * 2,
-                          alpha=0.3,
-                          edge_color='gray')
-    
-    # Prepare node colors based on adjusted p-values
-    p_values = np.array([G.nodes[node]['p_adjust'] for node in G.nodes()])
-    p_values_log = -np.log10(p_values)
-    
-    # Prepare node sizes based on gene counts
-    counts = np.array([G.nodes[node]['gene_count'] for node in G.nodes()])
-    sizes = 100 + (counts - min(counts)) / (max(counts) - min(counts)) * 1000
-    
-    # Create color map
-    cmap = plt.cm.RdYlBu_r
-    sm = plt.cm.ScalarMappable(cmap=cmap, 
-                              norm=plt.Normalize(vmin=min(p_values_log),
-                                               vmax=max(p_values_log)))
-    
-    # Draw nodes
-    nodes = nx.draw_networkx_nodes(G, pos,
-                                 node_size=sizes,
-                                 node_color=p_values_log,
-                                 cmap=cmap,
-                                 alpha=0.7)
-    
-    # Add labels with wrapped text
-    labels = {}
-    for node in G.nodes():
-        desc = G.nodes[node]['description']
-        # Wrap description to multiple lines if too long
-        if len(desc) > 20:
-            words = desc.split()
-            new_desc = ''
-            line = ''
-            for word in words:
-                if len(line + ' ' + word) > 20:
-                    new_desc += line + '\n'
-                    line = word
-                else:
-                    line += ' ' + word if line else word
-            new_desc += line
-            labels[node] = new_desc
-        else:
-            labels[node] = desc
-            
-    nx.draw_networkx_labels(G, pos, labels,
-                           font_size=8,
-                           bbox=dict(facecolor='white',
-                                   alpha=0.7,
-                                   edgecolor='none',
-                                   pad=0.5))
-    
-    # Add colorbar
-    plt.colorbar(sm, ax=plt.gca(), label='-log10(p.adjust)')
-    
-    # Add legend for node sizes
-    legend_elements = [
-        Circle((0, 0), radius=np.sqrt(s/(100*np.pi)), 
-               facecolor='gray', alpha=0.5,
-               label=f'Count: {c}')
-        for s, c in zip([min(sizes), max(sizes)],
-                       [min(counts), max(counts)])
-    ]
-    plt.legend(handles=legend_elements,
-              loc='upper right',
-              title='Gene Count')
-    
-    plt.title('GO Terms Interaction Network\n(Emmaplot Style)',
-             pad=20)
-    plt.axis('off')
-    plt.tight_layout()
-    
-    return plt
-
-def create_go_graph_rpy2(df, aspect='BP', max_nodes=50, save_path=None):
-    """
-    Utiliza rpy2 para generar un gráfico GOgraph con datos de Python.
+    plot_go_interaction_network_rpy2(function): 
+    Generate an interaction network for GO terms using R and rpy2.
 
     Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame con resultados de análisis GO.
-        Debe contener columnas: 'ID', 'Description', 'p.adjust', 'Count'
-    aspect : str
-        GO aspect ('BP', 'MF', 'CC').
-    max_nodes : int
-        Número máximo de nodos a mostrar en el gráfico.
-    save_path : str, optional
-        Ruta para guardar el gráfico. Si es None, se muestra en pantalla.
+    - df (pd.DataFrame): DataFrame with GO terms, their descriptions, and Wang similarity scores.
+    - organism (str): Organism database to use in R.
+    - aspect (str): GO aspect to focus on ('BP', 'MF', 'CC').
+    - similarity_threshold (float): Minimum Wang similarity to create an edge.
+    - save_path (str): Path to save the graph. If None, the graph is displayed in R.
+
+    Returns:
+    - None
     """
     try:
-        # Configurar entorno R
-        #base, utils, go_db, gostats, graph, rgraphviz = setup_r_environment()
-        
-        # Convertir el DataFrame a formato R
-        go_ids = StrVector(df['ID'].tolist())
-        
-        # Crear el código R para la visualización
-        r_code = """
-        function(go_ids, aspect, max_nodes, save_path) {
+        # Convert GO terms to R vector
+        go_ids = robjects.StrVector(df['ID'].tolist())
+        descriptions = robjects.StrVector(df['Description'].tolist())
+
+        # Create R code for network generation
+        r_code = f"""
+        function(go_ids, descriptions, aspect, similarity_threshold, save_path) {{
+            library({organism})
+            library(GOSemSim)
+            library(igraph)
+            
+            # Prepare GO data
+            go_db <- godata(annoDb = "{organism}", ont = aspect, computeIC = TRUE)
+            sim_matrix <- mgoSim(GO1 = go_ids, GO2 = go_ids, semData = go_db, measure = "Wang", combine = NULL)
+            
+            # Filter edges based on similarity threshold
+            edge_list <- which(sim_matrix >= similarity_threshold, arr.ind = TRUE)
+            edge_list <- edge_list[edge_list[,1] != edge_list[,2], ]  # Remove self-loops
+            
+            # Create igraph object
+            vertex_df <- data.frame(name = go_ids, description = descriptions)
+            edge_list_df <- as.data.frame(edge_list)
+            edge_list_df <- edge_list_df[edge_list_df[,1] %in% vertex_df$name & edge_list_df[,2] %in% vertex_df$name, ]
+            g <- graph_from_data_frame(edge_list_df, directed = FALSE, vertices = vertex_df)
+            
+            # Plot the network
+            if (!is.null(save_path)) {{
+                pdf(save_path)
+            }}
+            plot(g, vertex.label = V(g)$description, vertex.label.cex = 0.8, vertex.label.color = "black", vertex.size = 10, 
+                 edge.width = E(g)$weight * 5, main = paste("GO Interaction Network (", aspect, ")"))
+            
+            if (!is.null(save_path)) {{
+                dev.off()
+            }}
+        }}
+        """
+
+        # Execute the R function
+        r_func = robjects.r(r_code)
+        r_func(go_ids, descriptions, aspect, similarity_threshold, save_path)
+
+        print(f"GO interaction network created successfully{' and saved at ' + save_path if save_path else ''}")
+    
+    except Exception as e:
+        print(f"Error generating GO interaction network: {str(e)}")
+
+def plot_go_tree_rpy2(df, organism="org.Hs.eg.db", aspect="BP", max_nodes=50, save_path=None):
+    """
+    plot_go_tree_rpy2(function): 
+    Generate a GO tree visualization using R and rpy2 with enhanced visual elements.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing GO terms with 'ID' and 'Description' columns.
+    - organism (str): Organism database to use in R.
+    - aspect (str): GO aspect to focus on ('BP', 'MF', 'CC').
+    - max_nodes (int): Maximum number of nodes to display in the tree.
+    - save_path (str): Path to save the tree. If None, the tree is displayed in R.
+
+    Returns:
+    - None
+    """
+    try:
+        # Convert GO terms to R vector
+        go_ids = robjects.StrVector(df['ID'].tolist())
+
+        # Create R code for tree generation
+        r_code = f"""
+        function(go_ids, aspect, max_nodes, save_path) {{
             library(GO.db)
             library(GOstats)
             library(graph)
             library(Rgraphviz)
             
-            # Crear el grafo GO
-            go_terms <- unique(go_ids)
-            gograph <- GOGraph(go_terms, GOBPPARENTS)
+            # Create the GO graph
+            gograph <- GOGraph(go_ids, GOBPPARENTS)
             
-            # Limitar el número de nodos
-            if (numNodes(gograph) > max_nodes) {
+            # Reduce the graph size if necessary
+            if (numNodes(gograph) > max_nodes) {{
                 gograph <- subGraph(sample(nodes(gograph), max_nodes), gograph)
-            }
+            }}
             
-            # Generar el gráfico
-            if (!is.null(save_path)) {
+            # Customize node attributes
+            attrs <- list()
+            attrs$node <- list(fillcolor = "lightblue", shape = "ellipse", fontsize = 10)
+            attrs$edge <- list(color = "gray", arrowsize = 0.5)
+            
+            # Plot the graph
+            if (!is.null(save_path)) {{
                 pdf(save_path)
-            }
+            }}
             
-            plot(gograph, main = paste("GO", aspect, "Graph"))
+            plot(gograph, attrs = attrs, main = paste("GO Term Tree (", aspect, ")"))
             
-            if (!is.null(save_path)) {
+            if (!is.null(save_path)) {{
                 dev.off()
-            }
-        }
+            }}
+        }}
         """
-        
-        # Crear la función R y ejecutarla
+
+        # Execute the R function
         r_func = robjects.r(r_code)
         r_func(go_ids, aspect, max_nodes, save_path)
-        
-        print(f"Gráfico GO creado exitosamente{' y guardado en ' + save_path if save_path else ''}")
-        
+
+        print(f"GO tree created successfully{' and saved at ' + save_path if save_path else ''}")
+    
     except Exception as e:
-        raise Exception(f"Error creando el gráfico GO: {str(e)}")
+        print(f"Error generating GO tree: {str(e)}")
