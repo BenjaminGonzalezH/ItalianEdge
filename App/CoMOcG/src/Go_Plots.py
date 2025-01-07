@@ -1,13 +1,7 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
-import networkx as nx # type: ignore
-from matplotlib.patches import Circle
 import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects.vectors import StrVector
-from GoEnrischment import setup_r_environment
 import seaborn as sns
 from rpy2.robjects import pandas2ri
 from GoEnrischment import convert_symbols_to_entrez
@@ -51,13 +45,14 @@ def plot_gene_ratio(wang_similarity_df):
     None: Displays the plot.
     """
     try:
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(20, 10))
         sorted_df = wang_similarity_df.sort_values("GeneRatio", ascending=False)
         size = sorted_df["Count"]  # Assuming 'Count' column represents the number of genes
         color = sorted_df["p.adjust"]  # Assuming 'p.adjust' column represents the adjusted p-values
-        
+        values = sorted_df["GeneRatio"].apply(lambda x: round(eval(x), 2))
+
         scatter = plt.scatter(
-            x=sorted_df["GeneRatio"],
+            x=values,
             y=sorted_df["Description"],
             s=size * 10,  # Scale size for better visualization
             c=color,
@@ -87,16 +82,16 @@ def plot_qscore(wang_similarity_df):
     None: Displays the plot.
     """
     try:
-        wang_similarity_df['qScore'] = -np.log10(wang_similarity_df['qvalue'])
-        sorted_df = wang_similarity_df.sort_values("qScore", ascending=False)
+        wang_similarity_df['p.adjust'] = -np.log10(wang_similarity_df['p.adjust'])
+        sorted_df = wang_similarity_df.sort_values("p.adjust", ascending=False)
         
         plt.figure(figsize=(10, 6))
         sns.barplot(
             y=sorted_df["Description"],
-            x=sorted_df["qScore"],
+            x=sorted_df["p.adjust"],
             palette="coolwarm"
         )
-        plt.xlabel("-log10(qvalue)")
+        plt.xlabel("-log10(p.adjust)")
         plt.ylabel("GO Terms")
         plt.title("qScore for GO Terms")
         plt.tight_layout()
@@ -104,7 +99,8 @@ def plot_qscore(wang_similarity_df):
     except Exception as e:
         print(f"Error plotting qScore: {e}")
 
-def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect="BP", similarity_threshold=0.7, save_path=None, convert_ids=True):
+def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect="BP", 
+                                     similarity_threshold=0.7, save_path=None, convert_ids=True):
     """
     Generate an interaction network for GO terms using R and rpy2.
     
@@ -150,13 +146,12 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
                 edox <- pairwise_termsim(ego)
                 
                 if (!is.null(save_path)) {{
-                    pdf(save_path)
+                    png(save_path)
                 }}
                 
                 # Plot emapplot and treeplot
                 print(emapplot(edox))
-                print(treeplot(edox))
-                
+
                 if (!is.null(save_path)) {{
                     dev.off()
                 }}
@@ -176,3 +171,4 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
 
     except Exception as e:
         print(f"Error generating GO interaction network: {str(e)}")
+

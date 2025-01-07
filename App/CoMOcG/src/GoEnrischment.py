@@ -2,9 +2,7 @@
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import PackageNotInstalledError
 import pandas as pd
-import numpy as np
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
@@ -215,29 +213,3 @@ def calculate_wang_distance_matrix(gene_list, organism="org.Hs.eg.db", ont="BP",
     except Exception as e:
         print(f"Error calculating Wang distance matrix: {e}")
         return pd.DataFrame()
-
-def save_results(dataframe, filepath, format="csv"):
-    """
-    save_results(function): 
-    Save the results of a DataFrame to a file.
-
-    Parameters:
-    - dataframe (pd.DataFrame): DataFrame containing the results to save.
-    - filepath (str): Path to save the file, including the desired filename and extension.
-    - format (str): File format to save the DataFrame. Options are "csv" or "excel". Default is "csv".
-
-    Returns:
-    - None
-    """
-    try:
-        # Check the format and save the DataFrame.
-        if format.lower() == "csv":
-            dataframe.to_csv(filepath, index=False)
-            print(f"Results saved as CSV file at: {filepath}")
-        elif format.lower() == "excel":
-            dataframe.to_excel(filepath, index=False, engine='openpyxl')
-            print(f"Results saved as Excel file at: {filepath}")
-        else:
-            raise ValueError("Unsupported format. Please use 'csv' or 'excel'.")
-    except Exception as e:
-        print(f"An error occurred while saving the file: {e}")
