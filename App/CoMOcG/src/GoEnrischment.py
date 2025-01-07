@@ -142,9 +142,8 @@ def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_
                 gene = gene_list,
                 OrgDb = {organism},
                 ont = "{ont}",
-                pAdjustMethod = "BH",
-                pvalueCutoff = 0.05,
-                qvalueCutoff = 0.2
+                keyType = 'ENTREZID',
+                readable = TRUE
             )
         ''')
         
@@ -159,35 +158,30 @@ def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_
         print(f"An error occurred during GO enrichment analysis: {e}")
         return pd.DataFrame()
 
-def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
+def calculate_wang_distance_matrix(gene_list, organism="org.Hs.eg.db", ont="BP", convert_ids=True):
     """
-    perform_wang_similarity(function): 
-    Calculate Wang semantic similarity between GO terms in a DataFrame.
-
-    Parameters:
-    - dataframe (pd.DataFrame): DataFrame with a column 'ID' containing GO terms.
-    - organism (str): Organism database to use (e.g., "org.Hs.eg.db").
-    - ont (str): Ontology to use (BP, MF, or CC).
-
-    Returns:
-    - pandas.DataFrame: Original DataFrame with an additional column for Wang similarity.
+    Calculate a matrix of Wang semantic distances for a list of genes.
     """
     try:
-        # Check if 'ID' column exists.
-        if 'ID' not in dataframe.columns:
-            raise ValueError("The DataFrame must contain a column named 'ID' with GO terms.")
+        # Validate the input gene list
+        if len(gene_list) < 2:
+            raise ValueError("The gene list must contain at least two entries to calculate distances.")
+        
+        # Convert gene symbols to Entrez IDs if needed
+        if convert_ids:
+            entrez_ids = convert_symbols_to_entrez(gene_list, organism)
+            print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
+        else:
+            entrez_ids = gene_list
+        
+        if not entrez_ids:
+            raise ValueError("No valid Entrez IDs were provided.")
 
-        # Extract GO terms.
-        go_terms = dataframe['ID'].dropna().unique()
-        if len(go_terms) < 2:
-            # If fewer than 2 terms, similarity is not meaningful.
-            dataframe['wang_similarity'] = 1.0
-            return dataframe
+        # Convert the gene list to an R vector
+        r_gene_list = robjects.StrVector(entrez_ids)
+        robjects.r.assign("gene_list", r_gene_list)
 
-        # Convert GO terms to R vector.
-        r_go_terms = robjects.StrVector(go_terms)
-
-        # Load necessary R libraries.
+        # Load necessary R libraries and create a GO database object
         robjects.r(f'''
             library(GOSemSim)
             go_db <- godata(annoDb = "{organism}", 
@@ -195,37 +189,32 @@ def perform_wang_similarity(dataframe, organism="org.Hs.eg.db", ont="BP"):
                             computeIC = TRUE)
         ''')
 
-        # Assign GO terms in R and calculate similarity matrix.
-        robjects.r.assign("go_terms", r_go_terms)
-        robjects.r('''
-            sim_matrix <- mgoSim(GO1 = go_terms, 
-                                 GO2 = go_terms, 
-                                 semData = go_db, 
-                                 measure = "Wang", 
-                                 combine = NULL)
+        # Calculate the similarity matrix in R
+        sim_matrix_df = robjects.r('''
+            sim_matrix <- mgeneSim(genes = gene_list, 
+                                   semData = go_db, 
+                                   measure = "Wang")
             sim_matrix[is.na(sim_matrix)] <- 0  # Replace NA with 0
-            mean_sims <- rowMeans(as.matrix(sim_matrix))  # Calculate mean similarity
-            result_df <- data.frame(GO = go_terms, wang_similarity = mean_sims)
+            as.data.frame(sim_matrix)  # Convert to DataFrame
         ''')
         
-        # Retrieve results as pandas DataFrame.
-        r_result_df = robjects.r('result_df')
-        similarity_df = pandas2ri.rpy2py(r_result_df)
+        # Convert R DataFrame to pandas DataFrame
+        sim_matrix_df = pandas2ri.rpy2py(sim_matrix_df)
 
-        # Merge similarities back to the original DataFrame.
-        dataframe = dataframe.merge(
-            similarity_df,
-            left_on='ID',
-            right_on='GO',
-            how='left'
-        ).drop(columns=['GO'])
+        # Match dimensions: Use only genes present in the matrix
+        included_genes = list(sim_matrix_df.columns)  # Extract genes in the matrix
+        sim_matrix_df = sim_matrix_df.loc[included_genes, included_genes]
 
-        return dataframe
-    
+        # Update DataFrame index and column names
+        sim_matrix_df.index = included_genes
+        sim_matrix_df.columns = included_genes
+
+        print(f"Final matrix dimensions: {sim_matrix_df.shape}")
+        return sim_matrix_df
+
     except Exception as e:
-        print(f"Error calculating Wang similarity: {e}")
-        dataframe['wang_similarity'] = np.nan
-        return dataframe
+        print(f"Error calculating Wang distance matrix: {e}")
+        return pd.DataFrame()
 
 def save_results(dataframe, filepath, format="csv"):
     """
