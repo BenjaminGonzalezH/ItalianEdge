@@ -35,7 +35,6 @@ def compute_connectivity(Solution: np.ndarray) -> csr_matrix:
         
     return connectivity_matrix 
 
-
 def safe_compute_connectivity(Solution: np.ndarray):
     """
     safe_compute_connectivity(function): Execute a exception handle 
@@ -134,22 +133,3 @@ def sum_connectivity_matrices(connectivity_matrix: list[csr_matrix]) -> csr_matr
     # Exceptions message block.
     except Exception as e:
         raise RuntimeError(f"Unexpected error: {e}")
-    
-def save_connectivity_matrix_as_csv(matrix: csr_matrix, filepath: str) -> None:
-    """
-    save_connectivity_matrix_as_csv(function): Save CSR matrix as csv file.
-    
-    Parameters:
-    - matrix (csr_matrix): CSR matrix to save.
-    - filepath (str): Path where the file is going to be allocated.
-    """
-    # Input Check.
-    if not isinstance(matrix, csr_matrix):
-        raise ValueError("Matrix has to be in csr format.")
-    
-    try:
-        dense_matrix = matrix.toarray()
-        np.savetxt(filepath, dense_matrix, delimiter=",", fmt="%d")
-        print(f"Matrix save successful {filepath}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")

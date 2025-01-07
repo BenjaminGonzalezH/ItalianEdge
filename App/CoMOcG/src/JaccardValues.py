@@ -1,8 +1,6 @@
 ######### Libraries #########
 import numpy as np                                  # Efficient Math Operations.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
-import matplotlib.pyplot as plt                     # Graph construction.
-import pandas as pd                                 # Handle dataframe.
 
 ######### Functions #########
 
@@ -108,72 +106,3 @@ def Jaccar_similarityClusters(Solution1: list[set], Solution2: list[set]):
                 MatrixJaccard[j, i] = Jaccard
 
     return MatrixJaccard
-
-def plot_jaccard_heatmap(jaccard_matrix: np.ndarray, 
-                         title: str = "Jaccard Similarity Heatmap", 
-                         save_path: str = None, 
-                         resolution: int = 300, 
-                         figsize: tuple = (10, 8)) -> None:
-    """
-    plot_jaccard_heatmap(function): Plot and optionally save a heatmap 
-    for the Jaccard similarity matrix.
-
-    Parameters:
-    - jaccard_matrix (np.ndarray): Jaccard similarity matrix.
-    - title (str): Title of the heatmap. Default is "Jaccard Similarity Heatmap".
-    - save_path (str): Path to save the heatmap as a PNG file. If None, the heatmap is not saved.
-    - resolution (int): Resolution of the saved PNG file in DPI. Default is 300.
-    - figsize (tuple): Figure size for the heatmap. Default is (10, 8).
-    
-    Returns:
-    - None. Displays and optionally saves the heatmap.
-    """
-    try:
-        # Create figure.
-        plt.figure(figsize=figsize)
-        heatmap = plt.imshow(jaccard_matrix, cmap="cividis", interpolation="nearest")
-        plt.colorbar(heatmap, label="Jaccard Similarity")
-
-        # Add integer ticks for X and Y axes.
-        num_solutions = jaccard_matrix.shape[0]  # Assuming square matrix
-        plt.xticks(ticks=np.arange(num_solutions), labels=np.arange(1, num_solutions + 1))
-        plt.yticks(ticks=np.arange(num_solutions), labels=np.arange(1, num_solutions + 1))
-        
-        # Add labels.
-        plt.title(title)
-        plt.xlabel("Solutions")
-        plt.ylabel("Solutions")
-        
-        # Save figure in filepath.
-        if save_path:
-            plt.savefig(save_path, dpi=resolution, bbox_inches="tight")
-            print(f"Heatmap guardado en: {save_path}")
-        
-        # Show heatmap.
-        plt.show()
-        plt.close()
-    
-    except Exception as e:
-        print(f"Ocurrió un error al graficar el heatmap: {e}")
-
-def save_jaccard_matrix(jaccard_matrix: np.ndarray, filepath: str) -> None:
-    """
-    save_jaccard_matrix(function): Save the Jaccard similarity matrix to a CSV file.
-
-    Parameters:
-    - jaccard_matrix (np.ndarray): Jaccard similarity matrix.
-    - filepath (str): Path to save the CSV file.
-    
-    Returns:
-    - None. Saves the matrix to a file.
-    """
-    try:
-        # Convertir la matriz en un DataFrame
-        df = pd.DataFrame(jaccard_matrix)
-        
-        # Guardar el DataFrame como CSV
-        df.to_csv(filepath, index=False, header=False)
-        print(f"Matriz de similitud Jaccard guardada en: {filepath}")
-    
-    except Exception as e:
-        print(f"Ocurrió un error al guardar la matriz Jaccard: {e}")

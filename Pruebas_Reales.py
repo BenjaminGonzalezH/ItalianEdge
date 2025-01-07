@@ -1,14 +1,8 @@
 # Importaciones.
 import sys
 import os
-import numpy as np
-from scipy.sparse import csr_matrix
-import csv
-import pandas as pd
-import numpy as np
 import time
-import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
 
 # Librerias propias.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'App\CoMOcG', 'src')))
@@ -21,97 +15,156 @@ import JaccardValues as JV
 import SolutionComposition as SC
 import GoEnrischment as GOe
 import Go_Plots as plots
+import Actions as Ac
 
 # Obtain test files.
-file_1 = r"C:\Users\benja\Desktop\workspace\ItalianEdge\test_files_reals\archivo_prueba_1_116_500.csv"
-file_2 = r"C:\Users\benja\Desktop\workspace\ItalianEdge\test_files_reals\archivo_prueba_2_116_3444.csv"
-file_3 = r"C:\Users\benja\Desktop\workspace\ItalianEdge\test_files_reals\archivo_prueba_3_25_133.csv"
+file_1 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\test_files_reals\archivo_prueba_1_116_500.csv"
+file_2 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\test_files_reals\archivo_prueba_2_116_3444.csv"
+file_3 = r"C:\Users\benja\OneDrive\Escritorio\WorkSpace\ItalianEdge\test_files_reals\archivo_prueba_3_25_133.csv"
 
+###### Lectura de archivo.
 start_time = time.time()
 genes, num_genes, Matrix  = RD.ReadInputCSV_threads(file_1, n_workers = 8, solutions_id_colum=1)
 end_time = time.time()
 print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
+###### Matrices de conectividad.
 start_time = time.time()
 connec_sum = CM.connectivityMatrix_threads(Matrix,8)
 connec_sum = CM.sum_connectivity_matrices(connec_sum)
-#CM.save_connectivity_matrix_as_csv(connec_sum,"C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Connectivity_Matrix_file_1.csv")
+Ac.save_matrix(connec_sum.toarray(),"C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Connectivity_Matrix.csv")
 end_time = time.time()
 print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
 
+###### Matriz de proporción y distancia.
 start_time = time.time()
 Prop_m, Dist_m = PM.ProportionsMatrix(connec_sum)
-#PM.save_matrices(Prop_m, Dist_m,
-#                 "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Prop_matrix.csv",
-#                 "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/Dist_matrix.csv")
+Ac.save_matrix(Prop_m, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Prop_matrix.csv")
+Ac.save_matrix(Dist_m, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Dist_matrix.csv")
 end_time = time.time()
 print(f"Tiempo de ejecución (Proporcion y distancia) : {end_time - start_time:.6f} segundos")
-#PM.plot_and_save_heatmaps(Prop_m, Dist_m, 
-#                          save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results")
+Ac.plot_heatmap_matrix(Prop_m, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Prop_matrix.png",
+                       x_label="Solution",
+                       y_label="Solution",
+                       title="Similitud por prescencia de genes en clusters",
+                       show_flag=False)
+Ac.plot_heatmap_matrix(Dist_m, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Dist_matrix.png",
+                       x_label="Solution",
+                       y_label="Solution",
+                       title="Distancia por prescencia de genes en clusters",
+                       color='plasma',
+                       show_flag=False)
 
-"""start_time = time.time()
+###### Cluster jerárquico.
+start_time = time.time()
 cons_cluster = He.He_clustering(Dist_m, genes, 4, 
-                                save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results",
-                                dendrogram_file="Dendogram_file_1.png")
+                                save_path="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1",
+                                dendrogram_file="Dendogram_file_1.png", show_flag=False)
 end_time = time.time()
-print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")"""
+print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
 
+###### Transformación de estrutura a conjunto de clusters por solución.
 start_time = time.time()
 SC_matrix = SCM.SolutionClusterMatrix_GeneID(Matrix, genes, 8)
 end_time = time.time()
 print(f"Tiempo de ejecución (Cambio de estructura) : {end_time - start_time:.6f} segundos")
+#print(SC_matrix[0][0])
 
-start_time = time.time()
+###### Comparación númerica de soluciones (Jaccard y Composición)
+"""start_time = time.time()
 Jaccard = JV.process_JaccardValues(Matrix, 8)
 end_time = time.time()
 print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
-#JV.plot_jaccard_heatmap(Jaccard, save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results",resolution=600,figsize=(20,16))
-#JV.save_jaccard_matrix(Jaccard, "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/JaccadValues")
+Ac.plot_heatmap_matrix(Jaccard, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/JaccardS.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Similitud de Jaccard entre soluciones',
+                       color='cividis',
+                       show_flag=False)
+Ac.plot_heatmap_matrix(1-Jaccard, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/JaccardD.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Distancia de Jaccard entre soluciones',
+                       color='inferno',
+                       show_flag=False)
+Ac.save_matrix(1-Jaccard, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Jaccard_Matrix.csv")
 
-start_time = time.time()
-Jaccard_E = JV.Jaccar_similarityClusters(SC_matrix[0], SC_matrix[1])
-end_time = time.time()
-print(f"Tiempo de ejecución (Comparar dos soluciones Jaccard) : {end_time - start_time:.6f} segundos")
-#print(Jaccard_E)
-#JV.plot_jaccard_heatmap(Jaccard_E, save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results")
 
 start_time = time.time()
 Coposition = SC.process_proportion_genessolution(Matrix, 8)
+end_time = time.time()
 print(f"Tiempo de ejecución (Composición de composición) : {end_time - start_time:.6f} segundos")
-#print(Coposition)
-#JV.save_jaccard_matrix(Jaccard, "C:/Users/benja/Desktop/workspace/ItalianEdge/Results/composition.csv")
-#JV.plot_jaccard_heatmap(Jaccard, title="Composition of functions" ,save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results",
-#                        resolution=600,figsize=(20,16))
+Ac.plot_heatmap_matrix(Coposition, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/CopositionS.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Similitud de Composición entre soluciones',
+                       color='cividis',
+                       show_flag=False)
+Ac.plot_heatmap_matrix(1-Coposition, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/CopositionD.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Distancia de Composición entre soluciones',
+                       color='inferno',
+                       show_flag=False)
+Ac.save_matrix(1-Coposition, "C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Coposition_Matrix.csv")
+"""
+
+###### Comparación entre 2 soluciones arbitrarias (Jaccard y Cantidad de genes).
+start_time = time.time()
+Jaccard_E = JV.Jaccar_similarityClusters(SC_matrix[0], SC_matrix[1])
+end_time = time.time()
+print(f"Tiempo de ejecución (Comparar dos soluciones - Jaccard) : {end_time - start_time:.6f} segundos")
 
 start_time = time.time()
 Coposition_E = SC.AmountGenes_Equals(SC_matrix[0], SC_matrix[1])
 end_time = time.time()
 print(f"Tiempo de ejecución (Comparar dos soluciones cant_genes) : {end_time - start_time:.6f} segundos")
-#print(Coposition_E)
-#JV.plot_jaccard_heatmap(Coposition_E, title="Composition of functions" ,save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results",
-#                        resolution=600,figsize=(20,16))
+Ac.plot_heatmap_matrix(1-Jaccard_E, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Jaccard_E_D.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Distancia de Composición entre soluciones',
+                       color='inferno',
+                       show_flag=False)
+Ac.plot_heatmap_matrix(Coposition_E, save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Coposition_E_S.png",
+                       x_label='Solution',
+                       y_label='Solution',
+                       title='Distancia de Composición entre soluciones',
+                       color='cividis',
+                       show_flag=False)
 
-#start_time = time.time()
-#GOe.setup_r_environment()
-#end_time = time.time()
-#print(f"Tiempo de ejecución (Cargar entorno de R) : {end_time - start_time:.6f} segundos")
-
+###### Go Enrichment.
 start_time = time.time()
-df_enrichment = GOe.perform_go_enrichment(list(SC_matrix[0][3]))
+df_enrichment = GOe.perform_go_enrichment(list(SC_matrix[0][0]))
 end_time = time.time()
 print(f"Tiempo de ejecución (Enriquecimiento con términos) : {end_time - start_time:.6f} segundos")
-#GOe.save_results(df_enrichment,"C:/Users/benja/Desktop/workspace/ItalianEdge/Results/enrichment.csv" )
+Ac.save_dataframe(df_enrichment,"C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/enrichment_results.csv" )
+print("La cantidad de genes analizada es de {}".format(len(list(SC_matrix[0][0]))))
 
+###### Transformación a terminos.
 start_time = time.time()
-wnag = GOe.calculate_wang_distance_matrix(list(SC_matrix[0][3]))
+Genes_ID = GOe.convert_symbols_to_entrez(list(SC_matrix[0][0]))
+end_time = time.time()
+print(f"Tiempo de ejecución (Transformación de Terminos a Gene_ID) : {end_time - start_time:.6f} segundos")
+
+###### Distancia de Wang Entre genes.
+start_time = time.time()
+Wang = GOe.calculate_wang_distance_matrix(list(SC_matrix[0][0]))
 end_time = time.time()
 print(f"Tiempo de ejecución (Calculo de distancia de Wang) : {end_time - start_time:.6f} segundos")
-GOe.save_results(wnag,"C:/Users/benja/Desktop/workspace/ItalianEdge/Results/wang.csv" )
+Ac.plot_heatmap_matrix(Wang.to_numpy(), save_filepath="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Wang.png",
+                       x_label='genes',
+                       y_label='genes',
+                       title='Distancia de Wang entre grupo de genes analizado',
+                       show_flag=False)
+Ac.save_dataframe(Wang,"C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/wang_results.csv" )
 
+
+###### Plots GO.
 #start_time = time.time()
-genes_to_go = plots.map_genes_to_go_terms(df_enrichment)
 plots.plot_gene_ratio(df_enrichment)
 plots.plot_qscore(df_enrichment)
-plots.plot_go_interaction_network_rpy2(list(SC_matrix[0][3]), similarity_threshold=0.5, save_path="C:/Users/benja/Desktop/workspace/ItalianEdge/Results.pdf")
+plots.plot_go_interaction_network_rpy2(list(SC_matrix[0][0]), 
+                                       similarity_threshold=0.7, 
+                                       save_path="C:/Users/benja/OneDrive/Escritorio/WorkSpace/ItalianEdge/Results/File_1/Network_terms.png")
 #end_time = time.time()
 #print(f"Tiempo de ejecución (graficos) : {end_time - start_time:.6f} segundos")
