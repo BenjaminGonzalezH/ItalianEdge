@@ -5,6 +5,7 @@ import rpy2.robjects as robjects
 import seaborn as sns
 from rpy2.robjects import pandas2ri
 from GoEnrischment import convert_symbols_to_entrez
+from rpy2.robjects.packages import importr
 
 def map_genes_to_go_terms(df):
     """
@@ -34,19 +35,20 @@ def map_genes_to_go_terms(df):
     
     return gene_to_go
 
-def plot_gene_ratio(wang_similarity_df):
+def plot_gene_ratio(df, save_path=None, show_flag = True):
     """
-    Plot the GeneRatio for GO terms.
+    Plot the GeneRatio for GO terms and optionally save the plot.
 
     Parameters:
-    wang_similarity_df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    save_path (str, optional): Path to save the plot. If None, the plot is shown.
 
     Returns:
-    None: Displays the plot.
+    None: Displays or saves the plot.
     """
     try:
         plt.figure(figsize=(20, 10))
-        sorted_df = wang_similarity_df.sort_values("GeneRatio", ascending=False)
+        sorted_df = df.sort_values("GeneRatio", ascending=False)
         size = sorted_df["Count"]  # Assuming 'Count' column represents the number of genes
         color = sorted_df["p.adjust"]  # Assuming 'p.adjust' column represents the adjusted p-values
         values = sorted_df["GeneRatio"].apply(lambda x: round(eval(x), 2))
@@ -61,30 +63,41 @@ def plot_gene_ratio(wang_similarity_df):
             edgecolors="w",
             linewidth=0.5
         )
-        
+
         plt.xlabel("Gene Ratio")
         plt.ylabel("GO Terms")
         plt.title("Gene Ratio for GO Terms")
         plt.colorbar(scatter, label="Adjusted p-value")
         plt.tight_layout()
-        plt.show()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            print(f"Plot saved at: {save_path}")
+
+        if show_flag:
+            plt.show()
+        else:
+            plt.close()
+
     except Exception as e:
         print(f"Error plotting Gene Ratio: {e}")
 
-def plot_qscore(wang_similarity_df):
+def plot_qscore(df, save_path=None, show_flag = True):
     """
-    Plot the qScore (negative log of qvalue) for GO terms.
+    Plot the qScore (negative log of qvalue) for GO terms and optionally save the plot.
 
     Parameters:
-    wang_similarity_df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    save_path (str, optional): Path to save the plot. If None, the plot is shown.
 
     Returns:
-    None: Displays the plot.
+    None: Displays or saves the plot.
     """
     try:
-        wang_similarity_df['p.adjust'] = -np.log10(wang_similarity_df['p.adjust'])
-        sorted_df = wang_similarity_df.sort_values("p.adjust", ascending=False)
-        
+        df = df.copy()  # Avoid modifying original DataFrame
+        df['p.adjust'] = -np.log10(df['p.adjust'])
+        sorted_df = df.sort_values("p.adjust", ascending=False)
+
         plt.figure(figsize=(10, 6))
         sns.barplot(
             y=sorted_df["Description"],
@@ -95,7 +108,16 @@ def plot_qscore(wang_similarity_df):
         plt.ylabel("GO Terms")
         plt.title("qScore for GO Terms")
         plt.tight_layout()
-        plt.show()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            print(f"Plot saved at: {save_path}")
+
+        if show_flag:
+            plt.show()
+        else:
+            plt.close()
+
     except Exception as e:
         print(f"Error plotting qScore: {e}")
 
@@ -172,3 +194,64 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
     except Exception as e:
         print(f"Error generating GO interaction network: {str(e)}")
 
+def create_go_tree_rpy2(df, aspect='BP', max_nodes=50, save_path=None):
+    """
+    Utiliza rpy2 para generar un gráfico GOgraph con datos de Python.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame con resultados de análisis GO.
+        Debe contener columnas: 'ID', 'Description', 'p.adjust', 'Count'
+    aspect : str
+        GO aspect ('BP', 'MF', 'CC').
+    max_nodes : int
+        Número máximo de nodos a mostrar en el gráfico.
+    save_path : str, optional
+        Ruta para guardar el gráfico. Si es None, se muestra en pantalla.
+    """
+    try:
+        # Configurar entorno R
+        #base, utils, go_db, gostats, graph, rgraphviz = setup_r_environment()
+        
+        # Convertir el DataFrame a formato R
+        go_ids = robjects.vectors.StrVector(df['ID'].tolist())
+        
+        # Crear el código R para la visualización
+        r_code = """
+        function(go_ids, aspect, max_nodes, save_path) {
+            library(GO.db)
+            library(GOstats)
+            library(graph)
+            library(Rgraphviz)
+            
+            # Crear el grafo GO
+            go_terms <- unique(go_ids)
+            gograph <- GOGraph(go_terms, GOBPPARENTS)
+            
+            # Limitar el número de nodos
+            if (numNodes(gograph) > max_nodes) {
+                gograph <- subGraph(sample(nodes(gograph), max_nodes), gograph)
+            }
+            
+            # Generar el gráfico
+            if (!is.null(save_path)) {
+                pdf(save_path)
+            }
+            
+            plot(gograph, main = paste("GO", aspect, "Graph"))
+            
+            if (!is.null(save_path)) {
+                dev.off()
+            }
+        }
+        """
+        
+        # Crear la función R y ejecutarla
+        r_func = robjects.r(r_code)
+        r_func(go_ids, aspect, max_nodes, save_path)
+        
+        print(f"Gráfico GO creado exitosamente{' y guardado en ' + save_path if save_path else ''}")
+        
+    except Exception as e:
+        raise Exception(f"Error creando el gráfico GO: {str(e)}")
