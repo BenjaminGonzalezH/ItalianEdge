@@ -3,6 +3,7 @@ import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 import pandas as pd
+import numpy as np
 
 pandas2ri.activate()
 
@@ -20,12 +21,22 @@ load_r_package("GOSemSim")
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
-    Convert gene symbols to Entrez IDs efficiently.
-    Uses BiocParallel for faster processing.
+    Convert gene symbols to Entrez IDs efficiently, returning a list of strings.
+
+    Parameters:
+    - gene_symbols (list): List of gene symbols.
+    - organism (str): Organism database (default: "org.Hs.eg.db" for humans).
+
+    Returns:
+    - list: List of corresponding Entrez IDs as strings, preserving order.
     """
     try:
+        if not gene_symbols or len(gene_symbols) == 0:
+            raise ValueError("Gene symbol list is empty.")
+
         # Cargar paquetes R necesarios
         load_r_package(organism)
+        load_r_package("AnnotationDbi")
         load_r_package("BiocParallel")
 
         # Convertir a R vector
@@ -39,16 +50,31 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
             keys = gene_symbols, 
             column = "ENTREZID", 
             keytype = "SYMBOL", 
-            multiVals = "first"
+            multiVals = "list"  # Obtener todos los posibles IDs
         )
-        entrez_ids[is.na(entrez_ids)] <- NA  # Mantener estructura
+
+        # Seleccionar el menor ID si hay múltiples
+        entrez_ids <- lapply(entrez_ids, function(x) if (is.null(x)) NA else min(as.character(x)))
+        entrez_ids <- unlist(entrez_ids)
+
+        # Mantener estructura y evitar NA no manejables en Python
+        entrez_ids[is.na(entrez_ids)] <- "NA"
         """
         robjects.r(r_code)
 
         # Obtener los IDs desde R
         entrez_ids = list(robjects.r('entrez_ids'))
 
+        # Convertir todos los IDs a str en Python
+        entrez_ids = [str(x) for x in entrez_ids]
+
         return entrez_ids
+
+    except Exception as e:
+        print(f"Error in convert_symbols_to_entrez: {e}")
+        return []
+
+
     except Exception as e:
         print(f"Error in convert_symbols_to_entrez: {e}")
         return []
