@@ -4,6 +4,10 @@ from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 import pandas as pd
 import numpy as np
+from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
+import logging
+
+rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R
 
 pandas2ri.activate()
 
@@ -18,6 +22,8 @@ load_r_package("AnnotationDbi")
 load_r_package("biomaRt")
 load_r_package("clusterProfiler")
 load_r_package("GOSemSim")
+load_r_package("AnnotationDbi")
+load_r_package("BiocParallel")
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
@@ -36,8 +42,6 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
 
         # Cargar paquetes R necesarios
         load_r_package(organism)
-        load_r_package("AnnotationDbi")
-        load_r_package("BiocParallel")
 
         # Convertir a R vector
         r_genes = robjects.StrVector(gene_symbols)
@@ -73,8 +77,6 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     except Exception as e:
         print(f"Error in convert_symbols_to_entrez: {e}")
         return []
-
-
     except Exception as e:
         print(f"Error in convert_symbols_to_entrez: {e}")
         return []
