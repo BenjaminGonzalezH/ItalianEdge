@@ -5,7 +5,28 @@ import matplotlib.pyplot as plt                     # Graph construction.
 import pandas as pd
 
 ######### Functions #########
-def save_matrix(matrix: np.ndarray, 
+def save_matrix(matrix: np.ndarray, save_filepath: str) -> None:
+    """
+    Optimized save_matrix: Save a matrix in binary format for faster I/O.
+    
+    Parameters:
+    - matrix (np.ndarray): Matrix to save.
+    - save_filepath (str): Path to save the matrix (must include name and extension).
+    """
+    try:
+        # Create directories if needed
+        directory = os.path.dirname(save_filepath)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+
+        # Save as a binary .npy file for faster I/O
+        np.save(save_filepath, matrix)
+        print(f"Matrix saved in binary format at: {save_filepath}.npy")
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+def save_matrix_uncompresed(matrix: np.ndarray, 
                 save_filepath: str) -> None:
     """
     save_matrix(function): Save a matrix that is a result from a function.
@@ -82,26 +103,24 @@ def plot_heatmap_matrix(matrix: np.ndarray, save_filepath: str = None,
 
 def save_dataframe(dataframe, filepath, format="csv"):
     """
-    save_results(function): 
-    Save the results of a DataFrame to a file.
-
+    Optimized save_dataframe: Save a DataFrame with faster formats like Parquet.
+    
     Parameters:
-    - dataframe (pd.DataFrame): DataFrame containing the results to save.
-    - filepath (str): Path to save the file, including the desired filename and extension.
-    - format (str): File format to save the DataFrame. Options are "csv" or "excel". Default is "csv".
-
-    Returns:
-    - None
+    - dataframe (pd.DataFrame): DataFrame to save.
+    - filepath (str): Path to save the file.
+    - format (str): "csv", "excel", or "parquet". Default is "csv".
     """
     try:
-        # Check the format and save the DataFrame.
         if format.lower() == "csv":
             dataframe.to_csv(filepath, index=False)
-            print(f"Results saved as CSV file at: {filepath}")
+            print(f"Results saved as CSV at: {filepath}")
         elif format.lower() == "excel":
             dataframe.to_excel(filepath, index=False, engine='openpyxl')
             print(f"Results saved as Excel file at: {filepath}")
+        elif format.lower() == "parquet":
+            dataframe.to_parquet(filepath, index=False)
+            print(f"Results saved as Parquet file at: {filepath}")
         else:
-            raise ValueError("Unsupported format. Please use 'csv' or 'excel'.")
+            raise ValueError("Unsupported format. Use 'csv', 'excel', or 'parquet'.")
     except Exception as e:
         print(f"An error occurred while saving the file: {e}")
