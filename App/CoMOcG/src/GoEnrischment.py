@@ -24,6 +24,7 @@ load_r_package("clusterProfiler")
 load_r_package("GOSemSim")
 load_r_package("AnnotationDbi")
 load_r_package("BiocParallel")
+load_r_package("parallel")
 
 def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db"):
     """
@@ -102,6 +103,7 @@ def perform_go_enrichment(gene_list, organism="org.Hs.eg.db", ont="BP", convert_
 
         # Ejecutar enriquecimiento GO
         r_code = f"""
+        library({organism})
         go_results <- enrichGO(
             gene = gene_list,
             OrgDb = {organism},
@@ -145,9 +147,6 @@ def calculate_wang_distance_matrix(gene_list, organism="org.Hs.eg.db", ont="BP",
         # Convertir a R vector
         r_gene_list = robjects.StrVector(entrez_ids)
         robjects.r.assign("gene_list", r_gene_list)
-
-        # Cargar R paquetes
-        load_r_package("GOSemSim")
 
         # Ejecutar código R con validación de parámetros
         r_code = f"""

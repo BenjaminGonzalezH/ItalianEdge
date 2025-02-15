@@ -8,34 +8,6 @@ from GoEnrischment import convert_symbols_to_entrez
 from rpy2.robjects.packages import importr
 import rpy2.robjects.vectors as r_vectors
 
-def map_genes_to_go_terms(df):
-    """
-    Relaciona genes con los términos GO en los que están involucrados.
-    
-    Parámetros:
-    df (pd.DataFrame): DataFrame con dos columnas: 'GO_term' y 'Gene_IDs', donde 'Gene_IDs'
-                        contiene los IDs de los genes asociados a cada término GO.
-
-    Devuelve:
-    dict: Diccionario donde las claves son los IDs de los genes y los valores son listas de términos GO
-          asociados a cada gen.
-    """
-    gene_to_go = {}
-
-    # Iterar sobre cada fila del DataFrame
-    for _, row in df.iterrows():
-        go_term = row['ID']
-        gene_ids = row['geneID']
-        gene_ids = [str(x) for x in gene_ids.split('/')]
-        
-        # Iterar sobre los genes asociados a cada término GO
-        for gene in gene_ids:
-            if gene not in gene_to_go:
-                gene_to_go[gene] = []
-            gene_to_go[gene].append(go_term)
-    
-    return gene_to_go
-
 def plot_gene_ratio(df, save_path=None, show_flag = True):
     """
     Plot the GeneRatio for GO terms and optionally save the plot.
