@@ -3,6 +3,7 @@ import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
 import matplotlib.pyplot as plt                     # Graph construction.
 import pandas as pd
+import plotly.graph_objects as go
 
 ######### Functions #########
 def save_matrix(matrix: np.ndarray, save_filepath: str) -> None:
@@ -100,6 +101,51 @@ def plot_heatmap_matrix(matrix: np.ndarray, save_filepath: str = None,
         print(f"Error: No se pudo guardar el archivo en '{save_filepath}'. Verifique la ruta.")
     except Exception as e:
         print(f"Error inesperado: {e}")
+
+def plot_html_heatmap(matrix: np.ndarray, 
+                      save_filepath: str = 'heatmap.html', 
+                      x_label: str = '', 
+                      y_label: str = '', 
+                      title: str = 'Heatmap', 
+                      color: str = 'Viridis'):
+    """
+    Creates an interactive heatmap and saves it as an HTML file that can be opened in a browser.
+
+    Args:
+        matrix (np.ndarray): The 2D array to visualize as a heatmap.
+        save_filepath (str): Path to save the heatmap as an HTML file. Default is 'heatmap.html'.
+        x_label (str): Label for the x-axis.
+        y_label (str): Label for the y-axis.
+        title (str): Title of the heatmap. Default is 'Heatmap'.
+        color (str): Colormap for the heatmap. Default is 'Viridis'.
+    """
+    try:
+        # Validate the input matrix
+        if not isinstance(matrix, np.ndarray) or len(matrix.shape) != 2:
+            raise ValueError("The 'matrix' input must be a 2D NumPy array.")
+
+        # Create the heatmap figure
+        fig = go.Figure(data=go.Heatmap(
+            z=matrix,
+            colorscale=color,
+            colorbar=dict(title="Value"),
+        ))
+
+        fig.update_layout(
+            title=title,
+            xaxis_title=x_label,
+            yaxis_title=y_label,
+            autosize=True,
+        )
+
+        # Save the figure as an HTML file
+        fig.write_html(save_filepath)
+        print(f"Interactive heatmap saved as an HTML file at: {save_filepath}")
+
+    except ValueError as ve:
+        print(f"Validation Error: {ve}")
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
 
 def save_dataframe(dataframe, filepath, format="csv"):
     """
