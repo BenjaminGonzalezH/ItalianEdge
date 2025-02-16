@@ -7,6 +7,10 @@ from rpy2.robjects import pandas2ri
 from GoEnrischment import convert_symbols_to_entrez
 from rpy2.robjects.packages import importr
 import rpy2.robjects.vectors as r_vectors
+import plotly.express as px
+import networkx as nx
+import webbrowser
+import os
 
 def plot_gene_ratio(df, save_path=None, show_flag = True):
     """
@@ -55,6 +59,40 @@ def plot_gene_ratio(df, save_path=None, show_flag = True):
     except Exception as e:
         print(f"Error plotting Gene Ratio: {e}")
 
+def plot_gene_ratio_interactive(df, save_path='gene_ratio.html'):
+    """
+    Plot the GeneRatio for GO terms interactively and save it as an HTML file.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    save_path (str): Path to save the interactive plot as an HTML file.
+    show_flag (bool): Whether to display the plot in the browser.
+    """
+    try:
+        # Ensure the GeneRatio is converted to numeric values and sort the DataFrame
+        sorted_df = df.sort_values("GeneRatio", ascending=False)
+        sorted_df['GeneRatio'] = sorted_df['GeneRatio'].apply(lambda x: round(eval(x), 2))
+        
+        # Create an interactive bubble chart with the sorted DataFrame
+        fig = px.scatter(
+            sorted_df,
+            x='GeneRatio',
+            y='Description',
+            size='Count',
+            color='p.adjust',
+            color_continuous_scale='viridis',
+            title="Gene Ratio for GO Terms",
+            labels={"GeneRatio": "Gene Ratio", "p.adjust": "Adjusted p-value"},
+            hover_data={'Description': True, 'Count': True, 'p.adjust': True}
+        )
+        
+        # Save to HTML
+        fig.write_html(save_path)
+        print(f"Interactive Gene Ratio plot saved as: {save_path}")
+
+    except Exception as e:
+        print(f"Error creating interactive Gene Ratio plot: {str(e)}")
+
 def plot_qscore(df, save_path=None, show_flag = True):
     """
     Plot the qScore (negative log of qvalue) for GO terms and optionally save the plot.
@@ -94,10 +132,41 @@ def plot_qscore(df, save_path=None, show_flag = True):
     except Exception as e:
         print(f"Error plotting qScore: {e}")
 
-def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect="BP", 
-                                     similarity_threshold=0.7, save_path=None, convert_ids=True):
+def plot_qscore_interactive(df, save_path='qscore.html'):
     """
-    Generate an interaction network for GO terms using R and rpy2.
+    Plot the qScore (-log10(p.adjust)) for GO terms interactively and save it as an HTML file.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
+    save_path (str): Path to save the interactive plot as an HTML file.
+    show_flag (bool): Whether to display the plot in the browser.
+    """
+    try:
+        df['qScore'] = -np.log10(df['p.adjust'])  # Calculate qScore
+
+        # Create an interactive bar chart
+        fig = px.bar(
+            df.sort_values('qScore', ascending=False),
+            y='Description',
+            x='qScore',
+            title="qScore for GO Terms",
+            labels={"qScore": "-log10(p.adjust)"},
+            color='qScore',
+            color_continuous_scale='viridis'
+        )
+        
+        # Save to HTML
+        fig.write_html(save_path)
+        print(f"Interactive qScore plot saved as: {save_path}")
+
+    except Exception as e:
+        print(f"Error creating interactive qScore plot: {str(e)}")
+
+def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect="BP", 
+                                     similarity_threshold=0.7, save_path=None, convert_ids=True, 
+                                     width=1000, height=800, res=150):
+    """
+    Generate an interaction network for GO terms using R and rpy2, with adjustable image size and resolution.
     
     Parameters:
     - gene_list (list): List of gene symbols or Entrez IDs.
@@ -106,6 +175,9 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
     - similarity_threshold (float): Minimum Wang similarity to create an edge.
     - save_path (str): Path to save the graph. If None, the graph is displayed in R.
     - convert_ids (bool): Whether to convert gene symbols to Entrez IDs.
+    - width (int): Width of the image in pixels (default: 1000).
+    - height (int): Height of the image in pixels (default: 800).
+    - res (int): Resolution of the image in ppi (default: 150).
 
     Returns:
     - None
@@ -128,9 +200,9 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
         pandas2ri.activate()
         r_gene_list = robjects.StrVector(entrez_ids)
 
-        # R code to generate GO interaction network
+        # R code to generate GO interaction network with customizable image size and resolution
         r_code = f"""
-        function(gene_list, save_path, similarity_threshold, organism, aspect) {{
+        function(gene_list, save_path, similarity_threshold, organism, aspect, width, height, res) {{
             library(clusterProfiler)
             library(enrichplot)
             library({organism})
@@ -141,12 +213,12 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
                 edox <- pairwise_termsim(ego)
                 
                 if (!is.null(save_path)) {{
-                    png(save_path)
+                    png(save_path, width = width, height = height, res = res)
                 }}
                 
-                # Plot emapplot and treeplot
+                # Plot emapplot
                 print(emapplot(edox))
-
+                
                 if (!is.null(save_path)) {{
                     dev.off()
                 }}
@@ -156,11 +228,11 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
         }}
         """
 
-        # Create R function from the R code
+        # Create the R function from the code
         r_func = robjects.r(r_code)
 
-        # Call the R function with the converted gene list
-        r_func(r_gene_list, save_path, similarity_threshold, organism, aspect)
+        # Call the R function with the converted gene list and image parameters
+        r_func(r_gene_list, save_path, similarity_threshold, organism, aspect, width, height, res)
         
         print(f"GO interaction network created successfully{' and saved at ' + save_path if save_path else ''}")
 
