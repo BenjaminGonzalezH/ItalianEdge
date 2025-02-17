@@ -5,12 +5,8 @@ import rpy2.robjects as robjects
 import seaborn as sns
 from rpy2.robjects import pandas2ri
 from GoEnrischment import convert_symbols_to_entrez
-from rpy2.robjects.packages import importr
 import rpy2.robjects.vectors as r_vectors
 import plotly.express as px
-import networkx as nx
-import webbrowser
-import os
 
 def plot_gene_ratio(df, save_path=None, show_flag = True):
     """
@@ -113,6 +109,7 @@ def plot_qscore(df, save_path=None, show_flag = True):
         sns.barplot(
             y=sorted_df["Description"],
             x=sorted_df["p.adjust"],
+            hue=None,
             palette="coolwarm"
         )
         plt.xlabel("-log10(p.adjust)")

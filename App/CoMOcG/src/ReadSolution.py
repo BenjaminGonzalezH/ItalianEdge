@@ -7,10 +7,21 @@ from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 import mmap                                         # Mapping data in memory.
 from typing import Tuple                            # Multiple returns doc.
 
+# Note: the return is not a Tuple, this is used for
+# allocates all the multiple elements of output that
+# would have one function.
+
 ######### Functions #########
 
-def read_csv_part(filepath: str, start_row: int, 
-                  chunk_size: int, flag_solutions_id = 0) -> list[list[int]]:
+"""
+This block contains all main functions.
+"""
+
+def read_csv_part(
+        filepath: str, 
+        start_row: int, 
+        chunk_size: int, 
+        flag_solutions_id = 0) -> list[list[int]]:
     """
     read_csv_part(function): This function is use inside of ReadInputCSV for
         multiple process that creates for input reading.
@@ -74,10 +85,11 @@ def read_csv_part(filepath: str, start_row: int,
         # Return the rows read so far if iteration ends prematurely.
         return list_rows 
     
-def ReadInputCSV_threads(filepath: str, 
-                        n_workers: int = 1, 
-                        solutions_id_colum: int = 0
-                        ) -> Tuple[list, int, list[np.ndarray]]:
+def ReadInputCSV_threads(
+        filepath: str, 
+        n_workers: int = 1, 
+        solutions_id_colum: int = 0
+    ) -> Tuple[list, int, list[np.ndarray]]:
     """
     ReadInputCSV(function): This function reads a .csv matrix with the following formats:
 

@@ -4,7 +4,13 @@ from concurrent.futures import ThreadPoolExecutor   # Threads Administration.
 
 ######### Functions #########
 
-def compute_proportion_genesolution(Solution1: np.ndarray, Solution2: np.ndarray):
+"""
+This block contains all main functions.
+"""
+
+def compute_proportion_genesolution(
+        Solution1: np.ndarray, 
+        Solution2: np.ndarray) -> float:
     """
     compute_proportion_genesolution(function): 
     Compute the proportion of identical values between two gene solutions.
@@ -29,17 +35,19 @@ def compute_proportion_genesolution(Solution1: np.ndarray, Solution2: np.ndarray
 
     return proportion
 
-def process_proportion_genessolution(Matrix: list[np.ndarray], n_threads: int):
+def process_proportion_genessolution(
+        Matrix: list[np.ndarray], 
+        n_threads: int) -> np.ndarray:
     """
     process_proportion_genessolution(function): 
-    Compute the connectivity matrix between all solutions in parallel.
+    Compute the Composition matrix between all solutions in concurrency.
 
     Parameters:
     - Matrix (list or np.ndarray): Matrix of solutions (list of lists or NumPy array).
-    - n_threads (int): Number of threads to parallelize the computation.
+    - n_threads (int): Number of threads to 'parallelize' the computation.
 
     Returns:
-    - connectivityMatrix (np.ndarray): Connectivity matrix with the proportion of matches.
+    - CompositionMatrix (np.ndarray): Composition matrix with the proportion of matches.
     """
     # Input validation.
     if isinstance(Matrix, list):
@@ -57,30 +65,32 @@ def process_proportion_genessolution(Matrix: list[np.ndarray], n_threads: int):
     # Convert Matrix to NumPy array for easier handling.
     Matrix = np.array(Matrix)
 
-    # Create an empty connectivity matrix.
+    # Create an empty Composition matrix.
     n_solutions = len(Matrix)
-    connectivityMatrix = np.zeros((n_solutions, n_solutions))
+    CompositionMatrix = np.zeros((n_solutions, n_solutions))
 
     # Define auxiliary function for parallel computation.
-    def compute_pairwise_proportion(indices):
-        i, j = indices
+    def compute_pairwise_proportion(index):
+        i, j = index
         return i, j, compute_proportion_genesolution(Matrix[i], Matrix[j])
     
-    # Create combinations of indices.
-    indices = [(i, j) for i in range(n_solutions) for j in range(i, n_solutions)]
+    # Create combinations of index.
+    index = [(i, j) for i in range(n_solutions) for j in range(i, n_solutions)]
     
-    # Process in parallel.
+    # Process in 'parallel'.
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
-        results = list(executor.map(compute_pairwise_proportion, indices))
+        results = list(executor.map(compute_pairwise_proportion, index))
     
-    # Fill the connectivity matrix.
+    # Fill the Composition matrix.
     for i, j, proportion in results:
-        connectivityMatrix[i, j] = proportion
-        connectivityMatrix[j, i] = proportion  # Symmetric.
+        CompositionMatrix[i, j] = proportion
+        CompositionMatrix[j, i] = proportion  # Symmetric.
     
-    return connectivityMatrix
+    return CompositionMatrix
 
-def AmountGenes_Equals(Solution1: list[set], Solution2: list[set]):
+def AmountGenes_Equals(
+        Solution1: list[set], 
+        Solution2: list[set]) -> np.ndarray:
     """
     AmountGenes_Equals(function): 
     Compute the matrix of shared gene counts between clusters.

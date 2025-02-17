@@ -60,7 +60,9 @@ def safe_compute_connectivity(Solution: np.ndarray):
 This block contains all main functions.
 """
 
-def connectivityMatrix_threads(SolutionsMatrix: list[np.ndarray], n_threads: int = 1) -> list[csr_matrix]:
+def connectivityMatrix_threads(
+        SolutionsMatrix: list[np.ndarray], 
+        n_threads: int = 1) -> list[csr_matrix]:
     """
     connectivityMatrix_threads(function): Create a Matrix that create a square matrix with
     max length dimesion from his solution (all equals). This says what pair of index share 

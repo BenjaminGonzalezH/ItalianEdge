@@ -2,80 +2,123 @@
 import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
 import matplotlib.pyplot as plt                     # Graph construction.
-import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objects as go                   # Interactive plots.
 
 ######### Functions #########
-def save_matrix(matrix: np.ndarray, save_filepath: str) -> None:
+
+"""
+This block contains all main functions.
+"""
+
+def save_matrix(
+        matrix: np.ndarray, 
+        save_filepath: str) -> None:
     """
-    Optimized save_matrix: Save a matrix in binary format for faster I/O.
+    save_matrix (function): Save a matrix in binary format for faster I/O.
     
     Parameters:
     - matrix (np.ndarray): Matrix to save.
-    - save_filepath (str): Path to save the matrix (must include name and extension).
+    - save_filepath (str): Path to save the matrix (must include name and extension). Also,
+      you need to ensure to write the path of the file in your computer.
     """
     try:
-        # Create directories if needed
+        # Create directories if needed.
         directory = os.path.dirname(save_filepath)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
 
-        # Save as a binary .npy file for faster I/O
+        # Save as a binary .npy file for faster I/O. This is a alternative
+        # to manage large amount of data.
         np.save(save_filepath, matrix)
         print(f"Matrix saved in binary format at: {save_filepath}.npy")
 
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-def save_matrix_uncompresed(matrix: np.ndarray, 
-                save_filepath: str) -> None:
+def load_and_display_matrix(filepath: str) -> np.ndarray:
+    """
+    load_and_display_matrix (function): Load and display a matrix stored in a .npy file.
+    
+    Parameters:
+    - filepath (str): Path to the .npy file (without the .npy extension).
+    
+    Returns:
+    - np.ndarray: Loaded matrix.
+    """
+    try:
+        # Check file existence.
+        if not os.path.exists(filepath):
+            print(f"Error: File {filepath}.npy not found")
+            return None
+
+        # load matrix from .npy file.
+        matrix = np.load(filepath)
+        
+        # Display.
+        print("loaded Matrix:")
+        print(matrix)
+
+        # Matrix return.
+        return matrix
+
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+        return None
+
+def save_matrix_uncompresed(
+        matrix: np.ndarray, 
+        save_filepath: str) -> None:
     """
     save_matrix(function): Save a matrix that is a result from a function.
 
     Parameters:
     - matrix (np.ndarray): Matrix.
-    - proportion_filepath (str): Path to save the matrix (needs to have the name).
+    - proportion_filepath (str): Path to save the matrix (needs to have the name and
+      extension).
     """
     try:
-        # Create directories if needed
+        # Create directories if needed.
         directory = os.path.dirname(save_filepath)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
         
-        # Save proportion matrix
+        # Save matrix.
         np.savetxt(save_filepath, matrix, delimiter=",", fmt="%.6f")
         print(f"Proportion matrix saved at: {save_filepath}")
 
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-def plot_heatmap_matrix(matrix: np.ndarray, save_filepath: str = None,
-                        x_label: str = '',
-                        y_label: str = '',
-                        title: str = 'Heatmap',
-                        color: str = 'viridis', show_flag: bool = True):
+def plot_heatmap_matrix(
+        matrix: np.ndarray, save_filepath: str = None,
+        x_label: str = '',
+        y_label: str = '',
+        title: str = 'Heatmap',
+        color: str = 'viridis', 
+        show_flag: bool = True) -> None:
     """
-    Plots a heatmap from a NumPy array and optionally saves it to a file.
+    plot_heatmap_matrix (function): Plots a heatmap from a NumPy array 
+    and optionally saves it to a file.
 
-    Args:
-        matrix (np.ndarray): The 2D array to visualize as a heatmap.
+    Parameters:
+        matrix (np.ndarray): The Matrix with data to plot.
         save_filepath (str): Path to save the heatmap image (optional).
         x_label (str): Label for the x-axis.
         y_label (str): Label for the y-axis.
         title (str): Title of the heatmap. Default is 'Heatmap'.
         color (str): Colormap for the heatmap. Default is 'viridis'.
-        show_flag (bool): Whether to display the heatmap. Default is True.
+        show_flag (bool): Display instanly the heatmap. Default is True.
     """
     try:
-        # Validar la matriz de entrada
+        # Validate input matrix.
         if not isinstance(matrix, np.ndarray) or len(matrix.shape) != 2:
-            raise ValueError("La entrada 'matrix' debe ser una matriz NumPy bidimensional.")
+            raise ValueError("The input 'matrix' must be a 2D numpy array.")
 
-        # Validar el colormap
+        # Validate colormap option.
         if color not in plt.colormaps():
-            raise ValueError(f"'{color}' no es un colormap válido. Use uno de: {plt.colormaps()}")
+            raise ValueError(f"'{color}' is not a valid colormap. Use one of these options: {plt.colormaps()}")
 
-        # Configurar la figura
+        # Figure configuratrion.
         plt.figure(figsize=(20, 10))
         plt.imshow(matrix, cmap=color, interpolation='nearest')
         plt.xlabel(x_label)
@@ -83,48 +126,50 @@ def plot_heatmap_matrix(matrix: np.ndarray, save_filepath: str = None,
         plt.colorbar()
         plt.title(title)
 
-        # Guardar la figura si se proporciona una ruta válida
+        # Save image if have a valid path.
         if save_filepath:
             plt.savefig(save_filepath, format=save_filepath.split('.')[-1])
             print(f"Heatmap guardado en: {save_filepath}")
 
-        # Mostrar la figura si está habilitado
+        # Display path if it is alowed.
         if show_flag:
             plt.show()
 
-        # Cerrar la figura para liberar memoria
+        # Close draw interface.
         plt.close()
 
     except ValueError as ve:
-        print(f"Error de validación: {ve}")
+        print(f"Validation Error: {ve}")
     except FileNotFoundError:
-        print(f"Error: No se pudo guardar el archivo en '{save_filepath}'. Verifique la ruta.")
+        print(f"Error: Can not save '{save_filepath}'. Check file path.")
     except Exception as e:
-        print(f"Error inesperado: {e}")
+        print(f"Unexpected Error: {e}")
 
-def plot_html_heatmap(matrix: np.ndarray, 
-                      save_filepath: str = 'heatmap.html', 
-                      x_label: str = '', 
-                      y_label: str = '', 
-                      title: str = 'Heatmap', 
-                      color: str = 'Viridis'):
+def plot_html_heatmap(
+        matrix: np.ndarray, 
+        save_filepath: str = 'heatmap.html', 
+        x_label: str = '', 
+        y_label: str = '', 
+        title: str = 'Heatmap', 
+        color: str = 'Viridis'):
     """
-    Creates an interactive heatmap and saves it as an HTML file that can be opened in a browser.
+    plot_html_heatmap (function): Creates an interactive heatmap and saves it 
+    as an HTML file that can be opened in a browser.
 
-    Args:
-        matrix (np.ndarray): The 2D array to visualize as a heatmap.
-        save_filepath (str): Path to save the heatmap as an HTML file. Default is 'heatmap.html'.
+    Parameters:
+        matrix (np.ndarray): The Matrix with data to plot.
+        save_filepath (str): Path to save the heatmap image (optional).
         x_label (str): Label for the x-axis.
         y_label (str): Label for the y-axis.
         title (str): Title of the heatmap. Default is 'Heatmap'.
-        color (str): Colormap for the heatmap. Default is 'Viridis'.
+        color (str): Colormap for the heatmap. Default is 'viridis'.
     """
     try:
-        # Validate the input matrix
+        # Validate the input matrix.
         if not isinstance(matrix, np.ndarray) or len(matrix.shape) != 2:
             raise ValueError("The 'matrix' input must be a 2D NumPy array.")
 
-        # Create the heatmap figure
+        # Create the heatmap figure.
         fig = go.Figure(data=go.Heatmap(
             z=matrix,
             colorscale=color,
@@ -149,7 +194,7 @@ def plot_html_heatmap(matrix: np.ndarray,
 
 def save_dataframe(dataframe, filepath, format="csv"):
     """
-    Optimized save_dataframe: Save a DataFrame with faster formats like Parquet.
+    save_dataframe (function): Save a DataFrame with faster formats like Parquet.
     
     Parameters:
     - dataframe (pd.DataFrame): DataFrame to save.

@@ -5,8 +5,13 @@ from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 
 ######### Functions #########
 
-def ProcessSolution_IDs(solution: np.ndarray, 
-                        genes: list) -> list:
+"""
+This block contains all main functions.
+"""
+
+def ProcessSolution_IDs(
+        solution: np.ndarray, 
+        genes: list) -> list:
     """
     ProcessSolution_IDs(function): Function that process a solution from
     'ReadInputCSV' that reads a CSV with the following format:
@@ -65,8 +70,10 @@ def ProcessSolution_IDs(solution: np.ndarray,
         print("Unexpected error.")
         return None
 
-def SolutionClusterMatrix_GeneID(Matrix: list[np.ndarray], genes: list, 
-                                 max_workers:int= 4):
+def SolutionClusterMatrix_GeneID(
+        Matrix: list[np.ndarray], 
+        genes: list, 
+        max_workers:int= 4) -> list:
     """
     SolutionClusterMatrix_GeneID(function): Function to create a gene clustering matrix
     that means the following structure:
