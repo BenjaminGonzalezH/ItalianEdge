@@ -3,9 +3,19 @@ import numpy as np                                  # Efficient Math Operations.
 from scipy.sparse import csr_matrix                 # Compresed space row matrix.
 from typing import Tuple                            # Multiple returns doc.
 
+# Note: the return is not a Tuple, this is used for
+# allocates all the multiple elements of output that
+# would have one function.
+
 ######### Functions #########
-def ProportionsMatrix(summed_matrix: csr_matrix
-                      ) -> Tuple[list[np.ndarray], list[np.ndarray]] :
+
+"""
+This block contains all main functions.
+"""
+
+def ProportionsMatrix(
+        summed_matrix: csr_matrix
+    ) -> Tuple[list[np.ndarray], list[np.ndarray]] :
     """
     ProportionMatrix_Similarity(function): Proportion Matrix tell us % of cases where a pair
     of index (genes) have the same number (are in the same cluster). Also, % where they are not.

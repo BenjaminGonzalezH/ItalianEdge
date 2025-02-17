@@ -4,7 +4,13 @@ from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 
 ######### Functions #########
 
-def compute_jaccard(Solution1: np.ndarray, Solution2: np.ndarray) -> float:
+"""
+This block contains all main functions.
+"""
+
+def compute_jaccard(
+        Solution1: np.ndarray, 
+        Solution2: np.ndarray) -> float:
     """
     compute_jaccard(function): Compute the Jaccard similarity index for two solutions.
 
@@ -28,7 +34,9 @@ def compute_jaccard(Solution1: np.ndarray, Solution2: np.ndarray) -> float:
     
     return intersection / union
 
-def process_JaccardValues(Matrix: list[np.ndarray], n_threads: int):
+def process_JaccardValues(
+        Matrix: list[np.ndarray], 
+        n_threads: int) -> np.ndarray:
     """
     process_JaccardValues(function): Compute the pairwise Jaccard similarity matrix for a set of solutions.
 
@@ -74,7 +82,9 @@ def process_JaccardValues(Matrix: list[np.ndarray], n_threads: int):
     
     return Jaccard_Matrix
 
-def Jaccar_similarityClusters(Solution1: list[set], Solution2: list[set]):
+def Jaccar_similarityClusters(
+        Solution1: list[set], 
+        Solution2: list[set]) -> np.ndarray:
     """
     Jaccar_similarityClusters(function): Compute the Jaccard similarity matrix for
     two specifict solutions, this works to recognize similar clusters between two

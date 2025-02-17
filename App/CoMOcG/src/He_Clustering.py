@@ -7,12 +7,17 @@ import os                                                           # OS calling
 
 ######### Functions #########
 
-def He_clustering(distance_matrix: np.ndarray, 
-                  genes: list[str], 
-                  num_groups: int = 4,
-                  save_path: str = "dendrogram", 
-                  dendrogram_file: str = "dendrogram.png", 
-                  show_flag: bool = True) -> list:
+"""
+This block contains all main functions.
+"""
+
+def He_clustering(
+        distance_matrix: np.ndarray, 
+        genes: list[str], 
+        num_groups: int = 4,
+        save_path: str = "dendrogram", 
+        dendrogram_file: str = "dendrogram.png", 
+        show_flag: bool = True) -> list:
     """
     He_clustering(function): Perform hierarchical clustering and generate a dendrogram with labels
     showing gene names and their positions in the list.
