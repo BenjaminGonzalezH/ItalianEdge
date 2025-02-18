@@ -3,7 +3,7 @@ import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 import pandas as pd
-import numpy as np
+import numpy as np                                                      # Efficient Math Operations.
 from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
 import logging
 

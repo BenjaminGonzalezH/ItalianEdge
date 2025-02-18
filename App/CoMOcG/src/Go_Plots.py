@@ -1,52 +1,93 @@
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
-import rpy2.robjects as robjects
-import seaborn as sns
-from rpy2.robjects import pandas2ri
-from GoEnrischment import convert_symbols_to_entrez
-import rpy2.robjects.vectors as r_vectors
-import plotly.express as px
+######### Libraries #########
+import seaborn as sns                                       # Barplot.
+import matplotlib.pyplot as plt                             # Graph construction.
+import numpy as np                                          # Efficient Math Operations.
+import rpy2.robjects as robjects                            # Transport Python data to R enviroment.
+from rpy2.robjects import pandas2ri                         # R dataframe into Pandas dataframe.
+import rpy2.robjects.vectors as r_vectors                   # Transport Python data to R enviroment (vectors).
+import plotly.express as px                                 # HTML interactive plots.
+import pandas as pd                                         # Dataframes.
+import os                                                   # OS callings.
 
-def plot_gene_ratio(df, save_path=None, show_flag = True):
+######### Own Libraries #########
+from GoEnrischment import convert_symbols_to_entrez
+
+
+def run_r_script(script_name, *args):
     """
-    Plot the GeneRatio for GO terms and optionally save the plot.
+    Run an R script stored in the 'R_Scripts' folder.
 
     Parameters:
-    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
-    save_path (str, optional): Path to save the plot. If None, the plot is shown.
+    script_name (str): The name of the script file (without .R extension).
+    args: Arguments to pass to the R script.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    dir_path = os.path.join(base_dir, "R_Scripts")
+    file_path = os.path.join(dir_path, f"{script_name}.R")
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"R script not found: {file_path}")
+    
+    # Load and execute the script
+    with open(file_path, "r", encoding="utf-8") as file:
+        r_code = file.read()
+        r_func = robjects.r(r_code)
+        return r_func(*args)
 
-    Returns:
-    None: Displays or saves the plot.
+######### Functions #########
+
+"""
+This block contains all main functions.
+"""
+
+def plot_gene_ratio(
+        df: pd.DataFrame, 
+        save_path:str = None, 
+        show_flag:bool = True) -> None:
+    """
+    plot_gene_ratio (function): Plot the GeneRatio for GO terms and 
+    optionally save the plot.
+
+    Parameters:
+    - df: DataFrame with enriched GO terms and associated data.
+    - save_path: Path to save the plot.
+    - show_flag: Flag for display plot.
     """
     try:
+        # Size of figure.
         plt.figure(figsize=(20, 10))
+
+        # Take dataframe necesary data.
         sorted_df = df.sort_values("GeneRatio", ascending=False)
-        size = sorted_df["Count"]  # Assuming 'Count' column represents the number of genes
-        color = sorted_df["p.adjust"]  # Assuming 'p.adjust' column represents the adjusted p-values
+        size = sorted_df["Count"]
+        color = sorted_df["p.adjust"]
         values = sorted_df["GeneRatio"].apply(lambda x: round(eval(x), 2))
 
+        # Draw plot.
         scatter = plt.scatter(
             x=values,
             y=sorted_df["Description"],
-            s=size * 10,  # Scale size for better visualization
+            s=size * 10,  # Scale size for better visualization.
             c=color,
-            cmap="coolwarm",  # Color map ranging from blue to red
+            cmap="coolwarm",  # Color map ranging from blue to red.
             alpha=0.7,
             edgecolors="w",
             linewidth=0.5
         )
 
+        # Labels.
         plt.xlabel("Gene Ratio")
         plt.ylabel("GO Terms")
         plt.title("Gene Ratio for GO Terms")
         plt.colorbar(scatter, label="Adjusted p-value")
         plt.tight_layout()
 
+        # Save.
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             print(f"Plot saved at: {save_path}")
 
+        # Display.
         if show_flag:
             plt.show()
         else:
@@ -55,9 +96,12 @@ def plot_gene_ratio(df, save_path=None, show_flag = True):
     except Exception as e:
         print(f"Error plotting Gene Ratio: {e}")
 
-def plot_gene_ratio_interactive(df, save_path='gene_ratio.html'):
+def plot_gene_ratio_interactive(
+        df: pd.DataFrame, 
+        save_path:str = 'geneRatioPlot.html') -> None:
     """
-    Plot the GeneRatio for GO terms interactively and save it as an HTML file.
+    plot_gene_ratio_interactive (function): Same as 'plot_gene_ratio' function.
+    Create a HTML that allocates the equivalent plot but interactive.
 
     Parameters:
     df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
@@ -65,11 +109,11 @@ def plot_gene_ratio_interactive(df, save_path='gene_ratio.html'):
     show_flag (bool): Whether to display the plot in the browser.
     """
     try:
-        # Ensure the GeneRatio is converted to numeric values and sort the DataFrame
+        # Take dataframe necesary data.
         sorted_df = df.sort_values("GeneRatio", ascending=False)
         sorted_df['GeneRatio'] = sorted_df['GeneRatio'].apply(lambda x: round(eval(x), 2))
         
-        # Create an interactive bubble chart with the sorted DataFrame
+        # Draw plot.
         fig = px.scatter(
             sorted_df,
             x='GeneRatio',
@@ -82,29 +126,33 @@ def plot_gene_ratio_interactive(df, save_path='gene_ratio.html'):
             hover_data={'Description': True, 'Count': True, 'p.adjust': True}
         )
         
-        # Save to HTML
+        # Save to HTML.
         fig.write_html(save_path)
         print(f"Interactive Gene Ratio plot saved as: {save_path}")
 
     except Exception as e:
         print(f"Error creating interactive Gene Ratio plot: {str(e)}")
 
-def plot_qscore(df, save_path=None, show_flag = True):
+def plot_qscore(
+        df: pd.DataFrame, 
+        save_path:str = None, 
+        show_flag:bool = True) -> None:
     """
-    Plot the qScore (negative log of qvalue) for GO terms and optionally save the plot.
+    plot_qscore (function): Plot the qScore (negative log of qvalue) 
+    for GO terms and optionally save the plot.
 
     Parameters:
-    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
-    save_path (str, optional): Path to save the plot. If None, the plot is shown.
-
-    Returns:
-    None: Displays or saves the plot.
+    - df: DataFrame with enriched GO terms and associated data.
+    - save_path: Path to save the plot.
+    - show_flag: Flag for display plot.
     """
     try:
-        df = df.copy()  # Avoid modifying original DataFrame
+        # Take dataframe necesary data.
+        df = df.copy()
         df['p.adjust'] = -np.log10(df['p.adjust'])
         sorted_df = df.sort_values("p.adjust", ascending=False)
 
+        # Draw plot.
         plt.figure(figsize=(10, 6))
         sns.barplot(
             y=sorted_df["Description"],
@@ -117,10 +165,12 @@ def plot_qscore(df, save_path=None, show_flag = True):
         plt.title("qScore for GO Terms")
         plt.tight_layout()
 
+        # Draw.
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             print(f"Plot saved at: {save_path}")
 
+        # Display.
         if show_flag:
             plt.show()
         else:
@@ -129,19 +179,21 @@ def plot_qscore(df, save_path=None, show_flag = True):
     except Exception as e:
         print(f"Error plotting qScore: {e}")
 
-def plot_qscore_interactive(df, save_path='qscore.html'):
+def plot_qscore_interactive(
+        df: pd.DataFrame, 
+        save_path:str = 'Qplot.html'):
     """
-    Plot the qScore (-log10(p.adjust)) for GO terms interactively and save it as an HTML file.
+    plot_qscore_interactive (function): Same as 'plot_qscore' function.
+    Create a HTML that allocates the equivalent plot but interactive.
 
     Parameters:
     df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
     save_path (str): Path to save the interactive plot as an HTML file.
-    show_flag (bool): Whether to display the plot in the browser.
     """
     try:
-        df['qScore'] = -np.log10(df['p.adjust'])  # Calculate qScore
+        df['qScore'] = -np.log10(df['p.adjust'])  # Calculate qScore.
 
-        # Create an interactive bar chart
+        # Create an interactive bar chart.
         fig = px.bar(
             df.sort_values('qScore', ascending=False),
             y='Description',
@@ -152,14 +204,14 @@ def plot_qscore_interactive(df, save_path='qscore.html'):
             color_continuous_scale='viridis'
         )
         
-        # Save to HTML
+        # Save to HTML.
         fig.write_html(save_path)
         print(f"Interactive qScore plot saved as: {save_path}")
 
     except Exception as e:
         print(f"Error creating interactive qScore plot: {str(e)}")
 
-def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect="BP", 
+def plot_go_interaction_network_rpy2_1(gene_list, organism="org.Hs.eg.db", aspect="BP", 
                                      similarity_threshold=0.7, save_path=None, convert_ids=True, 
                                      width=1000, height=800, res=150):
     """
@@ -235,6 +287,44 @@ def plot_go_interaction_network_rpy2(gene_list, organism="org.Hs.eg.db", aspect=
 
     except Exception as e:
         print(f"Error generating GO interaction network: {str(e)}")
+
+def plot_go_interaction_network_rpy2(gene_list, save_path, similarity_threshold=0.7, organism="org.Hs.eg.db", 
+                        aspect="BP", width=1000, height=800, res=150, convert_ids=True):
+    """
+    Wrapper function to call the R script for generating a GO interaction network.
+    
+    Parameters:
+    - gene_list (list): List of gene symbols or Entrez IDs.
+    - save_path (str): Path to save the plot.
+    - similarity_threshold (float): Minimum Wang similarity to create an edge.
+    - organism (str): Organism database to use in R.
+    - aspect (str): GO aspect ('BP', 'MF', 'CC').
+    - width (int): Width of the image.
+    - height (int): Height of the image.
+    - res (int): Resolution of the image.
+
+    Returns:
+    - None
+    """
+    try:
+        # Validate the input gene list
+        if not isinstance(gene_list, list) or len(gene_list) == 0:
+            raise ValueError("Input must be a non-empty list of genes.")
+        
+        # Convert gene symbols to Entrez IDs if needed
+        if convert_ids:
+            entrez_ids = convert_symbols_to_entrez(gene_list, organism)
+            if len(entrez_ids) == 0:
+                raise ValueError("No valid Entrez IDs could be derived from the input gene list.")
+            print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
+        else:
+            entrez_ids = gene_list
+        
+        result = run_r_script("GO_intertactive_network", entrez_ids, save_path, similarity_threshold, organism, aspect, width, height, res)
+        print(f"GO Network successfully created and saved at {save_path}")
+        return result
+    except Exception as e:
+        print(f"Error generating GO network: {str(e)}")
 
 def create_go_tree_rpy2(df, aspect='BP', max_nodes=50, save_path=None):
     """

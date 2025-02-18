@@ -1,14 +1,14 @@
-# Libraries
+######### Libraries #########
 import concurrent.futures                           # Process Administration.
 import numpy as np                                  # Efficient Math Operations.
 import os                                           # OS callings.
 from itertools import combinations                  # Eficient iterations.
 import matplotlib                                   # Graph construction.
 
-# Configurations.
-matplotlib.use('Agg')                               # Not GUI use, this is for conflicts between process.
+######### Configurations #########
+#matplotlib.use('Agg')                               # Not GUI use, this is for conflicts between process.
 
-# Own Libraries.
+######### Own Libraries #########
 import JaccardValues as JV                          # Calculate Jaccard.
 import SolutionComposition as SC                    # Calculate composition of functions.
 import GoEnrischment as GOe                         # GO terms enrichment.
