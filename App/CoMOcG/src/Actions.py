@@ -3,6 +3,9 @@ import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
 import matplotlib.pyplot as plt                     # Graph construction.
 import plotly.graph_objects as go                   # Interactive plots.
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 
 ######### Functions #########
 
@@ -89,69 +92,15 @@ def save_matrix_uncompresed(
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-def plot_heatmap_matrix(
-        matrix: np.ndarray, save_filepath: str = None,
-        x_label: str = '',
-        y_label: str = '',
-        title: str = 'Heatmap',
-        color: str = 'viridis', 
-        show_flag: bool = True) -> None:
-    """
-    plot_heatmap_matrix (function): Plots a heatmap from a NumPy array 
-    and optionally saves it to a file.
-
-    Parameters:
-        matrix (np.ndarray): The Matrix with data to plot.
-        save_filepath (str): Path to save the heatmap image (optional).
-        x_label (str): Label for the x-axis.
-        y_label (str): Label for the y-axis.
-        title (str): Title of the heatmap. Default is 'Heatmap'.
-        color (str): Colormap for the heatmap. Default is 'viridis'.
-        show_flag (bool): Display instanly the heatmap. Default is True.
-    """
-    try:
-        # Validate input matrix.
-        if not isinstance(matrix, np.ndarray) or len(matrix.shape) != 2:
-            raise ValueError("The input 'matrix' must be a 2D numpy array.")
-
-        # Validate colormap option.
-        if color not in plt.colormaps():
-            raise ValueError(f"'{color}' is not a valid colormap. Use one of these options: {plt.colormaps()}")
-
-        # Figure configuratrion.
-        plt.figure(figsize=(20, 10))
-        plt.imshow(matrix, cmap=color, interpolation='nearest')
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
-        plt.colorbar()
-        plt.title(title)
-
-        # Save image if have a valid path.
-        if save_filepath:
-            plt.savefig(save_filepath, format=save_filepath.split('.')[-1])
-            print(f"Heatmap guardado en: {save_filepath}")
-
-        # Display path if it is alowed.
-        if show_flag:
-            plt.show()
-
-        # Close draw interface.
-        plt.close()
-
-    except ValueError as ve:
-        print(f"Validation Error: {ve}")
-    except FileNotFoundError:
-        print(f"Error: Can not save '{save_filepath}'. Check file path.")
-    except Exception as e:
-        print(f"Unexpected Error: {e}")
-
 def plot_html_heatmap(
         matrix: np.ndarray, 
         save_filepath: str = 'heatmap.html', 
         x_label: str = '', 
         y_label: str = '', 
         title: str = 'Heatmap', 
-        color: str = 'Viridis'):
+        color: str = 'Viridis',
+        z_label: str = 'Valor',
+        tooltip_format: str = "X: %{x}<br>Y: %{y}<br>Valor: %{z:.2f}"):  
     """
     plot_html_heatmap (function): Creates an interactive heatmap and saves it 
     as an HTML file that can be opened in a browser.
@@ -163,6 +112,8 @@ def plot_html_heatmap(
         y_label (str): Label for the y-axis.
         title (str): Title of the heatmap. Default is 'Heatmap'.
         color (str): Colormap for the heatmap. Default is 'viridis'.
+        z_label (str): Label for the color bar (z-axis). Default is 'Valor'.
+        tooltip_format (str): Custom tooltip format using Plotly syntax.
     """
     try:
         # Validate the input matrix.
@@ -173,7 +124,8 @@ def plot_html_heatmap(
         fig = go.Figure(data=go.Heatmap(
             z=matrix,
             colorscale=color,
-            colorbar=dict(title="Value"),
+            colorbar=dict(title=z_label),
+            hovertemplate=tooltip_format  # Personalización del tooltip
         ))
 
         fig.update_layout(
@@ -181,6 +133,8 @@ def plot_html_heatmap(
             xaxis_title=x_label,
             yaxis_title=y_label,
             autosize=True,
+            xaxis=dict(scaleanchor="y", constrain="domain"),
+            yaxis=dict(constrain="domain")
         )
 
         # Save the figure as an HTML file
@@ -215,3 +169,71 @@ def save_dataframe(dataframe, filepath, format="csv"):
             raise ValueError("Unsupported format. Use 'csv', 'excel', or 'parquet'.")
     except Exception as e:
         print(f"An error occurred while saving the file: {e}")
+
+def Pairs_Ordered(matriz, desc=False):
+    """
+    Ordena los pares de índices del triángulo superior (sin diagonal) 
+    de una matriz según el valor que almacena y devuelve un DataFrame.
+    
+    Parámetros:
+    - matriz: np.ndarray, la matriz a procesar.
+    - desc: bool, si True ordena de mayor a menor.
+    
+    Retorna:
+    - pd.DataFrame con columnas ['solution_ID_1', 'solution_ID_2', 'value'] ordenadas.
+    """
+    # Extraer pares y valores del triángulo superior sin diagonal
+    indices_valores = [((i, j), matriz[i, j]) 
+                       for i in range(matriz.shape[0]) 
+                       for j in range(i+1, matriz.shape[1])]
+    
+    # Ordenar por valor
+    indices_valores.sort(key=lambda x: x[1], reverse=desc)
+    
+    # Crear listas para el DataFrame
+    id1 = [i for ((i, j), val) in indices_valores]
+    id2 = [j for ((i, j), val) in indices_valores]
+    values = [val for ((i, j), val) in indices_valores]
+    
+    # Crear DataFrame
+    df = pd.DataFrame({
+        'solution_ID_1': id1,
+        'solution_ID_2': id2,
+        'value': values
+    })
+    
+    return df
+
+def Pairs_Ordered_crossed(matriz, desc=False):
+    """
+    Ordena los pares de índices del triángulo superior (sin diagonal) 
+    de una matriz según el valor que almacena y devuelve un DataFrame.
+    
+    Parámetros:
+    - matriz: np.ndarray, la matriz a procesar.
+    - desc: bool, si True ordena de mayor a menor.
+    
+    Retorna:
+    - pd.DataFrame con columnas ['solution_ID_1', 'solution_ID_2', 'value'] ordenadas.
+    """
+    # Extraer pares y valores del triángulo superior sin diagonal
+    indices_valores = [((i, j), matriz[i, j]) 
+                       for i in range(matriz.shape[0]) 
+                       for j in range(i, matriz.shape[1])]
+    
+    # Ordenar por valor
+    indices_valores.sort(key=lambda x: x[1], reverse=desc)
+    
+    # Crear listas para el DataFrame
+    id1 = [i for ((i, j), val) in indices_valores]
+    id2 = [j for ((i, j), val) in indices_valores]
+    values = [val for ((i, j), val) in indices_valores]
+    
+    # Crear DataFrame
+    df = pd.DataFrame({
+        'Cluster_ID_1': id1,
+        'Cluster_ID_2': id2,
+        'value': values
+    })
+    
+    return df
