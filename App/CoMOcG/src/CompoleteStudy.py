@@ -4,6 +4,7 @@ import numpy as np                                  # Efficient Math Operations.
 import os                                           # OS callings.
 from itertools import combinations                  # Eficient iterations.
 import matplotlib                                   # Graph construction.
+import pandas as pd
 
 ######### Configurations #########
 #matplotlib.use('Agg')                               # Not GUI use, this is for conflicts between process.
@@ -115,8 +116,9 @@ def analyze_solution_pair(
         return (pair, None, None, None)
 
 def parallel_analysis(
-        SC_matrix: list[list[set]], 
-        directory: str, 
+        SC_matrix: list[list[set]],
+        pairs_df: pd.DataFrame, 
+        directory: str,
         min_Jaccard_Value: int =0.2, 
         organism: str ="org.Hs.eg.db", 
         ont: str="BP", 

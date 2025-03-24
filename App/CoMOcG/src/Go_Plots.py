@@ -212,7 +212,8 @@ def plot_qscore_interactive(
         print(f"Error creating interactive qScore plot: {str(e)}")
 
 def plot_go_interaction_network_rpy2_1(gene_list, organism="org.Hs.eg.db", aspect="BP", 
-                                     similarity_threshold=0.7, save_path=None, convert_ids=True, 
+                                     similarity_threshold=0.7, save_path=None, convert_ids=True,
+                                     keytype = "SYMBOL", 
                                      width=1000, height=800, res=150):
     """
     Generate an interaction network for GO terms using R and rpy2, with adjustable image size and resolution.
@@ -238,7 +239,7 @@ def plot_go_interaction_network_rpy2_1(gene_list, organism="org.Hs.eg.db", aspec
         
         # Convert gene symbols to Entrez IDs if needed
         if convert_ids:
-            entrez_ids = convert_symbols_to_entrez(gene_list, organism)
+            entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
             if len(entrez_ids) == 0:
                 raise ValueError("No valid Entrez IDs could be derived from the input gene list.")
             print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
@@ -289,7 +290,7 @@ def plot_go_interaction_network_rpy2_1(gene_list, organism="org.Hs.eg.db", aspec
         print(f"Error generating GO interaction network: {str(e)}")
 
 def plot_go_interaction_network_rpy2(gene_list, save_path, similarity_threshold=0.7, organism="org.Hs.eg.db", 
-                        aspect="BP", width=1000, height=800, res=150, convert_ids=True):
+                        aspect="BP", width=1000, height=800, res=150, convert_ids=True, keytype="SYMBOL"):
     """
     Wrapper function to call the R script for generating a GO interaction network.
     
@@ -313,7 +314,7 @@ def plot_go_interaction_network_rpy2(gene_list, save_path, similarity_threshold=
         
         # Convert gene symbols to Entrez IDs if needed
         if convert_ids:
-            entrez_ids = convert_symbols_to_entrez(gene_list, organism)
+            entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
             if len(entrez_ids) == 0:
                 raise ValueError("No valid Entrez IDs could be derived from the input gene list.")
             print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
