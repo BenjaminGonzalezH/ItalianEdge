@@ -11,15 +11,6 @@ rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R
 
 pandas2ri.activate()
 
-# Testing libraries.
-from gprofiler import GProfiler
-import mygene
-import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pygosemsim import graph, SemanticSim, download_ontology
-from bioservices import UniProt
-from itertools import combinations
-
 # Importar paquetes R de forma segura
 def load_r_package(package_name):
     """Carga un paquete R si no está ya cargado."""
@@ -90,144 +81,6 @@ def convert_symbols_to_entrez(gene_symbols, organism="org.Hs.eg.db", keytype="SY
     except Exception as e:
         print(f"Error in convert_symbols_to_entrez: {e}")
         return []
-
-
-def chunks(lst, n):
-    """Divide lista en bloques de tamaño n"""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
-
-def query_mygene_block(block, scopes, taxID):
-    mg = mygene.MyGeneInfo()
-    try:
-        results = mg.querymany(block, scopes=scopes, fields='entrezgene', species=taxID, as_dataframe=True)
-        if results.empty:
-            return pd.DataFrame()
-
-        # Manejo 'notfound'
-        if 'notfound' not in results.columns:
-            results['notfound'] = False
-        else:
-            results['notfound'] = results['notfound'].fillna(False)
-
-        # Filtrar válidos
-        if 'entrezgene' in results.columns:
-            valid = results[(~results['notfound']) & (results['entrezgene'].notnull())]
-        else:
-            valid = pd.DataFrame()
-
-        return valid
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error en bloque MyGene.info: {e}")
-        return pd.DataFrame()
-
-def convert_symbols_to_entrez_1(symbol_list, organism_gp='hsapiens', taxID=9606, 
-                                scopes_mg=['symbol', 'alias', 'tair', 'accession'], na_value='NA', threads=4):
-    """
-    Convierte SYMBOLs a Entrez IDs usando gProfiler y MyGene.info, optimizada con hebras para bloques.
-    """
-    if not isinstance(symbol_list, list) or len(symbol_list) == 0:
-        raise ValueError("Lista vacía.")
-
-    conversion_dict = {}
-    unmapped = symbol_list.copy()
-
-    # --- Primera capa: gProfiler ---
-    try:
-        gprof = GProfiler(return_dataframe=True)
-        conversion = gprof.convert(organism=organism_gp, query=symbol_list, target_namespace='ENTREZGENE_ACC')
-
-        valid_conversions = conversion[conversion['converted'].notnull()]
-        valid_conversions = valid_conversions[valid_conversions['converted'].apply(lambda x: str(x).isnumeric())]
-        valid_conversions['converted'] = valid_conversions['converted'].astype(int)
-
-        # Agrupar y tomar el menor EntrezID
-        grouped = valid_conversions.groupby('incoming').agg({'converted': 'min'}).reset_index()
-        conversion_dict = dict(zip(grouped['incoming'], grouped['converted'].astype(str)))
-
-        # Identificar genes no mapeados
-        mapped_genes = set(conversion_dict.keys())
-        unmapped = [gene for gene in symbol_list if gene not in mapped_genes]
-        print(f"gProfiler → {len(mapped_genes)} mapeados, {len(unmapped)} no mapeados.")
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error de conexión con gProfiler: {e}")
-        print("Continuando sin resultados de gProfiler...")
-
-    # --- Segunda capa: MyGene.info paralelizado ---
-    if unmapped:
-        print(f"Consultando MyGene.info para {len(unmapped)} genes...")
-        mg_valid_frames = []
-        blocks = list(chunks(unmapped, 1000))
-
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = [executor.submit(query_mygene_block, block, scopes_mg, taxID) for block in blocks]
-            for future in as_completed(futures):
-                result = future.result()
-                if not result.empty:
-                    mg_valid_frames.append(result)
-
-        # Concatenar todos los resultados válidos
-        if mg_valid_frames:
-            mg_valid = pd.concat(mg_valid_frames)
-            mg_mapping = {}
-
-            for index, row in mg_valid.iterrows():
-                entrez = row['entrezgene']
-                if isinstance(entrez, list):
-                    entrez = [int(e) for e in entrez if isinstance(e, (int, str)) and str(e).isnumeric()]
-                    if entrez:
-                        mg_mapping[row.name] = str(min(entrez))  # Menor
-                elif pd.notnull(entrez):
-                    if isinstance(entrez, (int, str)) and str(entrez).isnumeric():
-                        mg_mapping[row.name] = str(entrez)
-
-            print(f"MyGene.info → {len(mg_mapping)} genes mapeados.")
-            conversion_dict.update(mg_mapping)
-
-            # Avisar no encontrados
-            still_unmapped = set(unmapped) - set(mg_mapping.keys())
-            if still_unmapped:
-                print(f"Advertencia: {len(still_unmapped)} genes no encontrados en MyGene.info.")
-        else:
-            print("No se obtuvieron resultados válidos desde MyGene.info.")
-
-    # --- Reconstruir lista manteniendo orden ---
-    entrez_ids = [conversion_dict.get(gene, na_value) for gene in symbol_list]
-
-    return entrez_ids
-
-def go_enrichment_entrez(entrez_ids, organism='hsapiens', Ontology=['GO:BP'], evidences=False):
-    """
-    Realiza análisis de enriquecimiento GO para una lista de Entrez IDs.
-
-    Parámetros:
-    - entrez_ids (list): Lista de genes (Enterez IDs).
-    - organism (str): Organismo (default: 'hsapiens').
-
-    Retorna:
-    - DataFrame con resultados de enriquecimiento GO ordenados por p-valor.
-    """
-    # Inicializar g:Profiler
-    gp = GProfiler(return_dataframe=True)
-
-    # Ejecutar enriquecimiento solo para términos GO
-    results = gp.profile(
-        organism=organism,
-        query=entrez_ids,
-        sources=Ontology,
-        no_evidences=not evidences
-    )
-
-    if results.empty:
-        print("No se encontraron términos enriquecidos.")
-        return pd.DataFrame()
-
-    # Ordenar por p-valor
-    results_sorted = results.sort_values('p_value').reset_index(drop=True)
-    return results_sorted
-
 
 def perform_go_enrichment(gene_list, 
                           organism="org.Hs.eg.db", 
@@ -315,6 +168,87 @@ def calculate_wang_distance_matrix(gene_list, organism="org.Hs.eg.db", ont="BP",
         sim_matrix_df = pandas2ri.rpy2py(sim_matrix_df)
         
         return sim_matrix_df
+
+    except Exception as e:
+        print(f"Error in calculate_wang_distance_matrix: {e}")
+        return pd.DataFrame()
+    
+def calculate_wang_distance_matrix_1(gene_list, organism="org.Hs.eg.db", ont="BP", convert_ids=True,
+                                 keytype="SYMBOL", num_cores=None):
+    """
+    Calculate a matrix of Wang semantic distances for a list of genes.
+    Parameters:
+        gene_list: List of genes to analyze
+        organism: Organism database (default: "org.Hs.eg.db")
+        ont: Ontology type ("BP", "MF", or "CC")
+        convert_ids: Whether to convert gene symbols to Entrez IDs
+        keytype: Type of gene ID if converting
+        num_cores: Number of CPU cores to use (None for automatic detection)
+    """
+    try:
+        # Validación de parámetros
+        if not gene_list or len(gene_list) < 2:
+            raise ValueError("The gene list must contain at least two valid entries.")
+
+        # Pre-cargar paquetes R
+        if not hasattr(robjects.r, 'GOSemSim'):
+            robjects.r('suppressPackageStartupMessages(library(GOSemSim))')
+        
+        # Convertir IDs si es necesario
+        if convert_ids:
+            entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
+            if not entrez_ids:
+                raise ValueError("No valid Entrez IDs found after conversion.")
+            print(f"Converted {len(gene_list)} genes to {len(entrez_ids)} Entrez IDs.")
+        else:
+            entrez_ids = gene_list
+
+        with robjects.local_context() as rlc:
+            # Configurar paralelización
+            if num_cores is not None:
+                robjects.r(f'''
+                if (requireNamespace("parallel", quietly = TRUE)) {{
+                    library(parallel)
+                    options(mc.cores = {num_cores})
+                    message("Using {num_cores} CPU cores")
+                }} else {{
+                    warning("parallel package not available, using single core")
+                }}
+                ''')
+            else:
+                # Detección automática (usa todos los cores menos 1)
+                robjects.r('''
+                if (requireNamespace("parallel", quietly = TRUE)) {
+                    library(parallel)
+                    options(mc.cores = max(1, detectCores() - 1))
+                    message(paste("Using", getOption("mc.cores"), "CPU cores (auto-detected)"))
+                }
+                ''')
+
+            # Preparar datos
+            r_gene_list = robjects.StrVector(entrez_ids)
+            robjects.r.assign("gene_list", r_gene_list)
+            
+            # Cachear godata si no existe
+            if not hasattr(robjects.r, 'go_db'):
+                robjects.r(f'go_db <- godata(annoDb = "{organism}", ont = "{ont}", computeIC = TRUE)')
+            
+            # Calcular matriz de similitud
+            r_code = '''
+            sim_matrix <- mgeneSim(genes = gene_list, 
+                                  semData = go_db, 
+                                  measure = "Wang")
+            sim_matrix[is.na(sim_matrix)] <- 0
+            as.data.frame(sim_matrix)
+            '''
+            
+            sim_matrix_df = robjects.r(r_code)
+            
+            # Convertir a pandas eficientemente
+            with (robjects.default_converter + pandas2ri.converter).context():
+                sim_matrix_df = robjects.conversion.rpy2py(sim_matrix_df)
+            
+            return sim_matrix_df
 
     except Exception as e:
         print(f"Error in calculate_wang_distance_matrix: {e}")

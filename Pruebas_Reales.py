@@ -90,13 +90,11 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (Cambio de estructura) : {end_time - start_time:.6f} segundos")
 
     ###### Conversión a entrez ID.
-    list_EIDs = GOe.convert_symbols_to_entrez_1(list(SC_matrix[0][0]), threads=6)
+    list_EIDs = GOe.convert_symbols_to_entrez(list(SC_matrix[0][0]))
 
-    ###### Enriquecimiento.
-    Go_df = GOe.go_enrichment_entrez(list_EIDs)
-    Go_df_1 = GOe.perform_go_enrichment(list_EIDs,convert_ids=False)
-    Ac.save_dataframe(Go_df,directory + "/Results/File_1/Goedf.csv")
-    Ac.save_dataframe(Go_df_1,directory + "/Results/File_1/Goedf_1.csv") 
-
-    ###### Distancia de Wang.
-    Wang_m = GOe.entrez_go_wang_similarity(list(SC_matrix[0][0]))
+    ###### Distancia de Wang en grupos de genes.
+    start_time = time.time()
+    wang_2 = GOe.calculate_wang_distance_matrix_1(genes[:300], convert_ids=True)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (W 2) : {end_time - start_time:.6f} segundos")
+    
