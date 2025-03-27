@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     ###### Lectura de archivo.
     start_time = time.time()
-    genes, num_genes, Matrix  = RD.ReadInputCSV_threads(file_1, n_workers = 6, solutions_id_colum=1)
+    genes, num_genes, Matrix  = RD.ReadInputCSV_threads(file_3, n_workers = 6, solutions_id_colum=0)
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -42,18 +42,18 @@ if __name__ == "__main__":
     start_time = time.time()
     connec_sum = CM.connectivityMatrix_threads(Matrix,6)
     connec_sum = CM.sum_connectivity_matrices(connec_sum)
-    Ac.save_matrix(connec_sum.toarray(), directory + "/Results/File_1/Connectivity_Matrix.csv")
+    Ac.save_matrix(connec_sum.toarray(), directory + "/Results/File_3/Connectivity_Matrix.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (conectividad) : {end_time - start_time:.6f} segundos")
 
     ###### Matriz de proporción y distancia.
     start_time = time.time()
     Prop_m, Dist_m = PM.ProportionsMatrix(connec_sum)
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv")
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv")
+    Ac.save_matrix(Prop_m,  directory + "/Results/File_3/Prop_matrix.csv")
+    Ac.save_matrix(Dist_m,  directory + "/Results/File_3/Dist_matrix.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (Proporcion y distancia) : {end_time - start_time:.6f} segundos")
-    Ac.plot_html_heatmap(Prop_m,  directory + "/Results/File_1/Prop_matrix.html",
+    Ac.plot_html_heatmap(Prop_m,  directory + "/Results/File_3/Prop_matrix.html",
                         x_label="Gen",
                         y_label="Gen",
                         title="Similitud entre genes basada en asignaciones de grupos",
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     ###### Cluster jerárquico.
     start_time = time.time()
     cons_cluster_1 = He.He_clustering_interactive(Dist_m, genes, 4, 
-                                    save_path= directory + "/Results/File_1",
-                                    dendrogram_file="Dendogram_file_1.html",
+                                    save_path= directory + "/Results/File_3",
+                                    dendrogram_file="Dendogram_file_3.html",
                                     method="single")
     Matrix = np.vstack([Matrix, cons_cluster_1])
     end_time = time.time()
@@ -73,28 +73,42 @@ if __name__ == "__main__":
     ###### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
     Jaccard = JV.process_JaccardValues(Matrix, 6)
-    Ac.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_1/JaccardS.html",
+    Ac.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_3/JaccardS.html",
                         x_label='Solution',
                         y_label='Solution',
                         title='Similitud de Jaccard entre soluciones',
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
-    Ac.save_matrix(Jaccard,  directory + "/Results/File_1/Jaccard_Matrix.csv")
+    Ac.save_matrix(Jaccard,  directory + "/Results/File_3/Jaccard_Matrix.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
 
+    entrez_gen = GOe.convert_symbols_to_entrez(genes, organism="org.At.tair.db", keytype="TAIR")
+
     ###### Transformación de estrutura a conjunto de clusters por solución.
     start_time = time.time()
-    SC_matrix = SCM.SolutionClusterMatrix_GeneID(Matrix, genes, 6)
+    SC_matrix = SCM.SolutionClusterMatrix_GeneID(Matrix, entrez_gen, 6)
     end_time = time.time()
     print(f"Tiempo de ejecución (Cambio de estructura) : {end_time - start_time:.6f} segundos")
 
-    ###### Conversión a entrez ID.
-    list_EIDs = GOe.convert_symbols_to_entrez(list(SC_matrix[0][0]))
-
-    ###### Distancia de Wang en grupos de genes.
+    ###### Distancia de Wang en la totalidad de genes.
     start_time = time.time()
-    wang_2 = GOe.calculate_wang_distance_matrix_1(genes[:300], convert_ids=True)
+    Wang_df = GOe.calculate_wang_distance_matrix_1(genes, organism="org.At.tair.db", 
+                                                   convert_ids=True, keytype="TAIR", num_cores=6)
     end_time = time.time()
     print(f"Tiempo de ejecución (W 2) : {end_time - start_time:.6f} segundos")
-    
+    Ac.save_dataframe(Wang_df, directory + "/Results/File_3/Wang.csv")
+
+    ###### Búsqueda de clusters equivalentes entre soluciones.
+    start_time = time.time()
+    df_equivalentes = JV.find_equivalent_clusters(SC_matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_3/Equivalentes.csv")
+
+    ###### Similitud de wang entre soluciones.
+    start_time = time.time()
+    results = GOe.calculate_wang_distance_for_equivalent_clusters(df_equivalentes,Wang_df,SC_matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_3/similitudSoluciones.csv")

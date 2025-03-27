@@ -253,3 +253,52 @@ def calculate_wang_distance_matrix_1(gene_list, organism="org.Hs.eg.db", ont="BP
     except Exception as e:
         print(f"Error in calculate_wang_distance_matrix: {e}")
         return pd.DataFrame()
+    
+
+def calculate_wang_distance_for_equivalent_clusters(equivalent_pairs_df: pd.DataFrame, wang_distance_df: pd.DataFrame, solutions: list[list[set]]) -> pd.DataFrame:
+    """
+    Calcula la distancia de Wang promedio entre los pares de genes en los clusters equivalentes.
+
+    Parameters:
+    - equivalent_pairs_df (pd.DataFrame): DataFrame con los pares de soluciones, los clusters equivalentes y las similitudes de Jaccard.
+    - wang_distance_df (pd.DataFrame): DataFrame con las distancias de Wang entre genes (un DataFrame cuadrado indexado por los identificadores de genes).
+    - solutions (list[list[set]]): Lista de soluciones, cada una representada por una lista de conjuntos de clústeres.
+
+    Returns:
+    - pd.DataFrame: Un DataFrame con los pares de clusters equivalentes y la distancia promedio de Wang entre los genes de esos pares.
+    """
+    all_wang_distances = []
+
+    for _, row in equivalent_pairs_df.iterrows():
+        # Obtener el par de soluciones y convertir los índices de solución correctamente
+        solution_pair_str = row['Solution Pair']
+        solution_pair = [int(s.split()[1]) for s in solution_pair_str.split(" vs ")]  # Extraer los índices (0, 1)
+
+        equivalent_clusters = row['Equivalent Clusters']
+        
+        wang_distances = []
+        
+        # Para cada par de clusters equivalentes, obtener los genes de los clusters
+        for cluster1, cluster2 in equivalent_clusters:
+            # Asegurarse de que los índices de los genes sean enteros
+            genes_cluster1 = list(solutions[solution_pair[0]][cluster1])  # Genes en el primer cluster de la solución 1
+            genes_cluster2 = list(solutions[solution_pair[1]][cluster2])  # Genes en el segundo cluster de la solución 2
+
+            # Calcular las distancias de Wang entre todos los pares de genes entre los dos clusters
+            for gene1 in genes_cluster1:
+                for gene2 in genes_cluster2:
+                    print(type(gene1))
+                    print(type(gene2))
+                    wang_distances.append(wang_distance_df.loc[gene1, gene2])
+
+        # Calcular el promedio de las distancias de Wang para estos clusters equivalentes
+        if wang_distances:
+            average_wang_distance = sum(wang_distances) / len(wang_distances)
+        else:
+            average_wang_distance = None
+
+        all_wang_distances.append((solution_pair_str, average_wang_distance))
+
+    wang_distance_df_result = pd.DataFrame(all_wang_distances, columns=["Solution Pair", "Average Wang Distance"])
+
+    return wang_distance_df_result
