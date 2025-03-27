@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 from sklearn.metrics import adjusted_rand_score
 from sklearn.metrics import rand_score
 import itertools
+import pandas as pd
 
 ######### Functions #########
 
@@ -84,38 +85,32 @@ def process_JaccardValues(
     
     return Jaccard_Matrix
 
-def Jaccar_similarityClusters(
-        Solution1: list[set], 
-        Solution2: list[set]) -> np.ndarray:
+def Jaccar_similarityClusters(Solution1: list[set], Solution2: list[set]) -> np.ndarray:
     """
-    Jaccar_similarityClusters(function): Compute the Jaccard similarity matrix for
-    two specifict solutions, this works to recognize similar clusters between two
-    solutiions.
+    Compute the Jaccard similarity matrix for two clustering solutions.
 
     Parameters:
     - Solution1 (list[set]): Clusters of the first solution as sets.
     - Solution2 (list[set]): Clusters of the second solution as sets.
 
     Returns:
-    - MatrixJaccard (np.ndarray): Jaccard similarity matrix for the 
-    solution's clusters.
+    - MatrixJaccard (np.ndarray): Jaccard similarity matrix for the solutions' clusters.
     """
     # Construction of jaccard matrix.
-    n = len(Solution1)
-    MatrixJaccard = np.zeros((n, n))
+    n1 = len(Solution1)  # Number of clusters in Solution1
+    n2 = len(Solution2)  # Number of clusters in Solution2
+    MatrixJaccard = np.zeros((n1, n2))  # Create a matrix with dimensions n1 x n2
 
-    # Compare clusters of two solutions.
-    for i in range(len(Solution1)):
-        for j in range(i, len(Solution2)):
-            union = len(Solution1[i] | Solution2[j])
-            intersection = len(Solution1[i] & Solution2[j])
+    # Compare clusters of Solution1 with Solution2
+    for i in range(n1):
+        for j in range(n2):
+            union = len(Solution1[i] | Solution2[j])  # Union of the two sets
+            intersection = len(Solution1[i] & Solution2[j])  # Intersection of the two sets
             if union == 0:
-                MatrixJaccard[i, j] = 0
-                MatrixJaccard[j, i] = 0
+                MatrixJaccard[i, j] = 0  # If there is no union, similarity is 0
             else:
-                Jaccard = intersection / union
+                Jaccard = intersection / union  # Jaccard similarity
                 MatrixJaccard[i, j] = Jaccard
-                MatrixJaccard[j, i] = Jaccard
 
     return MatrixJaccard
 
@@ -244,3 +239,76 @@ def process_RIValues(Matrix: list[np.ndarray], n_threads: int) -> np.ndarray:
         RI_Matrix[j, i] = ri_value
     
     return RI_Matrix
+
+def compare_solution_pair(idx1, idx2, solutions):
+    """
+    Compares two solutions and returns the equivalence pairs.
+    
+    Parameters:
+    - idx1 (int): Index of the first solution.
+    - idx2 (int): Index of the second solution.
+    - solutions (list): List of solutions (list of sets).
+    
+    Returns:
+    - equivalent_pairs (list): List of tuples (cluster indices, similarity).
+    """
+    # Obtener la matriz de Jaccard entre las dos soluciones
+    MatrixJaccard = Jaccar_similarityClusters(solutions[idx1], solutions[idx2])
+
+    # Crear una lista de tuplas con los valores y sus índices
+    similarity_pairs = [
+        (i, j, MatrixJaccard[i, j])
+        for i in range(len(solutions[idx1]))
+        for j in range(len(solutions[idx2]))
+    ]
+    
+    # Ordenar las similitudes de mayor a menor
+    similarity_pairs.sort(key=lambda x: x[2], reverse=True)
+    
+    # Seleccionar los grupos equivalentes, asegurando que no se repitan
+    equivalent_pairs = []
+    used_clusters_solution1 = set()
+    used_clusters_solution2 = set()
+
+    for i, j, similarity in similarity_pairs:
+        if i not in used_clusters_solution1 and j not in used_clusters_solution2:
+            equivalent_pairs.append((i, j, similarity))
+            used_clusters_solution1.add(i)
+            used_clusters_solution2.add(j)
+
+    return equivalent_pairs
+
+def find_equivalent_clusters(solutions: list[list[set]]) -> pd.DataFrame:
+    """
+    Encuentra los grupos equivalentes entre varias soluciones de agrupamiento usando las matrices de similitudes de Jaccard.
+
+    Parameters:
+    - solutions (list[list[set]]): Lista de soluciones, cada una representada por una lista de conjuntos de clústeres.
+
+    Returns:
+    - pd.DataFrame: Un DataFrame con las combinaciones de grupos equivalentes entre las soluciones.
+    """
+    all_equivalent_pairs = []
+
+    # Usar ThreadPoolExecutor para paralelizar el cálculo
+    with ThreadPoolExecutor() as executor:
+        # Generar todas las combinaciones de soluciones para comparar
+        future_to_comparison = {
+            executor.submit(compare_solution_pair, idx1, idx2, solutions): (idx1, idx2)
+            for idx1 in range(len(solutions))
+            for idx2 in range(idx1 + 1, len(solutions))
+        }
+        
+        # Obtener los resultados y agregarlos
+        for future in future_to_comparison:
+            equivalent_pairs = future.result()
+            idx1, idx2 = future_to_comparison[future]
+            # Almacenar el par de soluciones, los clusters equivalentes y las similitudes Jaccard
+            all_equivalent_pairs.append((f"Solution {idx1} vs Solution {idx2}", 
+                                         [(pair[0], pair[1]) for pair in equivalent_pairs],
+                                         [pair[2] for pair in equivalent_pairs]))
+
+    # Crear el DataFrame de resultados
+    df = pd.DataFrame(all_equivalent_pairs, columns=["Solution Pair", "Equivalent Clusters", "Jaccard Similarities"])
+
+    return df
