@@ -304,7 +304,7 @@ def find_equivalent_clusters(solutions: list[list[set]]) -> pd.DataFrame:
             equivalent_pairs = future.result()
             idx1, idx2 = future_to_comparison[future]
             # Almacenar el par de soluciones, los clusters equivalentes y las similitudes Jaccard
-            all_equivalent_pairs.append((f"Solution {idx1} vs Solution {idx2}", 
+            all_equivalent_pairs.append(((idx1, idx2), 
                                          [(pair[0], pair[1]) for pair in equivalent_pairs],
                                          [pair[2] for pair in equivalent_pairs]))
 
