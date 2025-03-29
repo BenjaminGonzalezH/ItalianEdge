@@ -6,6 +6,9 @@ import pandas as pd
 import numpy as np                                                      # Efficient Math Operations.
 from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
 import logging
+from ast import literal_eval
+import re
+from concurrent.futures import ThreadPoolExecutor
 
 rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R
 
@@ -253,52 +256,110 @@ def calculate_wang_distance_matrix_1(gene_list, organism="org.Hs.eg.db", ont="BP
     except Exception as e:
         print(f"Error in calculate_wang_distance_matrix: {e}")
         return pd.DataFrame()
+
+def safe_literal_eval(s):
+    """Evalúa strings que contienen estructuras de Python de forma segura, incluso con np.float64"""
+    if isinstance(s, str):
+        # Reemplazar np.float64 para que literal_eval pueda procesarlo
+        s_clean = re.sub(r'np\.float64\(([^)]+)\)', r'\1', s)
+        return literal_eval(s_clean)
+    return s
+
+
+def build_similarity_matrix(ids, similarity_matrix, df, groups_structure, num_threads=4):
+    """
+    Versión paralelizada de build_similarity_matrix usando múltiples hebras.
     
-
-def calculate_wang_distance_for_equivalent_clusters(equivalent_pairs_df: pd.DataFrame, wang_distance_df: pd.DataFrame, solutions: list[list[set]]) -> pd.DataFrame:
-    """
-    Calcula la distancia de Wang promedio entre los pares de genes en los clusters equivalentes.
-
-    Parameters:
-    - equivalent_pairs_df (pd.DataFrame): DataFrame con los pares de soluciones, los clusters equivalentes y las similitudes de Jaccard.
-    - wang_distance_df (pd.DataFrame): DataFrame con las distancias de Wang entre genes (un DataFrame cuadrado indexado por los identificadores de genes).
-    - solutions (list[list[set]]): Lista de soluciones, cada una representada por una lista de conjuntos de clústeres.
-
+    Args:
+        ids: Lista de IDs en el orden de similarity_matrix
+        similarity_matrix: Matriz numpy de similitud
+        df: DataFrame con ['Solution Pair', 'Equivalent Clusters']
+        groups_structure: Lista de listas de conjuntos de IDs
+        num_threads: Número de hebras a usar (por defecto 4)
+    
     Returns:
-    - pd.DataFrame: Un DataFrame con los pares de clusters equivalentes y la distancia promedio de Wang entre los genes de esos pares.
+        Matriz de similitud promediada (numpy array)
     """
-    all_wang_distances = []
-
-    for _, row in equivalent_pairs_df.iterrows():
-        # Obtener el par de soluciones y convertir los índices de solución correctamente
-        solution_pair_str = row['Solution Pair']
-        solution_pair = [int(s.split()[1]) for s in solution_pair_str.split(" vs ")]  # Extraer los índices (0, 1)
-
-        equivalent_clusters = row['Equivalent Clusters']
+    # Mapeo de ID a índice
+    id_to_idx = {id_: idx for idx, id_ in enumerate(ids) if id_ != 'NA'}
+    n = len(groups_structure)
+    final_matrix = np.zeros((n, n))
+    count_matrix = np.zeros((n, n))
+    
+    # Convertir a frozensets
+    hashable_groups = [[frozenset(group) for group in cluster] for cluster in groups_structure]
+    
+    def parse_entry(entry):
+        if isinstance(entry, str):
+            return literal_eval(entry.replace('np.float64', ''))
+        return entry
+    
+    # Parsear el DataFrame
+    df = df.copy()
+    df['Solution Pair'] = df['Solution Pair'].apply(parse_entry)
+    df['Equivalent Clusters'] = df['Equivalent Clusters'].apply(parse_entry)
+    
+    # Función para procesar una fila
+    def process_row(row):
+        group_i, group_j = row['Solution Pair']
+        equivalent_pairs = row['Equivalent Clusters']
+        local_matrix = np.zeros((n, n))
+        local_count = np.zeros((n, n))
         
-        wang_distances = []
+        if group_i >= n or group_j >= n:
+            return local_matrix, local_count
+            
+        sets_i = hashable_groups[group_i]
+        sets_j = hashable_groups[group_j]
         
-        # Para cada par de clusters equivalentes, obtener los genes de los clusters
-        for cluster1, cluster2 in equivalent_clusters:
-            # Asegurarse de que los índices de los genes sean enteros
-            genes_cluster1 = list(solutions[solution_pair[0]][cluster1])  # Genes en el primer cluster de la solución 1
-            genes_cluster2 = list(solutions[solution_pair[1]][cluster2])  # Genes en el segundo cluster de la solución 2
-
-            # Calcular las distancias de Wang entre todos los pares de genes entre los dos clusters
-            for gene1 in genes_cluster1:
-                for gene2 in genes_cluster2:
-                    print(type(gene1))
-                    print(type(gene2))
-                    wang_distances.append(wang_distance_df.loc[gene1, gene2])
-
-        # Calcular el promedio de las distancias de Wang para estos clusters equivalentes
-        if wang_distances:
-            average_wang_distance = sum(wang_distances) / len(wang_distances)
-        else:
-            average_wang_distance = None
-
-        all_wang_distances.append((solution_pair_str, average_wang_distance))
-
-    wang_distance_df_result = pd.DataFrame(all_wang_distances, columns=["Solution Pair", "Average Wang Distance"])
-
-    return wang_distance_df_result
+        for elem_i, elem_j in equivalent_pairs:
+            if elem_i >= len(sets_i) or elem_j >= len(sets_j):
+                continue
+                
+            set_i = sets_i[elem_i]
+            set_j = sets_j[elem_j]
+            intersection = set_i & set_j - {'NA'}
+            
+            if not intersection:
+                continue
+                
+            sum_sim = 0
+            count = 0
+            intersection_list = list(intersection)
+            
+            for i in range(len(intersection_list)):
+                for j in range(i, len(intersection_list)):
+                    idx_a = id_to_idx.get(intersection_list[i], None)
+                    idx_b = id_to_idx.get(intersection_list[j], None)
+                    if idx_a is not None and idx_b is not None:
+                        sum_sim += similarity_matrix[idx_a][idx_b]
+                        count += 1
+            
+            if count > 0:
+                avg_sim = sum_sim / count
+                local_matrix[group_i][group_j] += avg_sim
+                local_count[group_i][group_j] += 1
+                local_matrix[group_j][group_i] += avg_sim
+                local_count[group_j][group_i] += 1
+                
+        return local_matrix, local_count
+    
+    # Procesamiento paralelo
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        results = list(executor.map(process_row, [row for _, row in df.iterrows()]))
+    
+    # Combinar resultados
+    for local_matrix, local_count in results:
+        final_matrix += local_matrix
+        count_matrix += local_count
+    
+    # Calcular promedios finales
+    with np.errstate(divide='ignore', invalid='ignore'):
+        final_matrix = np.divide(final_matrix, count_matrix)
+        final_matrix[np.isnan(final_matrix)] = 0
+    
+    # Hacer simétrica y diagonal a 1
+    final_matrix = (final_matrix + final_matrix.T) / 2
+    np.fill_diagonal(final_matrix, 1)
+    
+    return final_matrix
