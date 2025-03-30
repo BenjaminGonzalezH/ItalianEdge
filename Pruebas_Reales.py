@@ -5,24 +5,21 @@ if __name__ == "__main__":
     import time
     import numpy as np
     import pandas as pd
+
     # Librerias propias.
-    directory = os.path.dirname(__file__)
-    sys.path.insert(0, os.path.abspath(os.path.join(directory, 'App/CoMOcG', 'src')))
-    import ReadSolution as RD
-    import ConnectivityMatrix as CM
-    import ProportionMatrix as PM
-    import He_Clustering as He
-    import SolutionClusterMatrix as SCM
-    import JaccardValues as JV
-    import SolutionComposition as SC
-    import GoEnrischment as GOe
-    import Go_Plots as plots
-    import Actions as Ac
-    import CompoleteStudy as CS
+    import App.CoMOcG.ReadSolution as RD
+    import App.CoMOcG.ConnectivityMatrix as CM
+    import App.CoMOcG.ProportionMatrix as PM
+    import App.CoMOcG.He_Clustering as He
+    import App.CoMOcG.SolutionClusterMatrix as SCM
+    import App.CoMOcG.JaccardValues as JV
+    import App.CoMOcG.SolutionComposition as SC
+    import App.CoMOcG.GoEnrischment as GOe
+    import App.CoMOcG.Go_Plots as plots
+    import App.CoMOcG.Actions as Ac
+    import App.CoMOcG.CompoleteStudy as CS
     from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
     import logging
-
-    rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -40,7 +37,7 @@ if __name__ == "__main__":
 
     ###### Matrices de conectividad.
     start_time = time.time()
-    connec_sum = CM.connectivityMatrix_threads(Matrix,6)
+    connec_sum = CM.connectivityMatrix(Matrix,6)
     connec_sum = CM.sum_connectivity_matrices(connec_sum)
     Ac.save_matrix(connec_sum.toarray(), directory + "/Results/File_1/Connectivity_Matrix.csv")
     end_time = time.time()
@@ -62,7 +59,7 @@ if __name__ == "__main__":
 
     ###### Cluster jerárquico.
     start_time = time.time()
-    cons_cluster_1 = He.He_clustering_interactive(Dist_m, genes, 4, 
+    cons_cluster_1 = He.He_clustering(Dist_m, genes, 4, 
                                     save_path= directory + "/Results/File_1",
                                     dendrogram_file="Dendogram_file_1.html",
                                     method="single")
@@ -87,7 +84,7 @@ if __name__ == "__main__":
 
     ###### Transformación de estrutura a conjunto de clusters por solución.
     start_time = time.time()
-    SC_matrix = SCM.SolutionClusterMatrix_GeneID(Matrix, entrez_gen, 6)
+    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 6)
     end_time = time.time()
     print(f"Tiempo de ejecución (Cambio de estructura) : {end_time - start_time:.6f} segundos")
 

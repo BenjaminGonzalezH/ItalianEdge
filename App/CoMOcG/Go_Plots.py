@@ -10,8 +10,7 @@ import pandas as pd                                         # Dataframes.
 import os                                                   # OS callings.
 
 ######### Own Libraries #########
-from GoEnrischment import convert_symbols_to_entrez
-
+from CoMOcG.GoEnrischment import convert_symbols_to_entrez
 
 def run_r_script(script_name, *args):
     """

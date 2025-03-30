@@ -10,7 +10,9 @@ This block contains all functions that are used repeatedly in other functions.
 In addition, their are used by threads for process concurrency.
 """
 
-def compute_connectivity(Solution: np.ndarray) -> csr_matrix:
+def compute_connectivity(
+        Solution: np.ndarray
+        ) -> csr_matrix:
     """
     compute_connectivity(function): Procedure where the process are going to
     check de solution and creates a connectivity matrix.
@@ -27,15 +29,17 @@ def compute_connectivity(Solution: np.ndarray) -> csr_matrix:
     if len(Solution) == 0:
         raise ValueError("solution cannot be empty.")
         
-    # Generate matches using NumPy for efficiency
+    # Generate matches using NumPy for efficiency.
     matches = np.equal.outer(Solution, Solution)
         
-    # Convert matches to a CSR sparse matrix
+    # Convert matches to a CSR sparse matrix.
     connectivity_matrix = csr_matrix(matches, dtype=int)
         
     return connectivity_matrix 
 
-def safe_compute_connectivity(Solution: np.ndarray):
+def safe_compute_connectivity(
+        Solution: np.ndarray
+    ) -> csr_matrix:
     """
     safe_compute_connectivity(function): Execute a exception handle 
     version of compute_connectivity function.
@@ -60,9 +64,10 @@ def safe_compute_connectivity(Solution: np.ndarray):
 This block contains all main functions.
 """
 
-def connectivityMatrix_threads(
+def connectivityMatrix(
         SolutionsMatrix: list[np.ndarray], 
-        n_threads: int = 1) -> list[csr_matrix]:
+        n_threads: int = 1
+        ) -> list[csr_matrix]:
     """
     connectivityMatrix_threads(function): Create a Matrix that create a square matrix with
     max length dimesion from his solution (all equals). This says what pair of index share 
@@ -85,7 +90,7 @@ def connectivityMatrix_threads(
     """
     # Input Check.
     if isinstance(SolutionsMatrix, list):
-        if not all(isinstance(row, list) for row in SolutionsMatrix):
+        if not all(isinstance(row, np.ndarray) for row in SolutionsMatrix):
             raise ValueError("SolutionsMatrix has to be a list of ndarray.")
     elif isinstance(SolutionsMatrix, np.ndarray):
         if SolutionsMatrix.ndim != 2:
@@ -107,7 +112,9 @@ def connectivityMatrix_threads(
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-def sum_connectivity_matrices(connectivity_matrix: list[csr_matrix]) -> csr_matrix:
+def sum_connectivity_matrices(
+        connectivity_matrix: list[csr_matrix]
+        ) -> csr_matrix:
     """
     sum_connectivity_matrices(funcion): Sum all connectivity matrix in the input 
     ('connectivityMatrix_threads' for more information).

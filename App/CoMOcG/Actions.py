@@ -3,9 +3,11 @@ import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
 import matplotlib.pyplot as plt                     # Graph construction.
 import plotly.graph_objects as go                   # Interactive plots.
-import pandas as pd
-import matplotlib
-matplotlib.use('Agg')
+import pandas as pd                                 # Dataframe managment.
+import matplotlib                                   # Plots.
+
+# Configurations: 
+matplotlib.use('Agg')                               # Conf: No use of GUI interface -> conflict when I use Threads.
 
 ######### Functions #########
 
@@ -38,7 +40,33 @@ def save_matrix(
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-def load_and_display_matrix(filepath: str) -> np.ndarray:
+def save_matrix_uncompresed(
+        matrix: np.ndarray, 
+        save_filepath: str) -> None:
+    """
+    save_matrix(function): Save a matrix that is a result from a function.
+
+    Parameters:
+    - matrix (np.ndarray): Matrix.
+    - proportion_filepath (str): Path to save the matrix (needs to have the name and
+      extension).
+    """
+    try:
+        # Create directories if needed.
+        directory = os.path.dirname(save_filepath)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+        
+        # Save matrix.
+        np.savetxt(save_filepath, matrix, delimiter=",", fmt="%.6f")
+        print(f"Proportion matrix saved at: {save_filepath}")
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+def load_and_display_matrix(
+        filepath: str
+        ) -> np.ndarray:
     """
     load_and_display_matrix (function): Load and display a matrix stored in a .npy file.
     
@@ -67,30 +95,6 @@ def load_and_display_matrix(filepath: str) -> np.ndarray:
     except Exception as e:
         print(f"Unexpected Error: {e}")
         return None
-
-def save_matrix_uncompresed(
-        matrix: np.ndarray, 
-        save_filepath: str) -> None:
-    """
-    save_matrix(function): Save a matrix that is a result from a function.
-
-    Parameters:
-    - matrix (np.ndarray): Matrix.
-    - proportion_filepath (str): Path to save the matrix (needs to have the name and
-      extension).
-    """
-    try:
-        # Create directories if needed.
-        directory = os.path.dirname(save_filepath)
-        if directory and not os.path.exists(directory):
-            os.makedirs(directory)
-        
-        # Save matrix.
-        np.savetxt(save_filepath, matrix, delimiter=",", fmt="%.6f")
-        print(f"Proportion matrix saved at: {save_filepath}")
-
-    except Exception as e:
-        print(f"Unexpected error: {e}")
 
 def plot_html_heatmap(
         matrix: np.ndarray, 
@@ -125,7 +129,7 @@ def plot_html_heatmap(
             z=matrix,
             colorscale=color,
             colorbar=dict(title=z_label),
-            hovertemplate=tooltip_format  # Personalización del tooltip
+            hovertemplate=tooltip_format  # Personalized Toolip.
         ))
 
         fig.update_layout(
@@ -137,7 +141,7 @@ def plot_html_heatmap(
             yaxis=dict(constrain="domain")
         )
 
-        # Save the figure as an HTML file
+        # Save the figure as an HTML file.
         fig.write_html(save_filepath)
         print(f"Interactive heatmap saved as an HTML file at: {save_filepath}")
 
@@ -146,7 +150,11 @@ def plot_html_heatmap(
     except Exception as e:
         print(f"Unexpected Error: {e}")
 
-def save_dataframe(dataframe, filepath, format="csv"):
+def save_dataframe(
+        dataframe: pd.DataFrame, 
+        filepath: str, 
+        format: str ="csv"
+        ):
     """
     save_dataframe (function): Save a DataFrame with faster formats like Parquet.
     
@@ -170,70 +178,55 @@ def save_dataframe(dataframe, filepath, format="csv"):
     except Exception as e:
         print(f"An error occurred while saving the file: {e}")
 
-def Pairs_Ordered(matriz, desc=False):
+def Pairs_Ordered(
+        matrix: np.ndarray, 
+        desc: bool = False,
+        diagonal: bool = False
+    ) -> pd.DataFrame:
     """
-    Ordena los pares de índices del triángulo superior (sin diagonal) 
-    de una matriz según el valor que almacena y devuelve un DataFrame.
+    Order pairs (upper triangular) of a matrix considerating
+    values that allocates.
     
-    Parámetros:
-    - matriz: np.ndarray, la matriz a procesar.
-    - desc: bool, si True ordena de mayor a menor.
+    Parameters:
+    - matrix: Input matrix.
+    - desc: Order (ascending and descending). False for ascending.
     
-    Retorna:
-    - pd.DataFrame con columnas ['solution_ID_1', 'solution_ID_2', 'value'] ordenadas.
+    Returns:
+    - pd.DataFrame with columns ['solution_ID_1', 'solution_ID_2', 'value'] ordered.
     """
-    # Extraer pares y valores del triángulo superior sin diagonal
-    indices_valores = [((i, j), matriz[i, j]) 
-                       for i in range(matriz.shape[0]) 
-                       for j in range(i+1, matriz.shape[1])]
-    
-    # Ordenar por valor
-    indices_valores.sort(key=lambda x: x[1], reverse=desc)
-    
-    # Crear listas para el DataFrame
-    id1 = [i for ((i, j), val) in indices_valores]
-    id2 = [j for ((i, j), val) in indices_valores]
-    values = [val for ((i, j), val) in indices_valores]
-    
-    # Crear DataFrame
-    df = pd.DataFrame({
-        'solution_ID_1': id1,
-        'solution_ID_2': id2,
-        'value': values
-    })
-    
-    return df
+    try:
+        if not isinstance(matrix, np.ndarray):
+            raise TypeError("The input 'matrix' must be a NumPy ndarray.")
+        if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+            raise ValueError("The input matrix must be a square 2D array.")
+        
+        # Obtain pairs of the upper triangular (no diagonal).
+        if(diagonal):
+            indices_valores = [((i, j), matrix[i, j]) 
+                            for i in range(matrix.shape[0]) 
+                            for j in range(i+1, matrix.shape[1])]
+        else:
+            indices_valores = [((i, j), matrix[i, j]) 
+                            for i in range(matrix.shape[0]) 
+                            for j in range(i, matrix.shape[1])]
+        
+        # Order by value.
+        indices_valores.sort(key=lambda x: x[1], reverse=desc)
+        
+        # Create rows for dataframe.
+        id1 = [i for ((i, j), val) in indices_valores]
+        id2 = [j for ((i, j), val) in indices_valores]
+        values = [val for ((i, j), val) in indices_valores]
+        
+        # Construct dataframe.
+        df = pd.DataFrame({
+            'solution_ID_1': id1,
+            'solution_ID_2': id2,
+            'value': values
+        })
+        
+        return df
 
-def Pairs_Ordered_crossed(matriz, desc=False):
-    """
-    Ordena los pares de índices del triángulo superior (sin diagonal) 
-    de una matriz según el valor que almacena y devuelve un DataFrame.
-    
-    Parámetros:
-    - matriz: np.ndarray, la matriz a procesar.
-    - desc: bool, si True ordena de mayor a menor.
-    
-    Retorna:
-    - pd.DataFrame con columnas ['solution_ID_1', 'solution_ID_2', 'value'] ordenadas.
-    """
-    # Extraer pares y valores del triángulo superior sin diagonal
-    indices_valores = [((i, j), matriz[i, j]) 
-                       for i in range(matriz.shape[0]) 
-                       for j in range(i, matriz.shape[1])]
-    
-    # Ordenar por valor
-    indices_valores.sort(key=lambda x: x[1], reverse=desc)
-    
-    # Crear listas para el DataFrame
-    id1 = [i for ((i, j), val) in indices_valores]
-    id2 = [j for ((i, j), val) in indices_valores]
-    values = [val for ((i, j), val) in indices_valores]
-    
-    # Crear DataFrame
-    df = pd.DataFrame({
-        'Cluster_ID_1': id1,
-        'Cluster_ID_2': id2,
-        'value': values
-    })
-    
-    return df
+    except Exception as e:
+        print(f"Error in Pairs_Ordered: {e}")
+        return pd.DataFrame(columns=['solution_ID_1', 'solution_ID_2', 'value'])
