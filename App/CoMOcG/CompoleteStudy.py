@@ -9,14 +9,14 @@ from ast import literal_eval
 
 
 ######### Configurations #########
-#matplotlib.use('Agg')                               # Not GUI use, this is for conflicts between process.
+matplotlib.use('Agg')                               # Not GUI use, this is for conflicts between process.
 
 ######### Own Libraries #########
-import JaccardValues as JV                          # Calculate Jaccard.
-import SolutionComposition as SC                    # Calculate composition of functions.
-import GoEnrischment as GOe                         # GO terms enrichment.
-import Go_Plots as plots                            # Gene Ontology graph functions.
-import Actions as Ac                                # Reiterative actions (heatmaps and saves).
+import CoMOcG.JaccardValues as JV                          # Calculate Jaccard.
+import CoMOcG.SolutionComposition as SC                    # Calculate composition of functions.
+import CoMOcG.GoEnrischment as GOe                         # GO terms enrichment.
+import CoMOcG.Go_Plots as plots                            # Gene Ontology graph functions.
+import CoMOcG.Actions as Ac                                # Reiterative actions (heatmaps and saves).
 
 
 ######### Functions #########

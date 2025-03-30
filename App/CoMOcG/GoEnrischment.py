@@ -10,7 +10,7 @@ from ast import literal_eval
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R
+rpy2_logger.setLevel(logging.ERROR)  # Suprimir mensajes de R.
 
 pandas2ri.activate()
 

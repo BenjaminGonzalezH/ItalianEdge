@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
 This block contains all main functions.
 """
 
-def ProcessSolution_IDs(
+def ProcessSolution(
         solution: np.ndarray, 
         genes: list) -> list:
     """
@@ -70,7 +70,7 @@ def ProcessSolution_IDs(
         print("Unexpected error.")
         return None
 
-def SolutionClusterMatrix_GeneID(
+def SolutionClusterMatrix(
         Matrix: list[np.ndarray], 
         genes: list, 
         max_workers:int= 4) -> list:
@@ -105,7 +105,7 @@ def SolutionClusterMatrix_GeneID(
         # the threads.
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Create connectievity matrix of the solution.
-            SolutionClusterMatrix = list(executor.map(lambda solution: ProcessSolution_IDs(solution, genes), Matrix))
+            SolutionClusterMatrix = list(executor.map(lambda solution: ProcessSolution(solution, genes), Matrix))
         
         # Output.
         return SolutionClusterMatrix
