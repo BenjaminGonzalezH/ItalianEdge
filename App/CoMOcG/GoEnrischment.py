@@ -8,6 +8,7 @@ import logging
 from ast import literal_eval                                            # Evaluate stings.
 import re                                                               # Regular expressions.
 from concurrent.futures import ThreadPoolExecutor                       # Threads Managment Interface.
+from itertools import combinations
 
 # Configurations: 
 rpy2_logger.setLevel(logging.ERROR)  # Allow only error messages.
@@ -118,7 +119,7 @@ def perform_go_enrichment(
         # Convert ID's if it is necessary.
         if convert_ids:
             entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
-            print(f"Converted {len(gene_list)} genes to {len(entrez_ids)} Entrez IDs.")
+            print(f"Converted {len(gene_list)} genes to {len([id for id in entrez_ids if id != 'NA'])} Entrez IDs.")
         else:
             entrez_ids = gene_list
 
@@ -185,7 +186,7 @@ def calculate_wang_distance_matrix(
             entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
             if not entrez_ids:
                 raise ValueError("No valid Entrez IDs found after conversion.")
-            print(f"Converted {len(gene_list)} genes to {len(entrez_ids)} Entrez IDs.")
+            print(f"Converted {len(gene_list)} genes to {len([id for id in entrez_ids if id != 'NA'])} Entrez IDs.")
         else:
             entrez_ids = gene_list
 
@@ -212,15 +213,16 @@ def calculate_wang_distance_matrix(
         print(f"Error in calculate_wang_distance_matrix: {e}")
         return pd.DataFrame()
 
-def safe_literal_eval(
-        s:str
-        ) -> str:
+def safe_literal_eval(s):
     """
     safe_literal_eval (function): Evaluate strings that contain Python structure (np.float64)
     in secure way.
     
     Parameters:
-    - s: String that is going to be evaluate.
+    - s: String that is going to be evaluated.
+    
+    Returns:
+    - Evaluated Python object
     """
     if isinstance(s, str):
         s_clean = re.sub(r'np\.float64\(([^)]+)\)', r'\1', s)
@@ -228,105 +230,86 @@ def safe_literal_eval(
     return s
 
 def build_similarity_matrix(
-        ids: list[str], 
-        similarity_matrix: np.ndarray, 
-        df: pd.DataFrame, 
-        groups_structure: list[set], 
-        num_threads: int= 4):
+        ids: list[str],
+        similarity_matrix: np.ndarray,
+        df: pd.DataFrame,
+        groups_structure: list[set],
+        num_threads: int = 4):
     """
-    build_similarity_matrix (function): Create a similary matrix between solutions using the wang
+    build_similarity_matrix (function): Create a similarity matrix between solutions using the wang
     distance among every gene.
     
     Parameters:
     - ids: IDs of genes that allocates sim_matrix_df.
     - similarity_matrix: Matrix with wang distance index from sim_matrix_df.
-    - df: DataFrame con ['Solution Pair', 'Equivalent Clusters'] from function 'find_equivalent_clusters'
+    - df: DataFrame with ['Solution Pair', 'Equivalent Clusters'] from function 'find_equivalent_clusters'
     - groups_structure: Matrix from 'SolutionClusterMatrix'.
     - num_threads: Threads to use (default: 4)
     
     Returns:
-    - final_matrix: Matrix that allocate the distance matrix among solutions.
+    - final_matrix: Matrix that allocates the distance matrix among solutions.
     """
     # Index Mapping for ID's.
     id_to_idx = {id_: idx for idx, id_ in enumerate(ids) if id_ != 'NA'}
     n = len(groups_structure)
     final_matrix = np.zeros((n, n))
-    count_matrix = np.zeros((n, n))
     
     # Use frozensets (avoid modifications).
     hashable_groups = [[frozenset(group) for group in cluster] for cluster in groups_structure]
     
-    def parse_entry(entry):
-        if isinstance(entry, str):
-            return literal_eval(entry.replace('np.float64', ''))
-        return entry
-    
     # Change of dataframe format.
     df = df.copy()
-    df['Solution Pair'] = df['Solution Pair'].apply(parse_entry)
-    df['Equivalent Clusters'] = df['Equivalent Clusters'].apply(parse_entry)
+    df['Solution Pair'] = df['Solution Pair'].apply(safe_literal_eval)
+    df['Equivalent Clusters'] = df['Equivalent Clusters'].apply(safe_literal_eval)
     
-    # Process every row.
-    def process_row(row):
-        group_i, group_j = row['Solution Pair']
-        equivalent_pairs = row['Equivalent Clusters']
-        local_matrix = np.zeros((n, n))
-        local_count = np.zeros((n, n))
+    # Process every row - create a list of dictionaries for easier access by column name
+    rows = df[['Solution Pair', 'Equivalent Clusters']].to_dict('records')
+
+    def process_row(row_dict):
+        solution_pair = row_dict['Solution Pair']
+        equivalent_pairs = row_dict['Equivalent Clusters']
         
-        if group_i >= n or group_j >= n:
-            return local_matrix, local_count
+        # Make sure solution_pair is a tuple of two integers
+        if not isinstance(solution_pair, tuple) or len(solution_pair) != 2:
+            print(f"Warning: Solution Pair has unexpected format: {solution_pair}")
+            return np.zeros((n, n), dtype=np.float32), np.zeros((n, n), dtype=np.float32)
             
+        group_i, group_j = solution_pair
+        
+        local_matrix = np.zeros((n, n), dtype=np.float32)
+
+        if group_i >= n or group_j >= n:
+            return local_matrix
+        
         sets_i = hashable_groups[group_i]
         sets_j = hashable_groups[group_j]
         
         for elem_i, elem_j in equivalent_pairs:
             if elem_i >= len(sets_i) or elem_j >= len(sets_j):
                 continue
-                
-            set_i = sets_i[elem_i]
-            set_j = sets_j[elem_j]
-            intersection = set_i & set_j - {'NA'}
             
-            if not intersection:
+            intersection = sets_i[elem_i] & sets_j[elem_j] - {'NA'}
+            if len(intersection) < 2:
                 continue
-                
-            sum_sim = 0
-            count = 0
-            intersection_list = list(intersection)
             
-            for i in range(len(intersection_list)):
-                for j in range(i, len(intersection_list)):
-                    idx_a = id_to_idx.get(intersection_list[i], None)
-                    idx_b = id_to_idx.get(intersection_list[j], None)
-                    if idx_a is not None and idx_b is not None:
-                        sum_sim += similarity_matrix[idx_a][idx_b]
-                        count += 1
-            
-            if count > 0:
-                avg_sim = sum_sim / count
-                local_matrix[group_i][group_j] += avg_sim
-                local_count[group_i][group_j] += 1
-                local_matrix[group_j][group_i] += avg_sim
-                local_count[group_j][group_i] += 1
-                
-        return local_matrix, local_count
+            for gene_a, gene_b in combinations(intersection, 2):
+                idx_a = id_to_idx.get(gene_a)
+                idx_b = id_to_idx.get(gene_b)
+                if idx_a is not None and idx_b is not None:
+                    sim = similarity_matrix[idx_a, idx_b]
+                    local_matrix[group_i, group_j] += sim
+                    local_matrix[group_j, group_i] += sim
+        
+        return local_matrix
     
-    # Parallel processing.
+    # Parallel execution
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        results = list(executor.map(process_row, [row for _, row in df.iterrows()]))
+        results = list(executor.map(process_row, rows))
     
-    # Combain results.
-    for local_matrix, local_count in results:
+    for local_matrix in results:
         final_matrix += local_matrix
-        count_matrix += local_count
-    
-    # final process.
-    with np.errstate(divide='ignore', invalid='ignore'):
-        final_matrix = np.divide(final_matrix, count_matrix)
-        final_matrix[np.isnan(final_matrix)] = 0
-    
-    # Make it simmetric and diagonal.
-    final_matrix = (final_matrix + final_matrix.T) / 2
+
+    final_matrix = final_matrix / np.max(final_matrix)
     np.fill_diagonal(final_matrix, 1)
     
     return final_matrix
