@@ -1,10 +1,8 @@
 if __name__ == "__main__":
     # Importaciones.
-    import sys
     import os
     import time
     import numpy as np
-    import pandas as pd
 
     # Librerias propias.
     import App.CoMOcG.ReadSolution as RD
@@ -13,13 +11,9 @@ if __name__ == "__main__":
     import App.CoMOcG.He_Clustering as He
     import App.CoMOcG.SolutionClusterMatrix as SCM
     import App.CoMOcG.JaccardValues as JV
-    import App.CoMOcG.SolutionComposition as SC
     import App.CoMOcG.GoEnrischment as GOe
-    import App.CoMOcG.Go_Plots as plots
     import App.CoMOcG.Actions as Ac
     import App.CoMOcG.CompoleteStudy as CS
-    from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
-    import logging
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -90,8 +84,7 @@ if __name__ == "__main__":
 
     ###### Distancia de Wang en la totalidad de genes.
     start_time = time.time()
-    Wang_df = GOe.calculate_wang_distance_matrix_1(genes, 
-                                                   convert_ids=True, num_cores=6)
+    Wang_df = GOe.calculate_wang_distance_matrix(genes, convert_ids=True)
     end_time = time.time()
     print(f"Tiempo de ejecución (W 2) : {end_time - start_time:.6f} segundos")
     Ac.save_dataframe(Wang_df, directory + "/Results/File_1/Wang.csv")
@@ -107,7 +100,7 @@ if __name__ == "__main__":
     Genes_wang = list(Wang_df.columns.values)
     Wang_Matrix = Wang_df.to_numpy()
     start_time = time.time()
-    Sim_Wang = GOe.build_similarity_matrix(Genes_wang,Wang_Matrix,df_equivalentes, SC_matrix)
+    Sim_Wang = GOe.build_similarity_matrix(Genes_wang,Wang_Matrix,df_equivalentes, SC_matrix, num_threads=6)
     end_time = time.time()
     print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos") 
     Ac.plot_html_heatmap(Sim_Wang,  directory + "/Results/File_1/Prop_matrix_W.html",
@@ -118,4 +111,4 @@ if __name__ == "__main__":
                         tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
     
     ###### Gráfico entre soliciones.
-    CS.access_sets_only(df_equivalentes,SC_matrix, convert_ids=False, directory= directory + "/Results/File_1/Global/")
+    #CS.Complete_Study(df_equivalentes,SC_matrix, convert_ids=False, directory= directory + "/Results/File_1/Global/")
