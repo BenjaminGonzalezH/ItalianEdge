@@ -9,7 +9,6 @@ from ast import literal_eval                                            # Evalua
 import re                                                               # Regular expressions.
 from concurrent.futures import ThreadPoolExecutor                       # Threads Managment Interface.
 from itertools import combinations
-from concurrent.futures import ProcessPoolExecutor
 
 # Configurations: 
 rpy2_logger.setLevel(logging.ERROR)  # Allow only error messages.
@@ -230,80 +229,7 @@ def safe_literal_eval(s):
         return literal_eval(s_clean)
     return s
 
-def process_row_process(row_dict, hashable_groups, n, organism, ont, convert_ids, keytype):
-    solution_pair = row_dict['Solution Pair']
-    equivalent_pairs = row_dict['Equivalent Clusters']
-    
-    if not isinstance(solution_pair, tuple) or len(solution_pair) != 2:
-        print(f"Warning: Solution Pair has unexpected format: {solution_pair}")
-        return np.zeros((n, n), dtype=np.float32)
-        
-    group_i, group_j = solution_pair
-
-    local_matrix = np.zeros((n, n), dtype=np.float32)
-    if group_i >= n or group_j >= n:
-        return local_matrix
-
-    sets_i = hashable_groups[group_i]
-    sets_j = hashable_groups[group_j]
-    
-    for elem_i, elem_j in equivalent_pairs:
-        if elem_i >= len(sets_i) or elem_j >= len(sets_j):
-            continue
-        
-        intersection = sets_i[elem_i] & sets_j[elem_j] - {'NA'}
-        if len(intersection) < 2:
-            continue
-        
-        DF_W = calculate_wang_distance_matrix(intersection, organism=organism, ont=ont, convert_ids=convert_ids, keytype=keytype)
-        arr = DF_W.to_numpy()
-        if arr.size == 0 or np.isnan(arr).all():
-            local_matrix[group_i, group_j] += 0
-            local_matrix[group_j, group_i] += 0
-        else:
-            similarity = np.nanmean(arr)
-            local_matrix[group_i, group_j] += similarity
-            local_matrix[group_j, group_i] += similarity
-
-    return local_matrix
-
-def process_row_process_unpack(args):
-    return process_row_process(*args)
-
-def Solution_Wang_index_similarity_rpy2(
-        df: pd.DataFrame,
-        groups_structure: list[set],
-        num_threads: int = 4,
-        organism: str ="org.Hs.eg.db", 
-        ont: str ="BP", 
-        convert_ids: bool =True,
-        keytype: str ="SYMBOL"):
-    
-    n = len(groups_structure)
-    final_matrix = np.zeros((n, n), dtype=np.float32)
-
-    hashable_groups = [[frozenset(group) for group in cluster] for cluster in groups_structure]
-
-    df = df.copy()
-    df['Solution Pair'] = df['Solution Pair'].apply(safe_literal_eval)
-    df['Equivalent Clusters'] = df['Equivalent Clusters'].apply(safe_literal_eval)
-    rows = df[['Solution Pair', 'Equivalent Clusters']].to_dict('records')
-
-    # Armar argumentos para pasar a cada proceso
-    args = [(row, hashable_groups, n, organism, ont, convert_ids, keytype) for row in rows]
-
-    with ProcessPoolExecutor(max_workers=num_threads) as executor:
-        results = executor.map(process_row_process_unpack, args)
-
-    for local_matrix in results:
-        final_matrix += local_matrix
-
-    final_matrix = final_matrix / np.max(final_matrix)
-    np.fill_diagonal(final_matrix, 1)
-    
-    return final_matrix
-
-def Solution_Wang_index_similarity_Python(
+def build_similarity_matrix(
         ids: list[str],
         similarity_matrix: np.ndarray,
         df: pd.DataFrame,
@@ -312,81 +238,78 @@ def Solution_Wang_index_similarity_Python(
     """
     build_similarity_matrix (function): Create a similarity matrix between solutions using the wang
     distance among every gene.
-
+    
     Parameters:
-    - ids: IDs of genes that allocate similarity_matrix.
-    - similarity_matrix: Precomputed Wang similarity matrix between genes.
+    - ids: IDs of genes that allocates sim_matrix_df.
+    - similarity_matrix: Matrix with wang distance index from sim_matrix_df.
     - df: DataFrame with ['Solution Pair', 'Equivalent Clusters'] from function 'find_equivalent_clusters'
     - groups_structure: Matrix from 'SolutionClusterMatrix'.
     - num_threads: Threads to use (default: 4)
-
+    
     Returns:
     - final_matrix: Matrix that allocates the distance matrix among solutions.
     """
+    # Index Mapping for ID's.
     id_to_idx = {id_: idx for idx, id_ in enumerate(ids) if id_ != 'NA'}
     n = len(groups_structure)
-    final_matrix = np.zeros((n, n), dtype=np.float32)
-
+    final_matrix = np.zeros((n, n))
+    
+    # Use frozensets (avoid modifications).
     hashable_groups = [[frozenset(group) for group in cluster] for cluster in groups_structure]
-
+    
+    # Change of dataframe format.
     df = df.copy()
     df['Solution Pair'] = df['Solution Pair'].apply(safe_literal_eval)
     df['Equivalent Clusters'] = df['Equivalent Clusters'].apply(safe_literal_eval)
-
+    
+    # Process every row - create a list of dictionaries for easier access by column name
     rows = df[['Solution Pair', 'Equivalent Clusters']].to_dict('records')
 
     def process_row(row_dict):
         solution_pair = row_dict['Solution Pair']
         equivalent_pairs = row_dict['Equivalent Clusters']
-
+        
+        # Make sure solution_pair is a tuple of two integers
         if not isinstance(solution_pair, tuple) or len(solution_pair) != 2:
             print(f"Warning: Solution Pair has unexpected format: {solution_pair}")
-            return np.zeros((n, n), dtype=np.float32)
-
+            return np.zeros((n, n), dtype=np.float32), np.zeros((n, n), dtype=np.float32)
+            
         group_i, group_j = solution_pair
+        
         local_matrix = np.zeros((n, n), dtype=np.float32)
 
         if group_i >= n or group_j >= n:
             return local_matrix
-
+        
         sets_i = hashable_groups[group_i]
         sets_j = hashable_groups[group_j]
-
+        
         for elem_i, elem_j in equivalent_pairs:
             if elem_i >= len(sets_i) or elem_j >= len(sets_j):
                 continue
-
+            
             intersection = sets_i[elem_i] & sets_j[elem_j] - {'NA'}
             if len(intersection) < 2:
                 continue
-
-            gene_indices = [id_to_idx[gene] for gene in intersection if gene in id_to_idx]
-            if len(gene_indices) < 2:
-                continue
-
-            # Extract submatrix and calculate the upper triangle mean (excluding diagonal)
-            sim_submatrix = similarity_matrix[np.ix_(gene_indices, gene_indices)]
-            triu_indices = np.triu_indices_from(sim_submatrix, k=1)
-            triu_values = sim_submatrix[triu_indices]
-
-            if triu_values.size == 0 or np.isnan(triu_values).all():
-                continue
-
-            similarity = np.nanmean(triu_values)
-            local_matrix[group_i, group_j] += similarity
-            local_matrix[group_j, group_i] += similarity
-
+            
+            for gene_a, gene_b in combinations(intersection, 2):
+                idx_a = id_to_idx.get(gene_a)
+                idx_b = id_to_idx.get(gene_b)
+                if idx_a is not None and idx_b is not None:
+                    sim = similarity_matrix[idx_a, idx_b]
+                    local_matrix[group_i, group_j] += sim
+                    local_matrix[group_j, group_i] += sim
+        
         return local_matrix
-
-    # Ejecutar en paralelo
+    
+    # Parallel execution
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = list(executor.map(process_row, rows))
-
+    
     for local_matrix in results:
         final_matrix += local_matrix
 
-    if np.max(final_matrix) > 0:
-        final_matrix = final_matrix / np.max(final_matrix)
+    final_matrix = final_matrix / np.max(final_matrix)
     np.fill_diagonal(final_matrix, 1)
-
+    
     return final_matrix
