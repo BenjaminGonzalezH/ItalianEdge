@@ -150,6 +150,147 @@ def plot_html_heatmap(
     except Exception as e:
         print(f"Unexpected Error: {e}")
 
+def plot_dual_heatmap_single_hover(
+    matrix_upper: np.ndarray,
+    matrix_lower: np.ndarray,
+    save_filepath: str = 'dual_heatmap.html',
+    x_label: str = 'Solutions',
+    y_label: str = 'Solutions',
+    title: str = 'Jaccard vs Wang',
+    colorscale: str = 'Viridis',
+):
+    if matrix_upper.shape != matrix_lower.shape:
+        raise ValueError("Las matrices deben tener el mismo tamaño.")
+
+    n = matrix_upper.shape[0]
+    z = np.full((n, n), np.nan)
+    hovertext = []
+
+    for i in range(n):
+        row = []
+        for j in range(n):
+            if i < j:
+                z[i][j] = matrix_upper[i][j]
+                text = f"Solution 1: {j}<br>Solution 2: {i}<br>Jaccard: {matrix_upper[i][j]:.2f}"
+            elif i > j:
+                z[i][j] = matrix_lower[i][j]
+                text = f"Solution 1: {j}<br>Solution 2: {i}<br>Wang: {matrix_lower[i][j]:.2f}"
+            else:
+                text = ""
+            row.append(text)
+        hovertext.append(row)
+
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        text=hovertext,
+        hoverinfo='text',
+        colorscale=colorscale,
+        colorbar=dict(title='Jaccard / Wang')
+    ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis_title=y_label,
+        xaxis=dict(scaleanchor="y", constrain="domain"),
+        yaxis=dict(constrain="domain")
+    )
+
+    fig.write_html(save_filepath)
+    print(f"✅ Heatmap combinado guardado en: {save_filepath}")
+
+def plot_dual_heatmap_two_colors(
+    matrix_upper: np.ndarray,
+    matrix_lower: np.ndarray,
+    save_filepath: str = 'dual_heatmap.html',
+    x_label: str = 'Solutions',
+    y_label: str = 'Solutions',
+    title: str = 'Jaccard vs Wang',
+    colorscale_upper: str = 'Viridis',
+    colorscale_lower: str = 'Plasma',
+):
+    """
+    Generate a heatmap with different color scales for upper and lower triangular matrices.
+    
+    Args:
+        matrix_upper: Upper triangular matrix data (Jaccard)
+        matrix_lower: Lower triangular matrix data (Wang)
+        save_filepath: Path to save the HTML plot
+        x_label: Label for x-axis
+        y_label: Label for y-axis
+        title: Plot title
+        colorscale_upper: Color scale for upper triangular matrix
+        colorscale_lower: Color scale for lower triangular matrix
+    """
+    if matrix_upper.shape != matrix_lower.shape:
+        raise ValueError("Las matrices deben tener el mismo tamaño.")
+    
+    n = matrix_upper.shape[0]
+    
+    # Create separate data for upper and lower triangular matrices
+    z_upper = np.full((n, n), np.nan)
+    z_lower = np.full((n, n), np.nan)
+    
+    # Combined hover text matrix
+    hovertext = [['' for _ in range(n)] for _ in range(n)]
+    
+    for i in range(n):
+        for j in range(n):
+            if i < j:  # Upper triangle (Jaccard)
+                z_upper[i][j] = matrix_upper[i][j]
+                hovertext[i][j] = f"Solution 1: {j}<br>Solution 2: {i}<br>Jaccard: {matrix_upper[i][j]:.2f}"
+            elif i > j:  # Lower triangle (Wang)
+                z_lower[i][j] = matrix_lower[i][j]
+                hovertext[i][j] = f"Solution 1: {j}<br>Solution 2: {i}<br>Wang: {matrix_lower[i][j]:.2f}"
+            else:  # Diagonal
+                hovertext[i][j] = f"Solution: {i}"
+    
+    # Create figure with two heatmap traces
+    fig = go.Figure()
+    
+    # Upper triangular heatmap (Jaccard)
+    fig.add_trace(go.Heatmap(
+        z=z_upper,
+        customdata=np.array(hovertext),
+        hovertemplate="%{customdata}<extra></extra>",
+        colorscale=colorscale_upper,
+        showscale=True,
+        colorbar=dict(
+            title='Jaccard',
+            x=1.0,
+            y=0.75,
+            len=0.4,
+        )
+    ))
+    
+    # Lower triangular heatmap (Wang)
+    fig.add_trace(go.Heatmap(
+        z=z_lower,
+        customdata=np.array(hovertext),
+        hovertemplate="%{customdata}<extra></extra>",
+        colorscale=colorscale_lower,
+        showscale=True,
+        colorbar=dict(
+            title='Wang',
+            x=1.0,
+            y=0.25,
+            len=0.4,
+        )
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis_title=y_label,
+        xaxis=dict(scaleanchor="y", constrain="domain"),
+        yaxis=dict(constrain="domain")
+    )
+    
+    # Save the plot
+    fig.write_html(save_filepath)
+    print(f"✅ Heatmap combinado con dos colores guardado en: {save_filepath}")
+
 def save_dataframe(
         dataframe: pd.DataFrame, 
         filepath: str, 

@@ -199,7 +199,7 @@ def calculate_wang_distance_matrix(
         # load Semantic distance dataframe.
         library(GOSemSim)
 
-        go_db <- godata(annoDb = "{organism}", ont = "{ont}", computeIC = TRUE)
+        go_db <- godata(annoDb = "{organism}", ont = "{ont}")
         sim_matrix <- mgeneSim(genes = gene_list, semData = go_db, measure = "Wang")
         sim_matrix[is.na(sim_matrix)] <- 0  # Replace NA with 0
         as.data.frame(sim_matrix)  # Convert to DataFrame

@@ -1,37 +1,13 @@
 ######### Libraries #########
-import seaborn as sns                                       # Barplot.
-import matplotlib.pyplot as plt                             # Graph construction.
 import numpy as np                                          # Efficient Math Operations.
 import rpy2.robjects as robjects                            # Transport Python data to R enviroment.
 from rpy2.robjects import pandas2ri                         # R dataframe into Pandas dataframe.
 import rpy2.robjects.vectors as r_vectors                   # Transport Python data to R enviroment (vectors).
 import plotly.express as px                                 # HTML interactive plots.
 import pandas as pd                                         # Dataframes.
-import os                                                   # OS callings.
 
 ######### Own Libraries #########
 from CoMOcG.GoEnrischment import convert_symbols_to_entrez
-
-def run_r_script(script_name, *args):
-    """
-    Run an R script stored in the 'R_Scripts' folder.
-
-    Parameters:
-    - script_name (str): The name of the script file (without .R extension).
-    - args: Arguments to pass to the R script.
-    """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    dir_path = os.path.join(base_dir, "R_Scripts")
-    file_path = os.path.join(dir_path, f"{script_name}.R")
-    
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"R script not found: {file_path}")
-    
-    # Load and execute the script
-    with open(file_path, "r", encoding="utf-8") as file:
-        r_code = file.read()
-        r_func = robjects.r(r_code)
-        return r_func(*args)
 
 ######### Functions #########
 
@@ -52,7 +28,7 @@ def plot_gene_ratio(
     """
     try:
         # Take dataframe necesary data.
-        sorted_df = df.sort_values("GeneRatio", ascending=False)
+        sorted_df = df.sort_values(['p.adjust', 'GeneRatio', 'Count'], ascending=[True, False, False])
         sorted_df['GeneRatio'] = sorted_df['GeneRatio'].apply(lambda x: round(eval(x), 2))
         
         # Draw plot.
@@ -92,11 +68,11 @@ def plot_qscore(
 
         # Create an interactive bar chart.
         fig = px.bar(
-            df.sort_values('qScore', ascending=False),
+            df.sort_values('qScore', ascending=True),
             y='Description',
             x='qScore',
             title="qScore for GO Terms",
-            labels={"qScore": "-log10(p.adjust)"},
+            labels={"qScore": "Qscore"},
             color='qScore',
             color_continuous_scale='viridis'
         )
@@ -309,7 +285,10 @@ def create_go_tree_rpy2(
             
             # Generate plot
             if (!is.null(save_path)) {{
-                pdf(save_path, width=15, height=12)
+                dynamic_width <- min(15, 0.25 * length(nodes(gograph)))
+                dynamic_height <- min(12, 0.2 * length(nodes(gograph)))
+
+                pdf(save_path, width=dynamic_width, height=dynamic_height)
             }}
             
             # Create layout with top to bottom direction
