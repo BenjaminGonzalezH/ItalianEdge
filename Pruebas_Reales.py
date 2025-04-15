@@ -14,6 +14,8 @@ if __name__ == "__main__":
     import App.CoMOcG.GoEnrischment as GOe
     import App.CoMOcG.Actions as Ac
     import App.CoMOcG.CompoleteStudy as CS
+    import App.CoMOcG.GoEnrishmentPy as GOeP
+    import App.CoMOcG.Go_Plots as Gplot
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -100,28 +102,52 @@ if __name__ == "__main__":
     Genes_wang = list(Wang_df.columns.values)
     Wang_Matrix = Wang_df.to_numpy()
     start_time = time.time()
-    Sim_Wang = GOe.build_similarity_matrix_2(Genes_wang, Wang_Matrix, df_equivalentes, SC_matrix, num_threads=6)
+    Sim_Wang = GOe.Solution_Wang_index_similarity_Python(Genes_wang, Wang_Matrix, df_equivalentes, SC_matrix, num_threads=6)
     end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos") 
-    Ac.plot_html_heatmap(Sim_Wang,  directory + "/Results/File_3/Prop_matrix_W_1.html",
+    print(f"Tiempo de ejecución (grupos similares en wang) : {end_time - start_time:.6f} segundos") 
+    Ac.plot_html_heatmap(Sim_Wang,  directory + "/Results/File_3/Prop_matrix_P_2.html",
                         x_label="Solution",
                         y_label="Solution",
                         title="Similitud entre soluciones usando WANG",
                         z_label="Wang",
                         tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
 
-    ###### Similitud de wang entre soluciones.
-    Sim_Wang = GOe.build_similarity_matrix_1(df_equivalentes, SC_matrix, num_threads=6, organism="org.At.tair.db", keytype="TAIR", convert_ids=False)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos") 
-    Ac.plot_html_heatmap(Sim_Wang,  directory + "/Results/File_3/Prop_matrix_W.html",
-                        x_label="Solution",
-                        y_label="Solution",
-                        title="Similitud entre soluciones usando WANG",
-                        z_label="Wang",
-                        tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
-    
 
-    
+    ###### Python Propolsals.
+    SC_matrix_1 = SCM.SolutionClusterMatrix(Matrix, genes, 6)
+    start_time = time.time()
+    EntrezID_Pg = GOeP.convert_symbols_to_entrez_Python(genes, organism_gp='athaliana', taxID= 3702)
+    EntrezID_P = GOeP.convert_symbols_to_entrez_Python(list(SC_matrix_1[0][1]), organism_gp='athaliana', taxID= 3702)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Conversion EntrezID Python) : {end_time - start_time:.6f} segundos")
+
+    start_time = time.time()
+    GO_DF_P = GOeP.go_enrichment_entrez_Python(EntrezID_P, organism='athaliana')
+    Ac.save_dataframe(GO_DF_P,directory + "/Results/File_3/Enrichment_Example_Python.csv")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID) : {end_time - start_time:.6f} segundos") 
+
+
+    ###### Imprimir superposición de matrices.
+    start_time = time.time()
+    Ac.plot_dual_heatmap_two_colors(np.triu(Jaccard), np.tril(Sim_Wang), save_filepath= directory + "/Results/File_3/DUAL_W_J.html")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (matrices superpuestas) : {end_time - start_time:.6f} segundos") 
+
     ###### Gráfico entre soliciones.
+    start_time = time.time()
+    Go_df_now = GOe.perform_go_enrichment(list(SC_matrix_1[0][1]),organism="org.At.tair.db",keytype="TAIR")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos similares en wang) : {end_time - start_time:.6f} segundos") 
+    Ac.save_dataframe(Go_df_now, directory + "/Results/File_3/Enrichment_Example_R.csv")
+    Gplot.plot_gene_ratio(Go_df_now, directory + "/Results/File_3/Gene_Ratio_Example.html")
+    Gplot.plot_qscore(Go_df_now, directory + "/Results/File_3/Qscore_Example.html")
+    Gplot.plot_go_interaction_network_rpy2(list(SC_matrix_1[0][1]),organism="org.At.tair.db", save_path=directory + "/Results/File_3/Network_Example.png",
+                                           keytype="TAIR", width=1920, height=1080)
+    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree_Example.pdf")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Go plots) : {end_time - start_time:.6f} segundos") 
+
+    # Estudio completo.
     #CS.Complete_Study(df_equivalentes,SC_matrix, convert_ids=False, directory= directory + "/Results/File_3/Global/")
+
