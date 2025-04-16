@@ -144,7 +144,7 @@ if __name__ == "__main__":
     Gplot.plot_qscore(Go_df_now, directory + "/Results/File_3/Qscore_Example.html")
     Gplot.plot_go_interaction_network_rpy2(list(SC_matrix_1[0][1]),organism="org.At.tair.db", save_path=directory + "/Results/File_3/Network_Example.png",
                                            keytype="TAIR", width=1920, height=1080)
-    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree_Example.pdf")
+    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree.pdf")
     end_time = time.time()
     print(f"Tiempo de ejecución (Go plots) : {end_time - start_time:.6f} segundos") 
 
