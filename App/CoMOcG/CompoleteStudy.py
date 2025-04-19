@@ -63,7 +63,8 @@ def process_cluster_pair(row_dict, groups_structure, organism, ont, convert_ids,
                 organism=organism,
                 aspect=ont,
                 convert_ids=convert_ids,
-                keytype=keytype
+                keytype=keytype,
+                output_type="html"
             )
             plots.create_go_tree_rpy2(
                 GO_DF,

@@ -13,6 +13,7 @@ if __name__ == "__main__":
     import App.CoMOcG.JaccardValues as JV
     import App.CoMOcG.GoEnrischment as GOe
     import App.CoMOcG.Actions as Ac
+    import App.CoMOcG.Dual_Heatmap as DH
     import App.CoMOcG.CompoleteStudy as CS
     import App.CoMOcG.GoEnrishmentPy as GOeP
     import App.CoMOcG.Go_Plots as Gplot
@@ -130,21 +131,21 @@ if __name__ == "__main__":
 
     ###### Imprimir superposición de matrices.
     start_time = time.time()
-    Ac.plot_dual_heatmap_two_colors(np.triu(Jaccard), np.tril(Sim_Wang), save_filepath= directory + "/Results/File_3/DUAL_W_J.html")
+    DH.plot_dual_heatmap_two_colors(np.triu(Jaccard), np.tril(Sim_Wang), save_filepath= directory + "/Results/File_3/DUAL_W_J.html")
     end_time = time.time()
     print(f"Tiempo de ejecución (matrices superpuestas) : {end_time - start_time:.6f} segundos") 
 
     ###### Gráfico entre soliciones.
     start_time = time.time()
-    Go_df_now = GOe.perform_go_enrichment(list(SC_matrix_1[0][1]),organism="org.At.tair.db",keytype="TAIR")
+    Go_df_now = GOe.perform_go_enrichment(list(SC_matrix_1[0][0]),organism="org.At.tair.db",keytype="TAIR")
     end_time = time.time()
     print(f"Tiempo de ejecución (grupos similares en wang) : {end_time - start_time:.6f} segundos") 
     Ac.save_dataframe(Go_df_now, directory + "/Results/File_3/Enrichment_Example_R.csv")
     Gplot.plot_gene_ratio(Go_df_now, directory + "/Results/File_3/Gene_Ratio_Example.html")
     Gplot.plot_qscore(Go_df_now, directory + "/Results/File_3/Qscore_Example.html")
-    Gplot.plot_go_interaction_network_rpy2(list(SC_matrix_1[0][1]),organism="org.At.tair.db", save_path=directory + "/Results/File_3/Network_Example.png",
-                                           keytype="TAIR", width=1920, height=1080)
-    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree.pdf")
+    Gplot.plot_go_interaction_network_rpy2(list(SC_matrix_1[0][0]),organism="org.At.tair.db", save_path=directory + "/Results/File_3/Network_Example.html",
+                                           keytype="TAIR", output_type="html")
+    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree_example.html")
     end_time = time.time()
     print(f"Tiempo de ejecución (Go plots) : {end_time - start_time:.6f} segundos") 
 

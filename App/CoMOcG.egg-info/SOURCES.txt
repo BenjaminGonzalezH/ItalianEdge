@@ -2,6 +2,7 @@ setup.py
 App/CoMOcG/Actions.py
 App/CoMOcG/CompoleteStudy.py
 App/CoMOcG/ConnectivityMatrix.py
+App/CoMOcG/Dual_Heatmap.py
 App/CoMOcG/GoEnrischment.py
 App/CoMOcG/GoEnrishmentPy.py
 App/CoMOcG/Go_Plots.py
@@ -16,3 +17,13 @@ App/CoMOcG.egg-info/PKG-INFO
 App/CoMOcG.egg-info/SOURCES.txt
 App/CoMOcG.egg-info/dependency_links.txt
 App/CoMOcG.egg-info/top_level.txt
+App/Test/Actions_Test.py
+App/Test/ConnectivityMatrix_Test.py
+App/Test/Dual_Hatmap_Test.py
+App/Test/He_Clustering_Test.py
+App/Test/JaccardValues_Test.py
+App/Test/ProportionMatrix_Test.py
+App/Test/ReadSolution_Tests.py
+App/Test/SolutionClusterMatrix_Test.py
+App/Test/SolutionComposition_Test.py
+App/Test/__init__.py

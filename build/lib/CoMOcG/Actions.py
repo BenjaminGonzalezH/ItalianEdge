@@ -1,7 +1,6 @@
 ######### Libraries #########
 import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
-import matplotlib.pyplot as plt                     # Graph construction.
 import plotly.graph_objects as go                   # Interactive plots.
 import pandas as pd                                 # Dataframe managment.
 import matplotlib                                   # Plots.
