@@ -11,121 +11,49 @@ import pandas as pd                                 # Dataframe managment.
 This block contains all main functions.
 """
 
-def compute_jaccard(
-        A: np.ndarray, 
-        B: np.ndarray
-        ) -> float:
-    """
-    compute_jaccard (function): Compute the Jaccard index between two cluster label vectors.
+def JaccardIndexSolutions(Solutions_Matrix: np.ndarray):
+    num_rows = Solutions_Matrix.shape[0]
+    n_elements = Solutions_Matrix.shape[1]
     
-    Parameters:
-    - A: Iterable of cluster labels (e.g., list, np.ndarray).
-    - B: Iterable of cluster labels (same length as A).
+    # Crear todas las matrices de comparación de una vez
+    # Reshape Solutions_Matrix para broadcasting
+    solutions_expanded = Solutions_Matrix.reshape(num_rows, n_elements, 1)
     
-    Returns:
-    - jaccard index: Jaccard similarity index.
-    """
-    try:
-        # Convert inputs to NumPy arrays
-        A = np.ravel(np.array(A))
-        B = np.ravel(np.array(B))
+    # Broadcasting: comparar cada solución con sí misma para obtener matrices de similitud
+    # Resultado: un tensor 3D (num_rows, n_elements, n_elements)
+    all_same_matrices = (solutions_expanded == Solutions_Matrix.reshape(num_rows, 1, n_elements))
+    
+    # Índices del triángulo superior (sin diagonal)
+    upper_tri_indices = np.triu_indices(n_elements, k=1)
+    
+    # Extraer los vectores de similitud del triángulo superior para cada solución
+    # Shape: (num_rows, número de elementos en el triángulo superior)
+    similarity_vectors = np.array([same_matrix[upper_tri_indices] for same_matrix in all_same_matrices])
+    
+    # Inicializar matriz resultado
+    Jaccard_Matrix = np.zeros((num_rows, num_rows))
+    
+    # Calcular todas las medidas Jaccard de una vez usando broadcasting
+    for i in range(num_rows):
+        for j in range(i+1, num_rows):
+            # Operaciones vectorizadas entre las soluciones i y j
+            r = np.sum(similarity_vectors[i] & similarity_vectors[j])
+            u = np.sum(similarity_vectors[i] & ~similarity_vectors[j])
+            v = np.sum(~similarity_vectors[i] & similarity_vectors[j])
+            
+            # Calcular índice Jaccard
+            jaccard = r / (r + u + v) if (r + u + v) > 0 else 0.0
+            
+            # Asignar a la matriz (simétrica)
+            Jaccard_Matrix[i, j] = jaccard
+            Jaccard_Matrix[j, i] = jaccard
+    
+    # Diagonal a 1
+    np.fill_diagonal(Jaccard_Matrix, 1.0)
+    
+    return Jaccard_Matrix
 
-        # Validate shape
-        if A.shape != B.shape:
-            raise ValueError("Input arrays A and B must have the same shape.")
-
-        n = len(A)
-        if n < 2:
-            raise ValueError("Input arrays must contain at least two elements to compute pairwise comparisons.")
-
-        # Build pairwise comparison matrices.
-        same_A = (A[:, None] == A[None, :])
-        same_B = (B[:, None] == B[None, :])
-
-        # Use upper triangle indices (excluding diagonal).
-        upper_triangle = np.triu_indices(n, k=1)
-        same_A_upper = same_A[upper_triangle]
-        same_B_upper = same_B[upper_triangle]
-
-        # Compute intersection and differences.
-        r = np.sum(same_A_upper & same_B_upper)
-        u = np.sum(same_A_upper & ~same_B_upper)
-        v = np.sum(~same_A_upper & same_B_upper)
-
-        # Avoid division by zero.
-        denominator = r + u + v
-        if denominator == 0:
-            return 0.0
-
-        return r / denominator
-
-    except Exception as e:
-        print(f"Error in compute_jaccard: {e}")
-        return None
-
-def process_JaccardValues(
-        Matrix: list[np.ndarray], 
-        n_threads: int
-        ) -> np.ndarray:
-    """
-    process_JaccardValues(function): Compute the pairwise Jaccard similarity matrix for a set of solutions.
-
-    Parameters:
-    - Matrix (list[np.ndarray]] or np.ndarray): Matrix of cluster solutions.
-    - n_threads (int): Number of threads to use for parallel computation.
-
-    Returns:
-    - Jaccard_Matrix (np.ndarray): Pairwise Jaccard similarity matrix for the solutions.
-    """
-    try:
-        # Validation of thread number.
-        if not isinstance(n_threads, int) or n_threads <= 0:
-            raise ValueError("n_threads must be a positive integer.")
-
-        # Check input matrix.
-        if isinstance(Matrix, list):
-            if not all(isinstance(row, (np.ndarray, list)) for row in Matrix):
-                raise ValueError("All elements in the list must be NumPy arrays or lists.")
-            Matrix = [np.array(row) for row in Matrix]
-        elif isinstance(Matrix, np.ndarray):
-            if Matrix.ndim != 2:
-                raise ValueError("Matrix must be a 2D NumPy array.")
-            # Convert each row to a separate vector.
-            Matrix = [Matrix[i, :] for i in range(Matrix.shape[0])]
-        else:
-            raise TypeError("Matrix must be a list of NumPy arrays or a 2D NumPy array.")
-
-        n_solutions = len(Matrix)
-        if n_solutions == 0:
-            raise ValueError("Matrix must contain at least one solution.")
-
-        # Crear la matriz de Jaccard
-        Jaccard_Matrix = np.zeros((n_solutions, n_solutions))
-
-        # Función auxiliar
-        def compute_pairwise_proportion(indices):
-            i, j = indices
-            return i, j, compute_jaccard(Matrix[i], Matrix[j])
-
-        # Índices del triángulo superior (incluyendo diagonal)
-        indices = [(i, j) for i in range(n_solutions) for j in range(i, n_solutions)]
-
-        # Cálculo paralelo
-        with ThreadPoolExecutor(max_workers=n_threads) as executor:
-            results = list(executor.map(compute_pairwise_proportion, indices))
-
-        # Llenar la matriz simétrica
-        for i, j, proportion in results:
-            Jaccard_Matrix[i, j] = proportion
-            Jaccard_Matrix[j, i] = proportion
-
-        return Jaccard_Matrix
-
-    except Exception as e:
-        print(f"Error in process_JaccardValues: {e}")
-        return np.array([])
-
-def Jaccar_similarityClusters(
+def JaccarIndexClusters(
         Solution1: list[set], 
         Solution2: list[set]
         ) -> np.ndarray:
@@ -143,7 +71,7 @@ def Jaccar_similarityClusters(
         # checks.
         if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
             raise TypeError("Solution1 debe ser una lista de conjuntos (sets).")
-        if not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
+        elif not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
             raise TypeError("Solution2 debe ser una lista de conjuntos (sets).")
         if len(Solution1) == 0 or len(Solution2) == 0:
             raise ValueError("Ninguna de las soluciones debe estar vacía.")
@@ -153,100 +81,16 @@ def Jaccar_similarityClusters(
         n2 = len(Solution2)
         MatrixJaccard = np.zeros((n1, n2))
 
-        for i in range(n1):
-            for j in range(n2):
-                union = len(Solution1[i] | Solution2[j])
-                intersection = len(Solution1[i] & Solution2[j])
-                MatrixJaccard[i, j] = 0 if union == 0 else intersection / union
+        for i, s1 in enumerate(Solution1):
+            for j, s2 in enumerate(Solution2):
+                union_size = len(s1 | s2)
+                intersection_size = len(s1 & s2)
+                MatrixJaccard[i, j] = intersection_size / union_size if union_size != 0 else 0
 
+    except Exception as e:
+        raise RuntimeError (f"Error en Jaccar_similarityClusters: {e}")
+    else:
         return MatrixJaccard
-
-    except Exception as e:
-        print(f"Error en Jaccar_similarityClusters: {e}")
-        return np.array([])
-
-def compute_rand_index(
-        labels1: np.ndarray, 
-        labels2: np.ndarray, 
-        adjusted: bool = True
-    ) -> float:
-    """
-    Compute Rand Index or Adjusted Rand Index between two clustering solutions.
-    
-    Parameters:
-    - labels1 (np.ndarray): First clustering solution.
-    - labels2 (np.ndarray): Second clustering solution.
-    - adjusted (bool): If True, use Adjusted Rand Index. Otherwise, use Rand Index.
-    
-    Returns:
-    - float: Similarity score.
-    """
-    if len(labels1) != len(labels2):
-        raise ValueError("Both input arrays must have the same length.")
-    
-    return adjusted_rand_score(labels1, labels2) if adjusted else rand_score(labels1, labels2)
-
-def process_RandValues(
-        Matrix: list[np.ndarray], 
-        n_threads: int, 
-        adjusted: bool = True
-    ) -> np.ndarray:
-    """
-    Compute the pairwise Rand or Adjusted Rand Index matrix for a set of clustering solutions.
-    
-    Parameters:
-    - Matrix (list[np.ndarray] or 2D np.ndarray): List or 2D array of clustering solutions.
-    - n_threads (int): Number of threads to use.
-    - adjusted (bool): Whether to compute Adjusted Rand Index (True) or regular Rand Index (False).
-    
-    Returns:
-    - np.ndarray: Similarity matrix (symmetric).
-    """
-    try:
-        # Validar tipo y estructura
-        if isinstance(Matrix, list):
-            if not all(isinstance(row, np.ndarray) for row in Matrix):
-                raise TypeError("If Matrix is a list, all elements must be NumPy arrays.")
-        elif isinstance(Matrix, np.ndarray):
-            if Matrix.ndim != 2:
-                raise ValueError("Matrix must be a 2D NumPy array.")
-            # Convertimos filas a lista de vectores
-            Matrix = [Matrix[i, :] for i in range(Matrix.shape[0])]
-        else:
-            raise TypeError("Matrix must be a list of NumPy arrays or a 2D NumPy array.")
-
-        if n_threads <= 0:
-            raise ValueError("n_threads must be a positive integer.")
-
-        n_solutions = len(Matrix)
-        if n_solutions == 0:
-            raise ValueError("Matrix must contain at least one solution.")
-
-        # Inicializar matriz de similitud
-        Similarity_Matrix = np.zeros((n_solutions, n_solutions))
-
-        # Función auxiliar para el cálculo paralelo
-        def compute_pairwise_rand(indices):
-            i, j = indices
-            score = compute_rand_index(Matrix[i], Matrix[j], adjusted=adjusted)
-            return i, j, score
-
-        # Índices del triángulo superior (incluyendo diagonal)
-        indices = [(i, j) for i in range(n_solutions) for j in range(i, n_solutions)]
-
-        with ThreadPoolExecutor(max_workers=n_threads) as executor:
-            results = list(executor.map(compute_pairwise_rand, indices))
-
-        # Rellenar matriz simétrica
-        for i, j, value in results:
-            Similarity_Matrix[i, j] = value
-            Similarity_Matrix[j, i] = value
-
-        return Similarity_Matrix
-
-    except Exception as e:
-        print(f"Error in process_RandValues: {e}")
-        return np.array([])
 
 def compare_solution_pair(
         idx1: int, 
@@ -265,7 +109,7 @@ def compare_solution_pair(
     - equivalent_pairs (list): List of tuples (cluster_i, cluster_j, similarity).
     """
     try:
-        MatrixJaccard = Jaccar_similarityClusters(solutions[idx1], solutions[idx2])
+        MatrixJaccard = JaccarIndexClusters(solutions[idx1], solutions[idx2])
         
         similarity_pairs = [
             (i, j, MatrixJaccard[i, j])

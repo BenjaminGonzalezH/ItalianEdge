@@ -23,7 +23,7 @@ def He_clustering(
         num_groups: int = 4,
         save_path: str = "dendrogram", 
         dendrogram_file: str = "dendrogram.html",
-        method: str = "single") -> list:
+        method: str = "single") -> np.ndarray:
     """
     He_clustering_interactive(function): Perform hierarchical clustering and generate an interactive dendrogram.
 
@@ -34,42 +34,38 @@ def He_clustering(
     - save_path (str): Directory to save the dendrogram.
     - dendrogram_file (str): Name of the output HTML file.
     - method (str): Linkage method to use. Default is "single".
-    - show_flag (bool): Whether to display the dendrogram in the browser. Default is True.
 
     Returns:
-    - list: Consensus clustering solution.
+    - consensus_solution (np.ndarray): Consensus clustering solution.
     """
     try:
+        ################################################## Input Check.
         # Validate that the matrix is square.
         if distance_matrix.shape[0] != distance_matrix.shape[1]:
             raise ValueError("Distance matrix must be square.")
-        
         # Make sure the number of genes matches the dimension of the distance matrix.
-        if len(genes) != distance_matrix.shape[0]:
+        elif len(genes) != distance_matrix.shape[0]:
             raise ValueError(f"Number of genes ({len(genes)}) does not match distance matrix dimensions ({distance_matrix.shape[0]})")
-        
         # Check non zero groups.
-        if num_groups < 1:
+        elif num_groups < 1:
             raise ValueError("num_groups must be greater than 0.")
         
+        ################################################## Heiracial clustering.
         # Convert to condensed form.
         condensed_dist_matrix = squareform(distance_matrix)
-
         # Perform hierarchical clustering.
         Z = linkage(condensed_dist_matrix, method=method)
-
         # Define consensus clusters.
         consensus_solution = fcluster(Z, num_groups, criterion='maxclust')
 
+        ################################################## HTML dendogram graph.
         # Generate labels with gene names and positions.
         labels = [f"{i}-{gene}" for i, gene in enumerate(genes)]
-
         # Generate the dendrogram data without plotting.
         dendrogram_data = dendrogram(Z, labels=labels, no_plot=True)
         
         # Create interactive dendrogram with plotly.
         fig = go.Figure()
-        
         # Add the dendrogram traces.
         for i, d in enumerate(dendrogram_data['dcoord']):
             x = dendrogram_data['icoord'][i]
@@ -130,21 +126,16 @@ def He_clustering(
             showlegend=False
         )
         
-        # Create directory if it doesn't exist.
+        ################################################## Saving graph.
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        
-        # Save the figure.
         html_path = os.path.join(save_path, dendrogram_file)
         fig.write_html(html_path)
-        print(f"Interactive dendrogram saved at: {html_path}")
-        
-        return consensus_solution
     
     except ValueError as ve:
-        print(f"ValueError: {ve}")
-        return None
+        raise RuntimeError(f"ValueError: {ve}")
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        traceback.print_exc()  # This will print the full traceback for debugging.
-        return None
+        raise RuntimeError(f"Unexpected error: {e}")
+    else:
+        print(f"Interactive dendrogram saved at: {html_path}.")
+        return consensus_solution
