@@ -79,16 +79,22 @@ if __name__ == "__main__":
 
     ###################################################################################################### Comparación de composición de clusters (RAND).
     start_time = time.time()
-    Rand = RV.RandIndexSolutions(Matrix,False)
+    Rand = RV.RandIndexSolutions(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
 
+    ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()
-    ARand = RV.RandIndexSolutions(Matrix)
+    SC_matrix = SCM.SolutionClusterMatrix(Matrix, genes)
     end_time = time.time()
-    print(f"Tiempo de ejecución (Valores SRI) : {end_time - start_time:.6f} segundos")
+    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos") 
 
-    ###### Transformación de estrutura a conjunto de clusters por solución.
+    start_time = time.time()
+    SC_matrix_a = SCM.process_solution_vectorized(Matrix, genes)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")  
+    
+    
     start_time = time.time()
     SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 6)
     end_time = time.time()

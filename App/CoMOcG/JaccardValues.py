@@ -49,9 +49,8 @@ def JaccardIndexSolutions(Solutions_Matrix: np.ndarray):
         # Calculus of every component of Jaccard Index of clustering solutions:
         # Being A and B clustering solutions:
         # r -> two genes are toghether in A and B.
-        # s -> two genes are separated in A and B.
         # u -> two genes are toghether in A but no in B.
-        # u -> two genes are toghether in B but no in A.
+        # v -> two genes are toghether in B but no in A.
         for i in range(num_rows):
             for j in range(i+1, num_rows):
                 r = np.sum(similarity_vectors[i] & similarity_vectors[j])

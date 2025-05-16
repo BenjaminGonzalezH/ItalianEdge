@@ -2,6 +2,7 @@
 import numpy as np                                  # Efficient Math Operations.
 from collections import defaultdict                 # Dictionary.
 from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
+import pandas as pd
 
 ######### Functions #########
 
@@ -113,3 +114,22 @@ def SolutionClusterMatrix(
     # Exceptions block.
     except Exception as e:
         print(f"Unexpected error: {e}")
+
+def process_solution_vectorized(solution: np.ndarray, genes: list) -> list:
+    """
+    Versión vectorizada de ProcessSolution:
+    Agrupa genes por etiquetas de cluster indicadas en solution.
+    Retorna lista de sets de genes por cluster.
+    """
+    unique_clusters, inverse_indices = np.unique(solution, return_inverse=True)
+    # unique_clusters: etiquetas únicas ordenadas
+    # inverse_indices: para cada posición, índice en unique_clusters
+
+    clusters = []
+    for cluster_label in unique_clusters:
+        # Índices donde solution == cluster_label
+        indices = np.where(solution == cluster_label)[0]
+        # Genes correspondientes
+        cluster_genes = set(genes[i] for i in indices)
+        clusters.append(cluster_genes)
+    return clusters
