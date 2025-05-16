@@ -1,10 +1,6 @@
 ######### Libraries #########
-import itertools                                    # Eficient iterations.
-import os                                           # OS callings.
 import numpy as np                                  # Efficient Math Operations.
 import csv                                          # Read csv.
-from concurrent.futures import ThreadPoolExecutor   # Thread Administration.
-import mmap                                         # Mapping data in memory.
 from typing import Tuple                            # Multiple returns doc.
 import pandas as pd                                 # Dataframe managment.
 

@@ -7,10 +7,10 @@ if __name__ == "__main__":
     # Librerias propias.
     import App.CoMOcG.ReadSolution as RD
     import App.CoMOcG.ConsensusMatrix as CM
-    import App.CoMOcG.ProportionMatrix as PM
     import App.CoMOcG.He_Clustering as He
     import App.CoMOcG.SolutionClusterMatrix as SCM
     import App.CoMOcG.JaccardValues as JV
+    import App.CoMOcG.RandValues as RV
     import App.CoMOcG.GoEnrischment as GOe
     import App.CoMOcG.Actions as Ac
     import App.CoMOcG.CompoleteStudy as CS
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.ReadSolutionsFile(file_2,"csv")
+    Matrix, genes  = RD.ReadSolutionsFile(file_1,"csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -70,10 +70,23 @@ if __name__ == "__main__":
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
+    entrez_gen = GOe.convert_symbols_to_entrez(genes)
+    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 6)
     start_time = time.time()
-    Jaccard = JV.JaccardIndexSolutions(Matrix)
+    Jaccard_c = JV.JaccardIndexClusters(SC_matrix[0], SC_matrix[1])
     end_time = time.time()
-    entrez_gen = GOe.convert_symbols_to_entrez(genes, organism="org.At.tair.db", keytype="TAIR")
+    print(f"Tiempo de ejecución (Comparar clusters - Jaccard) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Comparación de composición de clusters (RAND).
+    start_time = time.time()
+    Rand = RV.RandIndexSolutions(Matrix,False)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
+
+    start_time = time.time()
+    ARand = RV.RandIndexSolutions(Matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores SRI) : {end_time - start_time:.6f} segundos")
 
     ###### Transformación de estrutura a conjunto de clusters por solución.
     start_time = time.time()

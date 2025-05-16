@@ -21,33 +21,35 @@ def ConsensusMatrix(Solutions_Matrix: np.ndarray):
         - Coincidence_Matrix: Square Matrix that represent the proportion of solutions where two genes 
         are in the same cluster.
         - Consensus_Matrix: Square Matrix that represent the proportion of solutions where two genes 
-        are not in the same cluster.
+        are not in the same cluster. This is used for create consensus solution (heiracial clustering).
     """
     try:
-        # Check empty matrix.
-        if Solutions_Matrix.size == 0 or Solutions_Matrix.shape[1] == 0:
-            raise ValueError("Empty input matrix.")
+        # Checking Matrix.
+        if Solutions_Matrix.shape[0] == 0:
+            raise ValueError("Empty solutions matrix.")
+        elif Solutions_Matrix.shape[1] < 2:
+            raise ValueError("Matrix at least needs to have two columns (or genes) for valid comparision in solutions.")
 
         # Obtain unique pairs for comparison.
-        num_cols = Solutions_Matrix.shape[1]
-        upper_tri_indices = np.triu_indices(num_cols, k=1)
-        pairs = np.column_stack(upper_tri_indices)
+        num_cols = Solutions_Matrix.shape[1]                    # Number of genes.
+        upper_tri_indices = np.triu_indices(num_cols, k=1)      # Possible unique pairs of genes (columns).
+        pairs = np.column_stack(upper_tri_indices)              # Format of pairs in 1D arrays of 2.
 
-        # Broadcasting to compare each solutions with the others.
+        # Broadcasting to compare each solution with the others.
         GlobalConnectivityMatrix = Solutions_Matrix[:, pairs[:, 0]] == Solutions_Matrix[:, pairs[:, 1]]
 
         # Sum Connectivity Matrix that are the total of cases where two genes are in the same cluster.
         Sum_ConnectivityMatrix = np.sum(GlobalConnectivityMatrix, axis=0)
 
-        # Square Matrix Reshape.
+        # Square Matrix copy values.
         Coincidence_Matrix = np.zeros((num_cols, num_cols), dtype=float)
         Coincidence_Matrix[pairs[:, 0], pairs[:, 1]] = Sum_ConnectivityMatrix
         Coincidence_Matrix[pairs[:, 1], pairs[:, 0]] = Sum_ConnectivityMatrix
 
         # Proportion calculus.
         Coincidence_Matrix = Coincidence_Matrix/Solutions_Matrix.shape[0]
-        np.fill_diagonal(Coincidence_Matrix,1) # Fill with ones.
-        Consensus_Matrix = 1 - Coincidence_Matrix
+        np.fill_diagonal(Coincidence_Matrix,1)                              # Fill with ones.
+        Consensus_Matrix = 1 - Coincidence_Matrix                           # Distance Matrix.
         
     except ValueError as ve:
         raise RuntimeError(f"Input Matrix Error: {ve}")
