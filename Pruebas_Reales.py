@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.ReadSolutionsFile(file_1,"csv")
+    Matrix, genes  = RD.ReadSolutionsFile(file_3,"csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
-    Jaccard = JV.JaccardIndexSolutions(Matrix)
+    Jaccard = JV.JaccardIndexSolutions(Matrix, n_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
     Ac.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_3/JaccardS.html",
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
-    entrez_gen = GOe.convert_symbols_to_entrez(genes)
-    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 6)
+    entrez_gen = GOe.convert_symbols_to_entrez(genes,organism="org.At.tair.db", keytype="TAIR")
+    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 8)
     start_time = time.time()
     Jaccard_c = JV.JaccardIndexClusters(SC_matrix[0], SC_matrix[1])
     end_time = time.time()
@@ -79,26 +79,31 @@ if __name__ == "__main__":
 
     ###################################################################################################### Comparación de composición de clusters (RAND).
     start_time = time.time()
-    Rand = RV.RandIndexSolutions(Matrix)
+    Rand = RV.RandIndexSolutions(Matrix, 8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()
-    SC_matrix = SCM.SolutionClusterMatrix(Matrix, genes)
+    SC_matrix = SCM.SolutionClusterMatrix(Matrix, genes, 8)
     end_time = time.time()
-    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos") 
+    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")
 
+    ###################################################################################################### Obtener clusters equivalentes.  
     start_time = time.time()
-    SC_matrix_a = SCM.process_solution_vectorized(Matrix, genes)
+    df_equivalentes = JV.FindEquivalentClusters(SC_matrix)
     end_time = time.time()
-    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")  
-    
-    
+    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_3/Equivalentes.csv")
+
+    ###################################################################################################### Obtener Entrez ID.
     start_time = time.time()
-    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 6)
+    EntrezID_P = GOeP.convert_symbols_to_entrez_Python(list(SC_matrix[0][1]), organism_gp='athaliana', taxID= 3702)
+    GO_DF_P = GOeP.go_enrichment_entrez_Python(EntrezID_P, organism='athaliana')
+    Ac.save_dataframe(GO_DF_P,directory + "/Results/File_3/Enrichment_Example_Python.csv")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Cambio de estructura) : {end_time - start_time:.6f} segundos")
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID) : {end_time - start_time:.6f} segundos")
+
 
     ###### Distancia de Wang en la totalidad de genes.
     start_time = time.time()
@@ -106,13 +111,6 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (W 2) : {end_time - start_time:.6f} segundos")
     Ac.save_dataframe(Wang_df, directory + "/Results/File_3/Wang.csv")
-
-    ###### Búsqueda de clusters equivalentes entre soluciones.
-    start_time = time.time()
-    df_equivalentes = JV.find_equivalent_clusters(SC_matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_3/Equivalentes.csv")
 
     ###### Similitud de wang entre soluciones.
     Genes_wang = list(Wang_df.columns.values)

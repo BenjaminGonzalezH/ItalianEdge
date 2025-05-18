@@ -1,5 +1,6 @@
 ######### Libraries #########
-import numpy as np                                      # Efficient Math Operations.
+import numpy as np                                                # Efficient Math Operations.
+from concurrent.futures import ThreadPoolExecutor, as_completed   # Thread Administration.
 
 ######### Functions #########
 
@@ -7,7 +8,7 @@ import numpy as np                                      # Efficient Math Operati
 This block contains all main functions.
 """
 
-def RandIndexSolutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
+def RandIndexSolutions(Solutions_Matrix: np.ndarray, n_threads: int) -> np.ndarray:
     """
     RandIndexSolutions(function): Compute the pairwise Rand Index or Adjusted Rand Index matrix using vectorization.
 
@@ -44,21 +45,24 @@ def RandIndexSolutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
         # Initialize return matrix.
         Rand_Matrix = np.zeros((num_rows, num_rows))
         
-        # Calculus of every component of Jaccard Index of clustering solutions:
+        # Calculus of every component of Rand Index of clustering solutions:
         # Being A and B clustering solutions:
         # r -> two genes are toghether in A and B.
         # s -> two genes are separated in A and B.
-        for i in range(num_rows):
-            for j in range(i+1, num_rows):
-                r = np.sum(similarity_vectors[i] & similarity_vectors[j])
-                s = np.sum(~similarity_vectors[i] & ~similarity_vectors[j])
-                
-                # Rand Index Formula.
-                Rand_index = (r+s) / (n_elements*(n_elements-1)/2) if (n_elements*(n_elements-1)/2) > 0 else 0.0
-                
-                # Symmetric.
-                Rand_Matrix[i, j] = Rand_index
-                Rand_Matrix[j, i] = Rand_index
+        # This is a inner function for ThreadPoolExecutor performance.
+        def compute_rand(i, j):
+            r = np.sum(similarity_vectors[i] & similarity_vectors[j])
+            s = np.sum(~similarity_vectors[i] & ~similarity_vectors[j])
+            return (i, j, (r+s) / (n_elements*(n_elements-1)/2) if (n_elements*(n_elements-1)/2) > 0 else 0.0)
+
+        pairs = [(i, j) for i in range(num_rows) for j in range(i + 1, num_rows)]
+        with ThreadPoolExecutor(max_workers=n_threads) as executor:
+            futures = {executor.submit(compute_rand, i, j): (i, j) for i, j in pairs}
+
+            for future in as_completed(futures):
+                i, j, rand = future.result()
+                Rand_Matrix[i, j] = rand
+                Rand_Matrix[j, i] = rand
         
         # Diagonal of 1's.
         np.fill_diagonal(Rand_Matrix, 1.0)
