@@ -11,6 +11,7 @@ if __name__ == "__main__":
     import App.CoMOcG.SolutionClusterMatrix as SCM
     import App.CoMOcG.JaccardValues as JV
     import App.CoMOcG.RandValues as RV
+    import App.CoMOcG.MappingEntrez as ME
     import App.CoMOcG.GoEnrischment as GOe
     import App.CoMOcG.Actions as Ac
     import App.CoMOcG.CompoleteStudy as CS
@@ -98,70 +99,31 @@ if __name__ == "__main__":
 
     ###################################################################################################### Obtener Entrez ID.
     start_time = time.time()
-    EntrezID_P = GOeP.convert_symbols_to_entrez_Python(list(SC_matrix[0][1]), organism_gp='athaliana', taxID= 3702)
-    GO_DF_P = GOeP.go_enrichment_entrez_Python(EntrezID_P, organism='athaliana')
+    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]), organism_gp='athaliana', taxID= 3702)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
+
+    sc_COPY = {str(x) for x in SC_matrix[0][1]}
+    start_time = time.time()
+    EntrezID_r = GOe.convert_symbols_to_entrez(list(sc_COPY),organism="org.At.tair.db",keytype="TAIR")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (EntrezID r) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Go Enrichment.
+    start_time = time.time()
+    GO_DF_P = GOeP.GoEnrichment(EntrezID_P, organism='athaliana')
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_3/Enrichment_Example_Python.csv")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID) : {end_time - start_time:.6f} segundos")
-
-
-    ###### Distancia de Wang en la totalidad de genes.
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos") 
+    
     start_time = time.time()
-    Wang_df = GOe.calculate_wang_distance_matrix(genes, organism="org.At.tair.db", convert_ids=True, keytype="TAIR")
+    Go_df_now = GOe.perform_go_enrichment(EntrezID_r,organism="org.At.tair.db",keytype="TAIR", convert_ids=False)
+    Ac.save_dataframe(Go_df_now,directory + "/Results/File_3/Enrichment_Example_R.csv")
     end_time = time.time()
-    print(f"Tiempo de ejecución (W 2) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(Wang_df, directory + "/Results/File_3/Wang.csv")
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID R) : {end_time - start_time:.6f} segundos")
 
-    ###### Similitud de wang entre soluciones.
-    Genes_wang = list(Wang_df.columns.values)
-    Wang_Matrix = Wang_df.to_numpy()
+    ###################################################################################################### Distancia de Wang.
     start_time = time.time()
-    Sim_Wang = GOe.Solution_Wang_index_similarity_Python(Genes_wang, Wang_Matrix, df_equivalentes, SC_matrix, num_threads=6)
+    Wang_df = GOe.calculate_wang_distance_matrix(list(sc_COPY), organism="org.At.tair.db", convert_ids=True, keytype="TAIR")
     end_time = time.time()
-    print(f"Tiempo de ejecución (grupos similares en wang) : {end_time - start_time:.6f} segundos") 
-    Ac.plot_html_heatmap(Sim_Wang,  directory + "/Results/File_3/Prop_matrix_P_2.html",
-                        x_label="Solution",
-                        y_label="Solution",
-                        title="Similitud entre soluciones usando WANG",
-                        z_label="Wang",
-                        tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
-
-
-    ###### Python Propolsals.
-    SC_matrix_1 = SCM.SolutionClusterMatrix(Matrix, genes, 6)
-    start_time = time.time()
-    EntrezID_Pg = GOeP.convert_symbols_to_entrez_Python(genes, organism_gp='athaliana', taxID= 3702)
-    EntrezID_P = GOeP.convert_symbols_to_entrez_Python(list(SC_matrix_1[0][1]), organism_gp='athaliana', taxID= 3702)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Conversion EntrezID Python) : {end_time - start_time:.6f} segundos")
-
-    start_time = time.time()
-    GO_DF_P = GOeP.go_enrichment_entrez_Python(EntrezID_P, organism='athaliana')
-    Ac.save_dataframe(GO_DF_P,directory + "/Results/File_3/Enrichment_Example_Python.csv")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID) : {end_time - start_time:.6f} segundos") 
-
-
-    ###### Imprimir superposición de matrices.
-    start_time = time.time()
-    Ac.plot_dual_heatmap_two_colors(np.triu(Jaccard), np.tril(Sim_Wang), save_filepath= directory + "/Results/File_3/DUAL_W_J.html")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (matrices superpuestas) : {end_time - start_time:.6f} segundos") 
-
-    ###### Gráfico entre soliciones.
-    start_time = time.time()
-    Go_df_now = GOe.perform_go_enrichment(list(SC_matrix_1[0][1]),organism="org.At.tair.db",keytype="TAIR")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos similares en wang) : {end_time - start_time:.6f} segundos") 
-    Ac.save_dataframe(Go_df_now, directory + "/Results/File_3/Enrichment_Example_R.csv")
-    Gplot.plot_gene_ratio(Go_df_now, directory + "/Results/File_3/Gene_Ratio_Example.html")
-    Gplot.plot_qscore(Go_df_now, directory + "/Results/File_3/Qscore_Example.html")
-    Gplot.plot_go_interaction_network_rpy2(list(SC_matrix_1[0][1]),organism="org.At.tair.db", save_path=directory + "/Results/File_3/Network_Example.png",
-                                           keytype="TAIR", width=1920, height=1080)
-    Gplot.create_go_tree_rpy2(Go_df_now, save_path=directory + "/Results/File_3/Tree.pdf")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Go plots) : {end_time - start_time:.6f} segundos") 
-
-    # Estudio completo.
-    #CS.Complete_Study(df_equivalentes,SC_matrix, convert_ids=False, directory= directory + "/Results/File_3/Global/")
-
+    print(f"Tiempo de ejecución (Wang R) : {end_time - start_time:.6f} segundos")
