@@ -17,7 +17,7 @@ This block contains all main functions.
 
 def plot_gene_ratio(
         df: pd.DataFrame, 
-        save_path:str = 'geneRatioPlot.html'
+        save_path:str = 'gene_ratioPlot.html'
         ) -> None:
     """
     plot_gene_ratio (function): Create a HTML that allocates the gene ratio plot.
@@ -28,20 +28,20 @@ def plot_gene_ratio(
     """
     try:
         # Take dataframe necesary data.
-        sorted_df = df.sort_values(['p.adjust', 'GeneRatio', 'Count'], ascending=[True, False, False])
-        sorted_df['GeneRatio'] = sorted_df['GeneRatio'].apply(lambda x: round(eval(x), 2))
+        sorted_df = df.sort_values(['p_value', 'gene_ratio', 'intersection_size'], ascending=[True, False, False])
+        sorted_df['gene_ratio'] = sorted_df['gene_ratio']
         
         # Draw plot.
         fig = px.scatter(
             sorted_df,
-            x='GeneRatio',
-            y='Description',
-            size='Count',
-            color='p.adjust',
+            x='gene_ratio',
+            y='name',
+            size='intersection_size',
+            color='p_value',
             color_continuous_scale='viridis',
             title="Gene Ratio for GO Terms",
-            labels={"GeneRatio": "Gene Ratio", "p.adjust": "Adjusted p-value"},
-            hover_data={'Description': True, 'Count': True, 'p.adjust': True}
+            labels={"gene_ratio": "Gene Ratio", "p_value": "Adjusted p-value"},
+            hover_data={'name': True, 'intersection_size': True, 'p_value': True}
         )
         
         # Save to HTML.
@@ -64,108 +64,25 @@ def plot_qscore(
     save_path (str): Path to save the interactive plot as an HTML file.
     """
     try:
-        df['qScore'] = -np.log10(df['p.adjust'])  # Calculate qScore.
-
+        df = df[df['gene_ratio'] > 0]
         # Create an interactive bar chart.
         fig = px.bar(
-            df.sort_values('qScore', ascending=True),
-            y='Description',
-            x='qScore',
-            title="qScore for GO Terms",
-            labels={"qScore": "Qscore"},
-            color='qScore',
+            df.sort_values('qscore', ascending=True),
+            y='name',
+            x='qscore',
+            title="qscore for GO Terms",
+            labels={"qscore": "Qscore"},
+            color='qscore',
             color_continuous_scale='viridis'
         )
         
         # Save to HTML.
         fig.write_html(save_path)
-        print(f"Interactive qScore plot saved as: {save_path}")
+        print(f"Interactive qscore plot saved as: {save_path}")
 
     except Exception as e:
-        print(f"Error creating interactive qScore plot: {str(e)}")
+        print(f"Error creating interactive qscore plot: {str(e)}")
 
-def plot_go_interaction_network_rpy2(
-        gene_list: list[str], 
-        organism: str = "org.Hs.eg.db", 
-        aspect: str = "BP", 
-        similarity_threshold: float = 0.7, 
-        save_path: str= None, 
-        convert_ids: bool= True,
-        keytype: str = "SYMBOL", 
-        width: int = 1000, 
-        height: int = 800, 
-        res: int = 150):
-    """
-    plot_go_interaction_network_rpy2 (function): Generate an interaction network for GO terms using R and rpy2, 
-    with adjustable image size and resolution.
-    
-    Parameters:
-    - gene_list (list): List of gene symbols or Entrez IDs.
-    - organism (str): Organism database to use in R (e.g., "org.Hs.eg.db").
-    - aspect (str): GO aspect to focus on ('BP', 'MF', 'CC').
-    - similarity_threshold (float): Minimum Wang similarity to create an edge.
-    - save_path (str): Path to save the graph. If None, the graph is displayed in R.
-    - convert_ids (bool): Whether to convert gene symbols to Entrez IDs.
-    - width (int): Width of the image in pixels (default: 1000).
-    - height (int): Height of the image in pixels (default: 800).
-    - res (int): Resolution of the image in ppi (default: 150).
-    """
-    try:
-        # Validate the input gene list
-        if not isinstance(gene_list, list) or len(gene_list) == 0:
-            raise ValueError("Input must be a non-empty list of genes.")
-        
-        # Convert gene symbols to Entrez IDs if needed
-        if convert_ids:
-            entrez_ids = convert_symbols_to_entrez(gene_list, organism, keytype)
-            if len(entrez_ids) == 0:
-                raise ValueError("No valid Entrez IDs could be derived from the input gene list.")
-            print(f"Converted {len(gene_list)} gene symbols to {len(entrez_ids)} Entrez IDs")
-        else:
-            entrez_ids = gene_list
-        
-        # Convert the gene list to an R-compatible vector
-        pandas2ri.activate()
-        r_gene_list = robjects.StrVector(entrez_ids)
-
-        # R code to generate GO interaction network with customizable image size and resolution
-        r_code = f"""
-        function(gene_list, save_path, similarity_threshold, organism, aspect, width, height, res) {{
-            library(clusterProfiler)
-            library(enrichplot)
-            library({organism})
-            
-            tryCatch({{
-                # Perform GO enrichment analysis
-                ego <- enrichGO(gene = gene_list, ont = "{aspect}", OrgDb = {organism})
-                edox <- pairwise_termsim(ego)
-                
-                if (!is.null(save_path)) {{
-                    png(save_path, width = width, height = height, res = res)
-                }}
-                
-                # Plot emapplot
-                print(emapplot(edox))
-                
-                if (!is.null(save_path)) {{
-                    dev.off()
-                }}
-            }}, error = function(e) {{
-                stop("R encountered an error: ", e$message)
-            }})
-        }}
-        """
-
-        # Create the R function from the code
-        r_func = robjects.r(r_code)
-
-        # Call the R function with the converted gene list and image parameters
-        r_func(r_gene_list, save_path, similarity_threshold, organism, aspect, width, height, res)
-        
-        print(f"GO interaction network created successfully{' and saved at ' + save_path if save_path else ''}")
-
-    except Exception as e:
-        print(f"Error generating GO interaction network: {str(e)}")
 
 def create_go_tree_rpy2(
         df: pd.DataFrame, 
@@ -176,21 +93,21 @@ def create_go_tree_rpy2(
     create_go_tree_rpy2 (function): Generates a GO DAG with GO IDs and term names, colored by significance.
     
     Parameters:
-    - df: DataFrame with GO analysis results. Must contain columns: 'ID', 'Description', 'p.adjust', 'Count'
+    - df: DataFrame with GO analysis results. Must contain columns: 'ID', 'name', 'p_value', 'intersection_size'
     aspect: GO aspect ('BP', 'MF', 'CC').
     - max_nodes: Maximum number of nodes to display in the graph.
     - save_path: Path to save the graph. If None, displays on screen.
     """
     try:
-        if df.empty or not all(col in df.columns for col in ['ID', 'Description', 'p.adjust']):
-            raise ValueError("DataFrame is missing required columns ('ID', 'Description', 'p.adjust').")
+        if df.empty or not all(col in df.columns for col in ['ID', 'name', 'p_value']):
+            raise ValueError("DataFrame is missing required columns ('ID', 'name', 'p_value').")
         
         # Convert GO IDs and metadata to R vectors
         go_ids = r_vectors.StrVector(df['ID'].tolist())
         
         # Convert dictionaries properly
-        p_adjust_dict = robjects.ListVector({str(k): v for k, v in zip(df['ID'], df['p.adjust'])})
-        desc_dict = robjects.ListVector({str(k): str(v) for k, v in zip(df['ID'], df['Description'])})  # Convertir a str
+        p_adjust_dict = robjects.ListVector({str(k): v for k, v in zip(df['ID'], df['p_value'])})
+        desc_dict = robjects.ListVector({str(k): str(v) for k, v in zip(df['ID'], df['name'])})  # Convertir a str
         
         # Map aspect to correct ontology
         aspect_map = {"BP": "GOBPPARENTS", "MF": "GOMFPARENTS", "CC": "GOCCPARENTS"}
@@ -198,7 +115,7 @@ def create_go_tree_rpy2(
         
         # Modified R code with term names in nodes
         r_code = f"""
-        function(go_ids, aspect, max_nodes, save_path, p_adjust_values, descriptions) {{
+        function(go_ids, aspect, max_nodes, save_path, p_adjust_values, names) {{
             library(GO.db)
             library(GOstats)
             library(graph)
@@ -246,7 +163,7 @@ def create_go_tree_rpy2(
             node_labels <- sapply(nodes(gograph), function(x) {{
                 node_labels <- sapply(nodes(gograph), function(x) {{
                 p_val <- p_adjust_values[[x]]
-                desc <- descriptions[[x]]
+                desc <- names[[x]]
                 sig_level <- get_significance_level(p_val)
                 
                 # Manejar NA en descripciones

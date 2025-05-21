@@ -12,11 +12,13 @@ if __name__ == "__main__":
     import App.CoMOcG.JaccardValues as JV
     import App.CoMOcG.RandValues as RV
     import App.CoMOcG.MappingEntrez as ME
-    import App.CoMOcG.GoEnrischment as GOe
+    import App.CoMOcG.GoEnrishment as GOeP
+    import App.CoMOcG.WangIndex as WI
     import App.CoMOcG.Actions as Ac
+    import App.CoMOcG.Heatmaps as Heat
     import App.CoMOcG.CompoleteStudy as CS
-    import App.CoMOcG.GoEnrishmentPy as GOeP
     import App.CoMOcG.Go_Plots as Gplot
+    import App.CoMOcG.GoNetwork as Gnet
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -39,7 +41,7 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
     Ac.save_matrix(Prop_m,  directory + "/Results/File_3/Prop_matrix.csv")
     Ac.save_matrix(Dist_m,  directory + "/Results/File_3/Dist_matrix.csv")
-    Ac.plot_html_heatmap(Prop_m,  directory + "/Results/File_3/Prop_matrix.html",
+    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_3/Prop_matrix.html",
                         x_label="Gen",
                         y_label="Gen",
                         title="Similitud entre genes basada en asignaciones de grupos",
@@ -61,7 +63,7 @@ if __name__ == "__main__":
     Jaccard = JV.JaccardIndexSolutions(Matrix, n_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
-    Ac.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_3/JaccardS.html",
+    Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_3/JaccardS.html",
                         x_label='Solution',
                         y_label='Solution',
                         title='Similitud de Jaccard entre soluciones',
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
-    entrez_gen = GOe.convert_symbols_to_entrez(genes,organism="org.At.tair.db", keytype="TAIR")
+    entrez_gen = ME.ConvertToEntrezID(genes, organism_gp='athaliana', taxID=3702)
     SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 8)
     start_time = time.time()
     Jaccard_c = JV.JaccardIndexClusters(SC_matrix[0], SC_matrix[1])
@@ -99,31 +101,37 @@ if __name__ == "__main__":
 
     ###################################################################################################### Obtener Entrez ID.
     start_time = time.time()
-    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]), organism_gp='athaliana', taxID= 3702)
+    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='athaliana', taxID=3702)
     end_time = time.time()
     print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
 
-    sc_COPY = {str(x) for x in SC_matrix[0][1]}
-    start_time = time.time()
-    EntrezID_r = GOe.convert_symbols_to_entrez(list(sc_COPY),organism="org.At.tair.db",keytype="TAIR")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (EntrezID r) : {end_time - start_time:.6f} segundos")
-
     ###################################################################################################### Go Enrichment.
     start_time = time.time()
-    GO_DF_P = GOeP.GoEnrichment(EntrezID_P, organism='athaliana')
+    GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='athaliana')
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_3/Enrichment_Example_Python.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos") 
-    
-    start_time = time.time()
-    Go_df_now = GOe.perform_go_enrichment(EntrezID_r,organism="org.At.tair.db",keytype="TAIR", convert_ids=False)
-    Ac.save_dataframe(Go_df_now,directory + "/Results/File_3/Enrichment_Example_R.csv")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID R) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang.
+    EntrezID_P = ME.ConvertToEntrezID(genes,organism_gp='athaliana', taxID=3702)
     start_time = time.time()
-    Wang_df = GOe.calculate_wang_distance_matrix(list(sc_COPY), organism="org.At.tair.db", convert_ids=True, keytype="TAIR")
+    wang_1 = WI.WangIndexMatrix(EntrezID_P, organism='athaliana', n_Process=8)
     end_time = time.time()
-    print(f"Tiempo de ejecución (Wang R) : {end_time - start_time:.6f} segundos")
+    print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
+    print(wang_1)
+
+    ###################################################################################################### Toda la muestra (wang).
+    start_time = time.time()
+    wang_s = WI.Solution_Wang_index_similarity_Python(genes, wang_1, df_equivalentes, SC_matrix, num_threads=8)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Matriz) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Dual Heatmap.
+
+    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='athaliana', taxID=3702)
+    GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='athaliana')
+    GtoT = WI.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='athaliana')
+    Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_3/GR.html")
+    Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_3/QS.html")
+    Gnet.plot_go_interaction_network_py(GtoT, save_path=directory + "/Results/File_3/NetInt.png")
+
