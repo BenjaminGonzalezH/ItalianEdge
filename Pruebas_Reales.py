@@ -19,6 +19,7 @@ if __name__ == "__main__":
     import App.CoMOcG.CompoleteStudy as CS
     import App.CoMOcG.Go_Plots as Gplot
     import App.CoMOcG.GoNetwork as Gnet
+    import App.CoMOcG.Go_heiracialNetwork as GHnet
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -131,7 +132,9 @@ if __name__ == "__main__":
     EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='athaliana', taxID=3702)
     GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='athaliana')
     GtoT = WI.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='athaliana')
+    term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
     Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_3/GR.html")
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_3/QS.html")
-    Gnet.plot_go_interaction_network_py(GtoT, save_path=directory + "/Results/File_3/NetInt.png")
+    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues)
+    GHnet.plot_go_hierarchy_html(GtoT, term_pvalues)
 
