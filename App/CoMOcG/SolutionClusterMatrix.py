@@ -14,11 +14,11 @@ def ProcessSolution(solution: np.ndarray, genes: list) -> list:
     Processes a clustering solution by grouping genes into clusters using vectorization.
 
     Parameters:
-    - solution (ndarray): 1D NumPy array indicating the cluster index for each gene.
-    - genes (list): List of gene identifiers.
+    - solution: 1D NumPy array indicating the cluster index for each gene.
+    - genes: List of gene identifiers.
 
     Returns:
-    - Clusters (list): List of list that allocates sets representing clustered gene IDs (np.str_).
+    - Clusters: List of list that allocates sets representing clustered gene IDs (np.str_).
     """
     try:
         # Obtain the unique clusters labels fron solution array.
@@ -41,15 +41,15 @@ def SolutionClusterMatrix(Matrix: np.ndarray, genes: list, max_workers: int = 4)
     Generates a solution cluster matrix using parallel processing and vectorization.
 
     Parameters:
-    - Matrix (np.ndarray): 2D NumPy array with clustering solutions (rows: solutions, cols: genes).
-    - genes (list): List of gene identifiers.
-    - max_workers (int): Number of parallel threads.
+    - Matrix: 2D NumPy array with clustering solutions (rows: solutions, cols: genes).
+    - genes: List of gene identifiers.
+    - max_workers: Number of parallel threads.
 
     Returns:
-    - SolutionClusterMatrix (list): List of clustered gene IDs for each solution.
+    - SolutionClusterMatrix: List of clustered gene IDs for each solution.
     """
     try:
-        # Concurrent execution using ThreadPoolExecutor
+        # Concurrent execution using ThreadPoolExecutor.
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             SolutionClusterMatrix = list(executor.map(ProcessSolution, Matrix, [genes]*Matrix.shape[0]))
 

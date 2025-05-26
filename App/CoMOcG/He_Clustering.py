@@ -1,15 +1,9 @@
 ######### Libraries #########
-import traceback
 import numpy as np                                                  # Efficient Math Operations.
-import matplotlib.pyplot as plt                                     # Graph construction.
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster   # Create clustering.
 from scipy.spatial.distance import squareform                       # Create dendogram.
 import os                                                           # OS callings.
-import matplotlib                                                   # Plots.
 import plotly.graph_objects as go                                   # Interactive insert of graphs.
-
-# Configurations: 
-matplotlib.use('Agg')                               # Conf: No use of GUI interface -> conflict when I use Threads.
 
 ######### Functions #########
 
@@ -28,15 +22,15 @@ def He_clustering(
     He_clustering_interactive(function): Perform hierarchical clustering and generate an interactive dendrogram.
 
     Parameters:
-    - distance_matrix (np.ndarray): Square distance matrix between genes.
-    - genes (list[str]): Gene identifiers.
-    - num_groups (int): Number of clusters for the consensus solution.
-    - save_path (str): Directory to save the dendrogram.
-    - dendrogram_file (str): Name of the output HTML file.
-    - method (str): Linkage method to use. Default is "single".
+    - distance_matrix: Square distance matrix between genes.
+    - genes: Gene identifiers.
+    - num_groups: Number of clusters for the consensus solution.
+    - save_path: Directory to save the dendrogram.
+    - dendrogram_file: Name of the output HTML file.
+    - method: Linkage method to use. Default is "single".
 
     Returns:
-    - consensus_solution (np.ndarray): Consensus clustering solution.
+    - consensus_solution: Consensus clustering solution.
     """
     try:
         ################################################## Input Check.
@@ -93,7 +87,6 @@ def He_clustering(
         # Get the x-coordinates for leaf labels.
         # In the scipy dendrogram, leaf nodes are at positions 5, 15, 25, etc.
         leaf_positions = []
-        icoord = dendrogram_data['icoord']
         for i in range(len(leaf_idx)):
             # Find the x-coordinate for this leaf.
             leaf_positions.append(5 + 10 * i)

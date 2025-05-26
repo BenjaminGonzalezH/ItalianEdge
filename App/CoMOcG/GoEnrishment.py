@@ -36,7 +36,7 @@ def GoEnrichment(
         Ontology:list[str] = ['GO:BP'], 
         evidences:bool = False):
     """
-    GoEnrichment (functioN): Perform GO enrichment analysis using entrezID.
+    GoEnrichment (function): Perform GO enrichment analysis using entrezID.
 
     Parameters:
     - entrez_ids: List of genes (Entrez IDs).

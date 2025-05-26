@@ -164,7 +164,7 @@ def WangIndexMatrix(EntrezID: list[str],
         for future in futures:
             for i, j, score in future.result():
                 WangSimilarity[i, j] = score
-                WangSimilarity[j, i] = score  # Ensure symmetry
+                WangSimilarity[j, i] = score  # Ensure symmetry.
 
     return WangSimilarity
 
@@ -202,7 +202,7 @@ def Solution_Wang_index_similarity_Python(
     df['Cluster 2'] = df['Cluster 2'].astype(int)
     df['Jaccard Similarity'] = df['Jaccard Similarity'].astype(float)
 
-    #################################################################### Process row function for parallel execution.
+    #################################################################### Process row function for concurrency execution.
     def process_row(row):
         # Extract element from row and define output matrix.
         group_i, group_j, elem_i, elem_j, similarity = row
@@ -235,8 +235,7 @@ def Solution_Wang_index_similarity_Python(
         local_matrix[group_i, group_j] += weighted_similarity
         local_matrix[group_j, group_i] += weighted_similarity
         return local_matrix
-    #################################################################################################################
-    # Execute in parallel.
+    ################################################################################################################# Execute in concurrency.
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = list(executor.map(process_row, df[['Solution 1', 'Solution 2', 'Cluster 1', 'Cluster 2', 'Jaccard Similarity']].itertuples(index=False, name=None)))
 

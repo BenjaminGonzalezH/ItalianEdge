@@ -22,9 +22,12 @@ def save_matrix(
     save_matrix (function): Save a matrix in binary format for faster I/O.
     
     Parameters:
-    - matrix (np.ndarray): Matrix to save.
-    - save_filepath (str): Path to save the matrix (must include name and extension). Also,
+    - matrix: Matrix to save.
+    - save_filepath: Path to save the matrix (must include name and extension). Also,
       you need to ensure to write the path of the file in your computer.
+
+    Returns:
+    - None in data, just create a file with the matrix.
     """
     try:
         # Create directories if needed.
@@ -47,9 +50,12 @@ def save_matrix_uncompresed(
     save_matrix(function): Save a matrix that is a result from a function.
 
     Parameters:
-    - matrix (np.ndarray): Matrix.
-    - proportion_filepath (str): Path to save the matrix (needs to have the name and
+    - matrix: Matrix.
+    - proportion_filepath: Path to save the matrix (needs to have the name and
       extension).
+
+    Returns:
+    - None in data, just create a compresed file version of the matrix.
     """
     try:
         # Create directories if needed.
@@ -71,10 +77,10 @@ def load_and_display_matrix(
     load_and_display_matrix (function): Load and display a matrix stored in a .npy file.
     
     Parameters:
-    - filepath (str): Path to the .npy file (without the .npy extension).
+    - filepath: Path to the .npy file (without the .npy extension).
     
     Returns:
-    - np.ndarray: Loaded matrix.
+    - matrix: Loaded matrix.
     """
     try:
         # Check file existence.
@@ -100,7 +106,7 @@ def save_dataframe(
         dataframe: pd.DataFrame, 
         filepath: str, 
         format: str ="csv"
-        ):
+        ) -> None:
     """
     save_dataframe (function): Save a DataFrame with faster formats like Parquet.
     
@@ -108,6 +114,9 @@ def save_dataframe(
     - dataframe (pd.DataFrame): DataFrame to save.
     - filepath (str): Path to save the file.
     - format (str): "csv", "excel", or "parquet". Default is "csv".
+
+    Return:
+    - None, create a file with info allocated in dataframe.
     """
     try:
         if format.lower() == "csv":
@@ -123,56 +132,3 @@ def save_dataframe(
             raise ValueError("Unsupported format. Use 'csv', 'excel', or 'parquet'.")
     except Exception as e:
         print(f"An error occurred while saving the file: {e}")
-
-def Pairs_Ordered(
-        matrix: np.ndarray, 
-        desc: bool = False,
-        diagonal: bool = False
-    ) -> pd.DataFrame:
-    """
-    Order pairs (upper triangular) of a matrix considerating
-    values that allocates.
-    
-    Parameters:
-    - matrix: Input matrix.
-    - desc: Order (ascending and descending). False for ascending.
-    
-    Returns:
-    - pd.DataFrame with columns ['solution_ID_1', 'solution_ID_2', 'value'] ordered.
-    """
-    try:
-        if not isinstance(matrix, np.ndarray):
-            raise TypeError("The input 'matrix' must be a NumPy ndarray.")
-        if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
-            raise ValueError("The input matrix must be a square 2D array.")
-        
-        # Obtain pairs of the upper triangular (no diagonal).
-        if(diagonal):
-            indices_valores = [((i, j), matrix[i, j]) 
-                            for i in range(matrix.shape[0]) 
-                            for j in range(i+1, matrix.shape[1])]
-        else:
-            indices_valores = [((i, j), matrix[i, j]) 
-                            for i in range(matrix.shape[0]) 
-                            for j in range(i, matrix.shape[1])]
-        
-        # Order by value.
-        indices_valores.sort(key=lambda x: x[1], reverse=desc)
-        
-        # Create rows for dataframe.
-        id1 = [i for ((i, j), val) in indices_valores]
-        id2 = [j for ((i, j), val) in indices_valores]
-        values = [val for ((i, j), val) in indices_valores]
-        
-        # Construct dataframe.
-        df = pd.DataFrame({
-            'solution_ID_1': id1,
-            'solution_ID_2': id2,
-            'value': values
-        })
-        
-        return df
-
-    except Exception as e:
-        print(f"Error in Pairs_Ordered: {e}")
-        return pd.DataFrame(columns=['solution_ID_1', 'solution_ID_2', 'value'])

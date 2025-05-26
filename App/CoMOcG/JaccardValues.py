@@ -84,11 +84,11 @@ def JaccardIndexClusters(
     evaluating the clusters inside of them.
 
     Parameters:
-    - Solution1 (list[set]): Clusters of the first solution as list of sets.
-    - Solution2 (list[set]): Clusters of the second solution as list of sets.
+    - Solution1: Clusters of the first solution as list of sets.
+    - Solution2: Clusters of the second solution as list of sets.
 
     Returns:
-    - MatrixJaccard (np.ndarray): Jaccard similarity matrix among the solutions clusters.
+    - MatrixJaccard: Jaccard similarity matrix among the solutions clusters.
     """
     try:
         # Check type of input in solution 1 and 2. They must be a list of strings sets, with
@@ -129,12 +129,12 @@ def CompareSolutionsPair(
     CompareSolutionsPair(function): Compares two solutions and returns the equivalence pairs.
 
     Parameters:
-    - idx1 (int): Index of the first solution.
-    - idx2 (int): Index of the second solution.
-    - solutions (list): List of clustering solutions (each is a list of sets).
+    - idx1: Index of the first solution.
+    - idx2: Index of the second solution.
+    - solutions: List of clustering solutions (each is a list of sets).
 
     Returns:
-    - equivalent_pairs (list): List of tuples (cluster_i, cluster_j, similarity).
+    - equivalent_pairs: List of tuples (cluster_i, cluster_j, similarity).
     """
     try:
         # Generate Jaccard index comparison among clusters of the groups (clusters).
@@ -164,10 +164,10 @@ def FindEquivalentClusters(
     FindEquivalentClusters(function): Identifier all equivalent clusters in solutions collection.
 
     Parameters:
-    - solutions (list of list of sets): List of clustering collection in format providesd by SolutionClusterMatrix function.
+    - solutions: List of clustering collection in format providesd by SolutionClusterMatrix function.
 
     Returns:
-    - pd.DataFrame: DataFrame allocating columns - Solution 1,Solution 2,Cluster 1,Cluster 2,Jaccard Similarity - as
+    - pd.DataFrame(rows): DataFrame allocating columns - Solution 1,Solution 2,Cluster 1,Cluster 2,Jaccard Similarity - as
       registration of equivalent clusters.
     """
     try:

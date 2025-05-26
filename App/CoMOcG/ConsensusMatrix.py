@@ -1,5 +1,6 @@
 ######### Libraries #########
 import numpy as np                                  # Efficient Math Operations.
+from typing import Tuple                            # Document data type.
 
 ######### AUX Functions #########
 
@@ -8,7 +9,7 @@ This block contains all functions that are used repeatedly in other functions.
 In addition, their are used by threads for process concurrency.
 """
 
-def ConsensusMatrix(Solutions_Matrix: np.ndarray):
+def ConsensusMatrix(Solutions_Matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     ConsensusMatrix(function): Create a distance matrix based on the proportion where two elements,
     implicitly represented by column index, have the same value. This is for represent the proportion

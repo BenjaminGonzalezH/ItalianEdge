@@ -1,13 +1,7 @@
 ######### Libraries #########
-import numpy as np                                          # Efficient Math Operations.
-import rpy2.robjects as robjects                            # Transport Python data to R enviroment.
-from rpy2.robjects import pandas2ri                         # R dataframe into Pandas dataframe.
-import rpy2.robjects.vectors as r_vectors                   # Transport Python data to R enviroment (vectors).
 import plotly.express as px                                 # HTML interactive plots.
 import pandas as pd                                         # Dataframes.
 
-######### Own Libraries #########
-from CoMOcG.GoEnrischment import convert_symbols_to_entrez
 
 ######### Functions #########
 
@@ -60,8 +54,8 @@ def plot_qscore(
     Create a HTML that allocates the equivalent plot but interactive.
 
     Parameters:
-    df (pd.DataFrame): DataFrame with enriched GO terms and associated data.
-    save_path (str): Path to save the interactive plot as an HTML file.
+    df: DataFrame with enriched GO terms and associated data.
+    save_path: Path to save the interactive plot as an HTML file.
     """
     try:
         df = df[df['gene_ratio'] > 0]
@@ -82,183 +76,3 @@ def plot_qscore(
 
     except Exception as e:
         print(f"Error creating interactive qscore plot: {str(e)}")
-
-
-def create_go_tree_rpy2(
-        df: pd.DataFrame, 
-        aspect: str = 'BP', 
-        max_nodes: int = 50, 
-        save_path: str = None):
-    """
-    create_go_tree_rpy2 (function): Generates a GO DAG with GO IDs and term names, colored by significance.
-    
-    Parameters:
-    - df: DataFrame with GO analysis results. Must contain columns: 'ID', 'name', 'p_value', 'intersection_size'
-    aspect: GO aspect ('BP', 'MF', 'CC').
-    - max_nodes: Maximum number of nodes to display in the graph.
-    - save_path: Path to save the graph. If None, displays on screen.
-    """
-    try:
-        if df.empty or not all(col in df.columns for col in ['ID', 'name', 'p_value']):
-            raise ValueError("DataFrame is missing required columns ('ID', 'name', 'p_value').")
-        
-        # Convert GO IDs and metadata to R vectors
-        go_ids = r_vectors.StrVector(df['ID'].tolist())
-        
-        # Convert dictionaries properly
-        p_adjust_dict = robjects.ListVector({str(k): v for k, v in zip(df['ID'], df['p_value'])})
-        desc_dict = robjects.ListVector({str(k): str(v) for k, v in zip(df['ID'], df['name'])})  # Convertir a str
-        
-        # Map aspect to correct ontology
-        aspect_map = {"BP": "GOBPPARENTS", "MF": "GOMFPARENTS", "CC": "GOCCPARENTS"}
-        go_parents = aspect_map.get(aspect, "GOBPPARENTS")
-        
-        # Modified R code with term names in nodes
-        r_code = f"""
-        function(go_ids, aspect, max_nodes, save_path, p_adjust_values, names) {{
-            library(GO.db)
-            library(GOstats)
-            library(graph)
-            library(Rgraphviz)
-            
-            # Get terms and create graph
-            go_terms <- unique(go_ids)
-            gograph <- GOGraph(go_terms, {go_parents})
-            
-            # Filter nodes
-            valid_nodes <- intersect(nodes(gograph), go_terms)
-            gograph <- subGraph(valid_nodes, gograph)
-            
-            # Limit nodes if needed
-            if (numNodes(gograph) > max_nodes) {{
-                valid_nodes <- sample(valid_nodes, max_nodes)
-                gograph <- subGraph(valid_nodes, gograph)
-            }}
-            
-            # Function to get significance level (1-9)
-            get_significance_level <- function(p_value) {{
-                if (is.na(p_value)) return(0)
-                if (p_value <= 5e-10) return(9)
-                if (p_value <= 5e-9) return(8)
-                if (p_value <= 5e-8) return(7)
-                if (p_value <= 5e-7) return(6)
-                if (p_value <= 5e-6) return(5)
-                if (p_value <= 5e-5) return(4)
-                if (p_value <= 5e-4) return(3)
-                if (p_value <= 5e-3) return(2)
-                if (p_value <= 0.05) return(1)
-                return(0)
-            }}
-            
-            # Function to get color based on significance level
-            get_node_color <- function(p_value) {{
-                level <- get_significance_level(p_value)
-                colors <- c("#FFFFFF", "#FFF7EC", "#FEE8C8", "#FDD49E", 
-                           "#FDBB84", "#FC8D59", "#EF6548", "#D7301F",
-                           "#B30000", "#7F0000")
-                return(colors[level + 1])
-            }}
-            
-            # Create node labels with GO ID and term name
-            node_labels <- sapply(nodes(gograph), function(x) {{
-                node_labels <- sapply(nodes(gograph), function(x) {{
-                p_val <- p_adjust_values[[x]]
-                desc <- names[[x]]
-                sig_level <- get_significance_level(p_val)
-                
-                # Manejar NA en descripciones
-                if (is.null(desc) || is.na(desc)) {{
-                    desc <- "Unknown Term"
-                }}
-                
-                # Forzar salto de línea si el texto es demasiado largo
-                desc_wrapped <- paste(strwrap(desc, width=30), collapse="\\n")
-                
-                sprintf("%s\\n(p=%0.2e)", desc_wrapped, p_val)
-                }})
-            }})
-            
-            # Set node attributes
-            nAttrs <- list()
-            nAttrs$label <- node_labels
-            names(nAttrs$label) <- nodes(gograph)
-            
-            # Set colors based on significance
-            node_colors <- sapply(nodes(gograph), 
-                                function(x) get_node_color(p_adjust_values[[x]]))
-            names(node_colors) <- nodes(gograph)
-            nAttrs$fillcolor <- node_colors
-            
-            # Set other attributes
-            nAttrs$shape <- rep("box", length(nodes(gograph)))
-            names(nAttrs$shape) <- nodes(gograph)
-            nAttrs$fontsize <- rep(20, length(nodes(gograph)))
-            names(nAttrs$fontsize) <- nodes(gograph)
-            
-            # Edge attributes
-            eAttrs <- list()
-            eAttrs$arrowhead <- rep("vee", length(edges(gograph)))
-            names(eAttrs$arrowhead) <- edges(gograph)
-            
-            # Generate plot
-            if (!is.null(save_path)) {{
-                dynamic_width <- min(15, 0.25 * length(nodes(gograph)))
-                dynamic_height <- min(12, 0.2 * length(nodes(gograph)))
-
-                pdf(save_path, width=dynamic_width, height=dynamic_height)
-            }}
-            
-            # Create layout with top to bottom direction
-            lay <- layoutGraph(gograph, layoutType="dot", 
-                             attrs=list(graph=list(rankdir="TB")))
-            
-            # Plot graph
-            plot(lay,
-                 main=paste("GO", aspect, "DAG - Heat Response Terms"),
-                 nodeAttrs=nAttrs,
-                 edgeAttrs=eAttrs,
-                 attrs=list(
-                     node=list(
-                         shape="box",
-                         style="filled",
-                         width=3.5,  # Increased width for better text display
-                         height=1.2
-                     ),
-                     edge=list(
-                         color="black",
-                         dir="forward"
-                     )
-                 ))
-            
-            # Add legend for significance levels
-            legend("bottomright", 
-                   legend=paste("p≤", c("0.05", "5e-3", "5e-4", "5e-5",
-                                      "5e-6", "5e-7", "5e-8", "5e-9", "5e-10")),
-                   fill=c("#FFF7EC", "#FEE8C8", "#FDD49E", "#FDBB84",
-                          "#FC8D59", "#EF6548", "#D7301F", "#B30000",
-                          "#7F0000"),
-                   border="black",
-                   title="Significance Levels")
-            
-            if (!is.null(save_path)) {{
-                dev.off()
-            }}
-            
-            return(valid_nodes)
-        }}
-        """
-        
-        # Create and execute R function
-        r_func = robjects.r(r_code)
-        
-        # Convert dictionaries to R lists
-        p_adjust_r = robjects.ListVector(p_adjust_dict)
-        desc_r = robjects.ListVector(desc_dict)
-        
-        used_nodes = r_func(go_ids, aspect, max_nodes, save_path, p_adjust_r, desc_r)
-        
-        print(f"GO DAG created successfully{' and saved to ' + save_path if save_path else ''}")
-        print(f"Number of GO terms used: {len(used_nodes)}")
-        
-    except Exception as e:
-        raise Exception(f"Error creating GO DAG: {str(e)}")

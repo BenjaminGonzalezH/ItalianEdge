@@ -16,7 +16,6 @@ if __name__ == "__main__":
     import App.CoMOcG.WangIndex as WI
     import App.CoMOcG.Actions as Ac
     import App.CoMOcG.Heatmaps as Heat
-    import App.CoMOcG.CompoleteStudy as CS
     import App.CoMOcG.Go_Plots as Gplot
     import App.CoMOcG.GoNetwork as Gnet
     import App.CoMOcG.Go_heiracialNetwork as GHnet
