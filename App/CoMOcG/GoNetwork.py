@@ -2,13 +2,14 @@ import networkx as nx
 import plotly.graph_objects as go
 from pygosemsim.similarity import wang
 from pygosemsim import graph
+from pygosemsim import download
 from itertools import combinations
-import numpy as np
 import matplotlib.colors as mcolors
 
 def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
                                      term_pvalues: dict[str, float],
-                                     similarity_threshold: float = 0.7):
+                                     similarity_threshold: float = 0.7,
+                                     download_f: bool = True):
     """
     Construye y genera una versión HTML interactiva de la red de interacción entre términos GO.
     
@@ -26,7 +27,14 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
     plotly.graph_objects.Figure
         Figura de Plotly con la red de interacción
     """
-    
+    # Download managment.
+    if download_f:
+        try:
+            download.clear()
+            download.obo("go")
+        except Exception as e:
+            raise RuntimeError(f"Error in download GO OBO: {e}")
+
     # 1. Cargar el grafo GO
     go_graph = graph.from_resource("go")
     

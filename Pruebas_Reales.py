@@ -136,4 +136,3 @@ if __name__ == "__main__":
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_3/QS.html")
     Gnet.plot_go_interaction_network_html(GtoT, term_pvalues)
     GHnet.plot_go_hierarchy_html(GtoT, term_pvalues)
-

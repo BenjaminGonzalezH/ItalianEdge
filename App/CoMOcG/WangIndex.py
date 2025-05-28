@@ -4,6 +4,7 @@ from gprofiler import GProfiler                         # Web-server for enrichm
 import pandas as pd                                     # Dataframe Managment.
 from pygosemsim.similarity import wang                  # Wang index function.
 from pygosemsim import graph                            # Create GoDag from source.
+from pygosemsim import download                         # Obtain Go obo file.
 from functools import lru_cache                         # Use cached versions of functions.
 from concurrent.futures import ProcessPoolExecutor      # Process managment.
 from concurrent.futures import ThreadPoolExecutor       # Threads managment.
@@ -58,16 +59,27 @@ def AnnotationFromEntrezIDs(entrez_ids:list[np.str_],
     Returns:
     - gene_to_go: Dictionary that allocates entrez ID with their associated terms.
     """
+    # Check input
+    if not entrez_ids or not isinstance(entrez_ids, (list, np.ndarray)):
+        raise ValueError("entrez_ids debe ser una lista no vacía de IDs.")
+    
+    valid_sources = {"GO:BP", "GO:CC", "GO:MF", "KEGG", "REAC", "CORUM", "HP"}
+    if any(src not in valid_sources for src in Ontology):
+        raise ValueError(f"Ontology contiene fuentes no soportadas: {Ontology}")
+    
     # Activate GProfiler instance and return dataframes.
     gp = GProfiler(return_dataframe=True)
 
-    resultado = gp.profile(
-        organism=organism,                          # Species of study.
-        query=entrez_ids,                           # EntrezID provided in input.
-        no_evidences= False,                        # No use experimental evidence.
-        user_threshold=1.0,                         # No stadistic filter.
-        sources=Ontology                            # Source: GO:BP for example.
-    )
+    try:
+        resultado = gp.profile(
+            organism=organism,                          # Species of study.
+            query=entrez_ids,                           # EntrezID provided in input.
+            no_evidences= False,                        # No use experimental evidence.
+            user_threshold=1.0,                         # No stadistic filter.
+            sources=Ontology                            # Source: GO:BP for example.
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error in Gprofiler query: {e}")
 
     if resultado.empty:
         return {}
@@ -125,7 +137,8 @@ def calcular_batch(batch: list[tuple[int, int]],
 def WangIndexMatrix(EntrezID: list[str], 
                     organism: str = 'hsapiens',
                     Ontology: list[str] = ['GO:BP'], 
-                    n_Process: int = 4) -> np.ndarray:
+                    n_Process: int = 4,
+                    download_f: bool = True) -> np.ndarray:
     """
     WangIndexMatrix(function): Computes Wang similarity matrix among genes.
     
@@ -140,6 +153,15 @@ def WangIndexMatrix(EntrezID: list[str],
     """
     # Obtain annotation from entrez IDs.
     Dict_gene_Goterms = AnnotationFromEntrezIDs(EntrezID, Ontology, organism)
+    
+    # Download managment.
+    if download_f:
+        try:
+            download.clear()
+            download.obo("go")
+        except Exception as e:
+            raise RuntimeError(f"Error in download GO OBO: {e}")
+
     # Create Go DAG from go.obo downloaded previosly.
     Gograph = graph.from_resource("go")
 

@@ -1,13 +1,26 @@
+# Libraries
 import networkx as nx
 import plotly.graph_objects as go
-from pygosemsim import graph
+import os
+import urllib.request
 from goatools.obo_parser import GODag
 import matplotlib.colors as mcolors
-import pydot
+
+
+def download_go_obo(obo_path="go.obo", force_download=False):
+    url = "http://purl.obolibrary.org/obo/go/go.obo"
+    if os.path.exists(obo_path) and not force_download:
+        print(f"{obo_path} exist, no download performed.")
+    print(f"Downloading {url} ...")
+    urllib.request.urlretrieve(url, obo_path)
+    print("Completed")
+    return obo_path
+
 
 def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
                            term_pvalues: dict[str, float],
-                           max_nodes: int = 100):
+                           max_nodes: int = 100,
+                           download_f: bool = True):
     """
     Genera un árbol jerárquico de términos GO en HTML interactivo.
 
@@ -29,7 +42,9 @@ def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
     """
     
     # 1. Cargar ontología GO
-    go_dag = GODag("go-basic.obo")
+    if download_f:
+        download_go_obo()
+    go_dag = GODag("go.obo")
 
     # 2. Filtrar términos según el aspecto GO elegido
     all_terms = set(term for terms in gene2terms.values() for term in terms if term in go_dag)
@@ -84,17 +99,56 @@ def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
     node_trace = go.Scatter(x=node_x, y=node_y, text=node_text, mode="markers+text",
                             hoverinfo="text", marker=dict(size=node_sizes, color=node_colors, line=dict(width=1)))
 
-    # 8. Crear figura interactiva con Plotly
-    fig = go.Figure(data=[edge_trace, node_trace],
-                    layout=go.Layout(title="GO Term Hierarchical Tree",
-                                     showlegend=False, hovermode="closest",
-                                     margin=dict(b=0, l=0, r=0, t=40),
-                                     xaxis=dict(showgrid=False, zeroline=False),
-                                     yaxis=dict(showgrid=False, zeroline=False)))
+    # Preparar menú desplegable para resaltar nodos
+    terms = list(G.nodes())
+    base_colors = node_colors
+    highlight_color = "cyan"
 
-    # 9. Guardar como archivo HTML interactivo
+    buttons = []
+    for i, term in enumerate(terms):
+        colors = [highlight_color if j == i else base_colors[j] for j in range(len(terms))]
+        sizes = [node_sizes[j]*1.5 if j == i else node_sizes[j] for j in range(len(terms))]
+        buttons.append(dict(
+            label=term,
+            method="restyle",
+            args=[{
+                "marker.color": [colors],
+                "marker.size": [sizes],
+            }, [1]]  # índice 1 es node_trace
+        ))
+
+    # Botón para deseleccionar
+    buttons.insert(0, dict(
+        label="Ninguno",
+        method="restyle",
+        args=[{
+            "marker.color": [base_colors],
+            "marker.size": [node_sizes],
+        }, [1]]
+    ))
+
+    fig = go.Figure(data=[edge_trace, node_trace])
+
+    # Actualizar layout para incluir menú
+    fig.update_layout(
+        title="GO Term Hierarchical Tree",
+        showlegend=False,
+        hovermode="closest",
+        margin=dict(b=0, l=0, r=0, t=40),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        updatemenus=[dict(
+            buttons=buttons,
+            direction="down",
+            showactive=True,
+            x=0.1,
+            y=1.15,
+            xanchor="left",
+            yanchor="top"
+        )]
+    )
+
     fig.write_html("go_hierarchy.html")
     print("Árbol GO guardado como go_hierarchy.html")
-
 
     return fig
