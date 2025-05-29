@@ -118,7 +118,6 @@ if __name__ == "__main__":
     wang_1 = WI.WangIndexMatrix(EntrezID_P, organism='athaliana', n_Process=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
-    print(wang_1)
 
     ###################################################################################################### Toda la muestra (wang).
     start_time = time.time()
@@ -134,5 +133,5 @@ if __name__ == "__main__":
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
     Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_3/GR.html")
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_3/QS.html")
-    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues)
-    GHnet.plot_go_hierarchy_html(GtoT, term_pvalues)
+    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, save_path = directory + "/Results/File_3/Net.html")
+    GHnet.plot_go_hierarchy_html(GtoT, term_pvalues, save_path=directory + "/Results/File_3/Tree.html")

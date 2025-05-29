@@ -1,13 +1,26 @@
 # Libraries
-import networkx as nx
-import plotly.graph_objects as go
-import os
-import urllib.request
-from goatools.obo_parser import GODag
-import matplotlib.colors as mcolors
+import networkx as nx                                   # Networks structures.
+import plotly.graph_objects as go                       # plot figure.
+import os                                               # Syscalls.
+import urllib.request                                   # Query requests managment.
+from goatools.obo_parser import GODag                   # GoDag managment.
+import matplotlib.colors as mcolors                     # Color scale.
 
+######### Functions #########
+
+"""
+This block contains all main functions.
+"""
 
 def download_go_obo(obo_path="go.obo", force_download=False):
+    """
+    download_go_obo(function): Download go.obo file just for use with goatools. No related
+    to pygosemsim.
+
+    Parameters:
+    obo_path: Just the file associated with common url of this files.
+    force_download: Overwrite original file.
+    """
     url = "http://purl.obolibrary.org/obo/go/go.obo"
     if os.path.exists(obo_path) and not force_download:
         print(f"{obo_path} exist, no download performed.")
@@ -16,76 +29,77 @@ def download_go_obo(obo_path="go.obo", force_download=False):
     print("Completed")
     return obo_path
 
-
 def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
                            term_pvalues: dict[str, float],
                            max_nodes: int = 100,
-                           download_f: bool = True):
+                           download_f: bool = True,
+                           save_path: str | None = None):
     """
-    Genera un árbol jerárquico de términos GO en HTML interactivo.
+    plot_go_hierarchy_html(function): Create a Go DAG representing heriacial relation among terms.
 
     Parameters:
-    -----------
-    gene2terms : dict[str, list[str]]
-        Diccionario con {GO Term: Genes asociados}
-    term_pvalues : dict[str, float]
-        Diccionario con {GO Term: p-value de cada término}
-    ontology : str, default="BP"
-        Aspecto GO a representar ('BP', 'MF', 'CC')
-    max_nodes : int, default=50
-        Máximo número de términos GO en el árbol
+        - gene2terms: Dictionary {GO Term: Genes associated}
+        - term_pvalues: Dictionary {GO Term: p-value}
+        - ontology: Go aspect ('BP', 'MF', 'CC')
+        - max_nodes: Maximun nodes allowed in tree.
+        - save_path: Location in your computer to allocate the html.
         
     Returns:
-    --------
-    plotly.graph_objects.Figure
-        Figura de Plotly con el árbol GO jerárquico.
+        - fig: Figure created with plotly.
     """
-    
-    # 1. Cargar ontología GO
+    # Download ontology if it is needed.
     if download_f:
-        download_go_obo()
+        download_go_obo(force_download=True)
+    # Load go data.
     go_dag = GODag("go.obo")
 
-    # 2. Filtrar términos según el aspecto GO elegido
+    # Filter no found go terms in godag from file.
     all_terms = set(term for terms in gene2terms.values() for term in terms if term in go_dag)
     go_terms = [t for t in all_terms if go_dag[t]]
 
-    # Ordenar y limitar términos GO por p-value
+    # Sort and cut terms by p-value.
     go_terms = sorted(go_terms, key=lambda x: term_pvalues.get(x, 1.0))[:max_nodes]
 
-    # 3. Construcción del árbol GO usando `DiGraph`
+    # Tree build using `DiGraph`
     G = nx.DiGraph()
     for go_term in go_terms:
         G.add_node(go_term, go_name=go_dag[go_term].name, 
                 p_value=term_pvalues.get(go_term, 1.0),
-                level=go_dag[go_term].depth)  # Asigna la profundidad
+                level=go_dag[go_term].depth)  # Depth assigment.
 
         for parent_term in go_dag[go_term].parents:
-            parent_id = parent_term.id  # Extraer ID string
+            parent_id = parent_term.id  # Obtain ID of parents to settle connection.
             if parent_id in go_terms:
                 G.add_edge(parent_id, go_term)
 
-    # 4. Obtener posiciones jerárquicas con `networkx`
-    pos = nx.multipartite_layout(G, subset_key="level")
+    # Create levels for the figure.
+    pos = nx.multipartite_layout(G, subset_key="level", align='horizontal')
+    pos = {node: (x, -y) for node, (x, y) in pos.items()}
 
-    # 5. Definir colores según p-value
-    cmap = mcolors.LinearSegmentedColormap.from_list("pvalue", ["red", "yellow", "green"])
+    ######################################################################################################## Colors by p-value.
+    cmap = mcolors.LinearSegmentedColormap.from_list("white_orange_red", ["#ffffff", "#ffa500", "#ff0000"])
     norm = mcolors.Normalize(vmin=min(term_pvalues.values()), vmax=max(term_pvalues.values()))
-
     def get_color(term):
         return mcolors.to_hex(cmap(norm(term_pvalues.get(term, 0.05))))
 
-    # 6. Crear aristas
-    edge_x, edge_y = [], []
+    ######################################################################################################## Create edges.
+    arrow_annotations = []
     for edge in G.edges():
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
+        arrow_annotations.append(
+            dict(
+                ax=x0, ay=y0,
+                x=x1, y=y1,
+                xref='x', yref='y',
+                axref='x', ayref='y',
+                showarrow=True,
+                arrowhead=3, arrowsize=1, arrowwidth=1.5, arrowcolor='gray',
+                standoff=5
+            )
+        )
 
-    edge_trace = go.Scatter(x=edge_x, y=edge_y, mode="lines", line=dict(width=1, color="gray"), hoverinfo="none")
-
-    # 7. Crear nodos con tamaños y colores personalizados
+    ######################################################################################################## Create nodes
     node_x, node_y, node_text, node_sizes, node_colors = [], [], [], [], []
 
     for node in G.nodes():
@@ -96,10 +110,10 @@ def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
         node_sizes.append(15)
         node_colors.append(get_color(node))
 
-    node_trace = go.Scatter(x=node_x, y=node_y, text=node_text, mode="markers+text",
-                            hoverinfo="text", marker=dict(size=node_sizes, color=node_colors, line=dict(width=1)))
+    node_trace = go.Scatter(x=node_x, y=node_y, text=node_text, mode="markers+text", textposition="middle center",
+                            hoverinfo="text", marker=dict(size=node_sizes, symbol="square", color=node_colors, line=dict(width=1)))
 
-    # Preparar menú desplegable para resaltar nodos
+    ######################################################################################################## Highlight nodes
     terms = list(G.nodes())
     base_colors = node_colors
     highlight_color = "cyan"
@@ -108,47 +122,55 @@ def plot_go_hierarchy_html(gene2terms: dict[str, list[str]],
     for i, term in enumerate(terms):
         colors = [highlight_color if j == i else base_colors[j] for j in range(len(terms))]
         sizes = [node_sizes[j]*1.5 if j == i else node_sizes[j] for j in range(len(terms))]
+        label = f"{G.nodes[term]['go_name']} ({term})"
         buttons.append(dict(
-            label=term,
+            label=label,
             method="restyle",
             args=[{
                 "marker.color": [colors],
                 "marker.size": [sizes],
-            }, [1]]  # índice 1 es node_trace
+            }, [0]]
         ))
 
-    # Botón para deseleccionar
     buttons.insert(0, dict(
-        label="Ninguno",
+        label="None",
         method="restyle",
         args=[{
             "marker.color": [base_colors],
             "marker.size": [node_sizes],
-        }, [1]]
+        }, [0]]
     ))
 
-    fig = go.Figure(data=[edge_trace, node_trace])
+    ######################################################################################################## Figure.
+    fig = go.Figure(data=[node_trace])
 
-    # Actualizar layout para incluir menú
     fig.update_layout(
         title="GO Term Hierarchical Tree",
         showlegend=False,
         hovermode="closest",
-        margin=dict(b=0, l=0, r=0, t=40),
+        margin=dict(b=0, l=0, r=0, t=60),
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        annotations=arrow_annotations,
         updatemenus=[dict(
             buttons=buttons,
             direction="down",
             showactive=True,
-            x=0.1,
-            y=1.15,
+            x=0.049,
+            y=1.01,
             xanchor="left",
             yanchor="top"
         )]
     )
 
-    fig.write_html("go_hierarchy.html")
-    print("Árbol GO guardado como go_hierarchy.html")
+    # Definir ruta por defecto
+    if save_path is None:
+        save_path = "go_hierarchy.html"
+
+    # Crear directorio si no existe
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
+    fig.write_html(save_path)
+    print(f"Tree saved at: {save_path}")
 
     return fig

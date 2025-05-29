@@ -1,31 +1,29 @@
-import networkx as nx
-import plotly.graph_objects as go
-from pygosemsim.similarity import wang
-from pygosemsim import graph
-from pygosemsim import download
-from itertools import combinations
-import matplotlib.colors as mcolors
+# Libraries.
+import networkx as nx                                   # Networks structures.
+import plotly.graph_objects as go                       # plot figure.
+from pygosemsim.similarity import wang                  # Wang index function.
+from pygosemsim import graph                            # Create GoDag from source.
+from pygosemsim import download                         # Obtain Go obo file.
+from itertools import combinations                      # Combinations
+import matplotlib.colors as mcolors                     # Color scale.
+import os                                               # Syscalls.
 
 def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
                                      term_pvalues: dict[str, float],
                                      similarity_threshold: float = 0.7,
-                                     download_f: bool = True):
+                                     download_f: bool = True,
+                                     save_path: str | None = None):
     """
-    Construye y genera una versión HTML interactiva de la red de interacción entre términos GO.
+    plot_go_interaction_network_html(function): Build and generate a HTML image of a interactive
+    netwrok of GO terms.
     
     Parameters:
-    -----------
-    gene2terms : dict[str, list[str]]
-        Diccionario donde la clave es el término GO y el valor es una lista de genes asociados
-    term_pvalues : dict[str, float]
-        Diccionario donde la clave es el término GO y el valor es su p-value
-    similarity_threshold : float, default=0.7
-        Umbral de similitud para conectar términos GO en la red
+        - gene2terms : Dictionary {GO Term: Genes associated}.
+        - term_pvalues : Dictionary {GO Term: p-value}.
+        - similarity_threshold : Similarity limit for connection in network.
         
     Returns:
-    --------
-    plotly.graph_objects.Figure
-        Figura de Plotly con la red de interacción
+        - fig: Figure created with plotly.
     """
     # Download managment.
     if download_f:
@@ -34,17 +32,13 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
             download.obo("go")
         except Exception as e:
             raise RuntimeError(f"Error in download GO OBO: {e}")
-
-    # 1. Cargar el grafo GO
+    # Load go data.
     go_graph = graph.from_resource("go")
     
-    # 2. Obtener términos únicos y calcular frecuencia
-    # Corregido: term_counts debe contar genes asociados a cada término
+    # Filter no found go terms in godag from file.
     all_terms = set()
     for terms in gene2terms.values():
         all_terms.update(terms)
-    
-    # Filtrar términos que existen en el grafo GO
     term_list = [t for t in all_terms if t in go_graph]
     
     # Contar cuántos genes están asociados a cada término
@@ -53,7 +47,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         count = sum(1 for genes in gene2terms.values() if term in genes)
         term_counts[term] = count
     
-    # 3. Construir grafo con pesos
+    ######################################################################################################## Construct graph usgin wang similarity.
     G = nx.Graph()
     for i, j in combinations(term_list, 2):
         try:
@@ -64,12 +58,12 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
             print(f"Error calculating similarity between {i} and {j}: {e}")
             continue
     
-    # Si el grafo está vacío, no podemos crear la visualización
+    # Check empty graph.
     if len(G.nodes()) == 0:
-        print("No hay suficientes términos GO con similitud por encima del umbral")
+        print("There is no nodes to create the figure.")
         return None
     
-    # 4. Obtener posiciones con layout de NetworkX
+    # Positions of nodes.
     pos = nx.spring_layout(G, seed=42)
     
     # 5. Generar color de nodos según p-value
@@ -78,10 +72,10 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         if term not in term_pvalues:
             term_pvalues[term] = 0.05  # Valor por defecto
     
-    # Crear mapa de colores
+    ######################################################################################################## Colors by p-value.
     cmap = mcolors.LinearSegmentedColormap.from_list("pvalue", ["red", "yellow", "green"])
     pvalues = [term_pvalues.get(term, 0.05) for term in G.nodes()]
-    if pvalues:  # Comprobar que hay p-valores
+    if pvalues:
         norm = mcolors.Normalize(vmin=min(pvalues), vmax=max(pvalues))
     else:
         norm = mcolors.Normalize(vmin=0, vmax=1)
@@ -89,7 +83,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
     def get_color(term):
         return mcolors.to_hex(cmap(norm(term_pvalues.get(term, 0.05))))
     
-    # 6. Crear aristas
+    # Create edges
     edge_x = []
     edge_y = []
     edge_widths = []
@@ -99,7 +93,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         x1, y1 = pos[edge[1]]
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
-        edge_widths.append(edge[2]["weight"] * 2)  # Grosor según similitud
+        edge_widths.append(edge[2]["weight"] * 2)
     
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y,
@@ -108,7 +102,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         mode="lines"
     )
     
-    # 7. Crear nodos con tamaño, color y etiquetas
+    ######################################################################################################## Create nodes, size and text of every node.
     node_x = []
     node_y = []
     node_text = []
@@ -122,14 +116,14 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         node_y.append(y)
         node_text.append(node)
         
-        # Tamaño según genes asociados
+        # size using genes associated.
         size = term_counts.get(node, 1) * 3
         node_sizes.append(size)
         
-        # Color por p-value
+        # p-value color.
         node_colors.append(get_color(node))
         
-        # Texto de hover con información
+        # Information hover.
         hover_text = f"ID: {node}<br>Genes: {term_counts.get(node, 0)}<br>p-value: {term_pvalues.get(node, 'N/A')}"
         hover_texts.append(hover_text)
     
@@ -147,7 +141,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         textposition="top center"
     )
     
-    # 8. Crear figura interactiva con Plotly
+    ######################################################################################################## Create figure with plotly.
     fig = go.Figure(
         data=[edge_trace, node_trace],
         layout=go.Layout(
@@ -162,11 +156,15 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         )
     )
     
-    # 9. Guardar como archivo HTML
+    # Save HTML.
+    if save_path is None:
+        save_path = "go_network.html"
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+
     try:
-        fig.write_html("go_network.html")
-        print("Archivo HTML guardado: go_network.html")
+        fig.write_html(save_path)
+        print(f"Network saved at: {save_path}")
     except Exception as e:
-        print(f"Error al guardar el archivo HTML: {e}")
+        print(f"Unexpected error creating network: {e}")
     
     return fig
