@@ -133,5 +133,11 @@ if __name__ == "__main__":
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
     Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_3/GR.html")
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_3/QS.html")
-    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, save_path = directory + "/Results/File_3/Net.html")
-    GHnet.plot_go_hierarchy_html(GtoT, term_pvalues, save_path=directory + "/Results/File_3/Tree.html")
+    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, 
+                                          similarity_threshold=0.85,
+                                          min_genes_per_term=5,
+                                          max_node_size=30.0,
+                                          save_path = directory + "/Results/File_3/Net.html")
+    GHnet.plot_go_hierarchy_html(GtoT, 
+                                 term_pvalues, 
+                                 save_path=directory + "/Results/File_3/Tree.html")
