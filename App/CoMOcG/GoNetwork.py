@@ -68,6 +68,22 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         except Exception as e:
             print(f"Error calculating similarity between {i} and {j}: {e}")
             continue
+
+    # Construir el diccionario de distancias ideales
+    dist = {}
+    for i in G.nodes():
+        dist[i] = {}
+        for j in G.nodes():
+            if i == j:
+                dist[i][j] = 0
+            elif G.has_edge(i, j):
+                # Si tienes similitud en la arista, usa distancia inversa
+                sim = G[i][j]['weight']
+                # Evita división por cero
+                dist[i][j] = 1.0 / sim if sim > 0 else 100.0
+            else:
+                # Si no hay arista, pon una distancia grande
+                dist[i][j] = 100.0
     
     # Check empty graph.
     if len(G.nodes()) == 0:
@@ -75,7 +91,7 @@ def plot_go_interaction_network_html(gene2terms: dict[str, list[str]],
         return None
     
     # Positions of nodes.
-    pos = nx.kamada_kawai_layout(G)
+    pos = nx.kamada_kawai_layout(G, dist=dist)
     
     # 5. Generar color de nodos según p-value
     # Asegurarse de que todos los términos tienen un p-valor

@@ -5,39 +5,12 @@ import pandas as pd                                     # Dataframe Managment.
 from pygosemsim.similarity import wang                  # Wang index function.
 from pygosemsim import graph                            # Create GoDag from source.
 from pygosemsim import download                         # Obtain Go obo file.
-from functools import lru_cache                         # Use cached versions of functions.
 from concurrent.futures import ProcessPoolExecutor      # Process managment.
 from concurrent.futures import ThreadPoolExecutor       # Threads managment.
 import networkx as nx                                   # Networks structures.
+from pygosemsim import term_set
 
 ######### AUX elements. #########
-
-@lru_cache(maxsize=None)
-def cached_wang(godag: nx.DiGraph, 
-                t1:str, 
-                t2:str):
-    """
-    cached_wang(function): Cached version of wang calculus for terms. Avoid repetitive calculus.
-    
-    Parameters:
-    - godag: Graph generated from pygosemsim functions (from_resourse).
-    - t1 & t2: Go terms -> GO:<number> format.
-    """
-    return wang(godag, t1, t2)
-
-@lru_cache(maxsize=None)
-def cached_wang_similarity(terms_i: list[str], 
-                           terms_j: list[str], 
-                           Gograph: nx.DiGraph):
-    """
-    cached_wang_similarity(function): Cached version of wang calculus for terms collection. 
-    Avoid repetitive calculus.
-    
-    Parameters:
-    - terms_i & terms_j: Go terms -> GO:<number> format.
-    - Gograph: Graph generated from pygosemsim functions (from_resourse).
-    """
-    return WangSimilarityPair(terms_i, terms_j, Gograph)
 
 ######### Functions #########
 
@@ -91,102 +64,80 @@ def AnnotationFromEntrezIDs(entrez_ids:list[np.str_],
 
     return Gene_to_go
 
-def WangSimilarityPair(
-        terms1: list[str], 
-        terms2: list[str], 
-        godag: nx.DiGraph):
-    """
-    WangSimilarityPair(function): Calculates wang distanse betwenn two terms collections.
-    
-    Parameters:
-    - terms1 & terms2: Go terms -> GO:<number> format.
-    - Gograph: Graph generated from pygosemsim functions (from_resourse).
-    """
-    if not terms1 or not terms2:
-        return 0.0
-    
-    # Calculate all pairwise similarities once (cached version of wang).
-    similarities = {}
-    for t1 in terms1:
-        for t2 in terms2:
-            similarities[(t1, t2)] = cached_wang(godag, t1, t2)
-    
-    # Calculate best matches (BMA criteria).
-    scores1 = [max([similarities[(t1, t2)] for t2 in terms2], default=0) for t1 in terms1]
-    scores2 = [max([similarities[(t1, t2)] for t1 in terms1], default=0) for t2 in terms2]
-    return (sum(scores1) + sum(scores2)) / (len(scores1) + len(scores2))
+def calcular_batch(batch, preprocessed_terms, EntrezID, Gograph):
+    results = []
+    cache = {}
+    for i, j in batch:
+        terms_i = preprocessed_terms.get(EntrezID[i], [])
+        terms_j = preprocessed_terms.get(EntrezID[j], [])
+        if terms_i and terms_j:
+            def sem_sim(t1, t2):
+                key = (t1, t2) if t1 <= t2 else (t2, t1)
+                if key not in cache:
+                    cache[key] = wang(Gograph, t1, t2)
+                return cache[key]
+            score = term_set.sim_bma(terms_i, terms_j, sem_sim)
+        else:
+            score = 0.0
+        results.append((i, j, score))
+    return results
 
-def calcular_batch(batch: list[tuple[int, int]], 
-                   preprocessed_terms: dict[str, list[str]], 
-                   EntrezID: list[str], 
-                   Gograph: nx.DiGraph):
-    """
-    calcular_batch(function): Compute Wang similarity for a batch of pairs.
-    
-    Parameters:
-    - batch: Pair of index (genes) to process in the actual process.
-    - preprocessed_terms: Terms filter by prescence in godag.
-    - Gograph: Graph generated from pygosemsim functions (from_resourse).
-
-    Return:
-    - wang index of genes processed.
-    """
-    return [(i, j, cached_wang_similarity(tuple(preprocessed_terms[EntrezID[i]]),
-                                          tuple(preprocessed_terms[EntrezID[j]]), Gograph)) for i, j in batch]
-
-def WangIndexMatrix(EntrezID: list[str], 
+def WangIndexMatrix_1(EntrezID: list[str], 
                     organism: str = 'hsapiens',
                     Ontology: list[str] = ['GO:BP'], 
                     n_Process: int = 4,
                     download_f: bool = True) -> np.ndarray:
     """
-    WangIndexMatrix(function): Computes Wang similarity matrix among genes.
-    
+    WangIndexMatrix(function): Computes Wang similarity matrix among genes using term_set.sim_bma.
+
     Parameters:
-    - entrez_ids: List of Entrez identifiers.
+    - EntrezID: List of Entrez identifiers.
     - organism: Specie of study.
     - Ontology: Source of gprofiler query.
-    - n_Process: Amount of process to create.
+    - n_Process: Number of processes to use.
 
     Return:
-    - WangSimilarity: Matrix with wang index of every pair of genes.
+    - WangSimilarity: Matrix with Wang index for every pair of genes.
     """
-    # Obtain annotation from entrez IDs.
+    # Obtener anotaciones GO para cada gen
     Dict_gene_Goterms = AnnotationFromEntrezIDs(EntrezID, Ontology, organism)
     
-    # Download managment.
+    # Descarga y gestión de archivos GO si es necesario
     if download_f:
         try:
             download.clear()
-            download.obo("go")
+            download.obo("go-basic")
         except Exception as e:
             raise RuntimeError(f"Error in download GO OBO: {e}")
 
-    # Create Go DAG from go.obo downloaded previosly.
-    Gograph = graph.from_resource("go")
+    # Cargar el grafo GO
+    Gograph = graph.from_resource("go-basic")
 
-    # Check if obtained terms are in the GO DAG.
-    preprocessed_terms = {gene: [t for t in Dict_gene_Goterms.get(gene, []) if t in Gograph] 
-                          for gene in EntrezID}
+    # Filtrar términos presentes en el grafo GO
+    preprocessed_terms = {
+        gene: [t for t in Dict_gene_Goterms.get(gene, []) if t in Gograph]
+        for gene in EntrezID
+    }
 
-    # Create output matrix.
+    # Crear matriz de salida
     n = len(EntrezID)
     WangSimilarity = np.zeros((n, n), dtype=np.float64)
 
-    # Create pairs (upper triangular) and divide them into batch for every process.
+    # Generar pares y dividir en batches
     pairs = [(i, j) for i in range(n) for j in range(i, n)]
     batch_size = max(1, len(pairs) // (n_Process * 2))
     batches = [pairs[k:k+batch_size] for k in range(0, len(pairs), batch_size)]
 
-    # Multiprocessing.
+    # Multiprocesamiento
     with ProcessPoolExecutor(max_workers=n_Process) as executor:
-        futures = [executor.submit(calcular_batch, batch, preprocessed_terms, EntrezID, Gograph) for batch in batches]
-
-        # Merge results.
+        futures = [
+            executor.submit(calcular_batch, batch, preprocessed_terms, EntrezID, Gograph)
+            for batch in batches
+        ]
         for future in futures:
             for i, j, score in future.result():
                 WangSimilarity[i, j] = score
-                WangSimilarity[j, i] = score  # Ensure symmetry.
+                WangSimilarity[j, i] = score  # Simetría
 
     return WangSimilarity
 
