@@ -54,16 +54,16 @@ def GPU_MemoryPool(
         if limit_bytes is not None:
             if isinstance(limit_bytes, int) and limit_bytes > 0:
                 mempool.set_limit(size=limit_bytes)
-        else:
-            raise ValueError("limit_bytes must be a positive integer or None.")
+            else:
+                raise ValueError("limit_bytes must be a positive integer or None.")
         _ = cp.empty((10,))
         print("Bytes usados actualmente:", mempool.used_bytes())
         print("Bytes reservados en el pool:", mempool.total_bytes())
 
+    except ValueError as ve:
+        raise ValueError(ve)
     except Exception as e:
         print(f"Unexpected error: {e}")
-    except ValueError as ve:
-        print(ve)
     else:
         return mempool
 
@@ -82,4 +82,4 @@ def GPU_freeMemoryPool(
         mempool.free_all_blocks()
 
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        raise RuntimeError(f"Unexpected error: {e}")

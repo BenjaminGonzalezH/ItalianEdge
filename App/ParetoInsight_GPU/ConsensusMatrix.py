@@ -9,7 +9,7 @@ This block contains all functions that are used repeatedly in other functions.
 In addition, their are used by threads for process concurrency.
 """
 
-def ConsensusMatrix(Solutions_Matrix: cp.ndarray) -> Tuple[cp.ndarray, cp.ndarray]:
+def ConsensusMatrixCupy(Solutions_Matrix: cp.ndarray) -> Tuple[cp.ndarray, cp.ndarray]:
     """
     ConsensusMatrix(function): Create a distance matrix based on the proportion where two elements,
     implicitly represented by column index, have the same value. This is for represent the proportion

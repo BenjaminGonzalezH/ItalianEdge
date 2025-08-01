@@ -6,7 +6,7 @@ if __name__ == "__main__":
     # Librerias propias CPU.
     import App.ParetoInsight_CPU.ReadSolution as RD
     import App.ParetoInsight_CPU.Actions as Ac_CPU
-    import App.ParetoInsight_CPU.Heatmaps as Heat
+    import Graphs.Heatmaps as Heat
     import App.ParetoInsight_CPU.He_Clustering as He
 
     # Librerias propias GPU.
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Matriz de consenso.
     start_time = time.time()
-    Prop_m, Dist_m = CM.ConsensusMatrix(Matrix)
+    Prop_m, Dist_m = CM.ConsensusMatrixCupy(Matrix)
     Prop_m = AC.TransformMathStructure(Prop_m,"GPU")
     Dist_m = AC.TransformMathStructure(Dist_m,"GPU")
     end_time = time.time()
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     
     ###################################################################################################### Comparación de composición de clusters (RAND).
     start_time = time.time()
-    Rand = RV.RandIndexSolutions(Matrix)
+    Rand = RV.RandIndexSolutionsCupy(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
 

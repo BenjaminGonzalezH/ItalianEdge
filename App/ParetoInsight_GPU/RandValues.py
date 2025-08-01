@@ -7,7 +7,7 @@ import cupy as cp                                   # Efficient Math Operations 
 This block contains all main functions.
 """
 
-def RandIndexSolutions(Solutions_Matrix: cp.ndarray) -> cp.ndarray:
+def RandIndexSolutionsCupy(Solutions_Matrix: cp.ndarray) -> cp.ndarray:
     """
     RandIndexSolutions(function): Compute the pairwise Rand Index or Adjusted Rand Index matrix using vectorization.
 

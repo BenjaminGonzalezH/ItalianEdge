@@ -14,12 +14,11 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.MappingEntrez as ME
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
-    import App.ParetoInsight_CPU.Wangalt as WIalt
     import App.ParetoInsight_CPU.Actions as Ac
-    import App.ParetoInsight_CPU.Heatmaps as Heat
-    import App.ParetoInsight_CPU.Go_Plots as Gplot
-    import App.ParetoInsight_CPU.GoNetwork as Gnet
-    import App.ParetoInsight_CPU.Go_heiracialNetwork as GHnet
+    import Graphs.Heatmaps as Heat
+    import Graphs.Go_Plots as Gplot
+    import Graphs.GoNetwork as Gnet
+    import Graphs.Go_heiracialNetwork as GHnet
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -74,7 +73,7 @@ if __name__ == "__main__":
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
-    entrez_gen = ME.ConvertToEntrezID(genes,organism_gp='athaliana', taxID=3702)
+    entrez_gen = ME.ConvertToEntrezID(genes,organism_gp='hsapiens', taxID=9606)
     SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 8)
     start_time = time.time()
     Jaccard_c = JV.JaccardIndexClusters(SC_matrix[0], SC_matrix[1])
