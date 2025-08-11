@@ -1,8 +1,9 @@
-import unittest
-from unittest.mock import patch, MagicMock
-import numpy as np
-import pandas as pd
-
+######### Libraries #########
+import unittest                                     # Test interface.
+from unittest.mock import patch                     # Replacement of objects.
+import pandas as pd                                 # Dataframe managment.
+import sys                                          # syscalls.
+import io                                           # Input-Output 
 from ParetoInsight_CPU.MappingEntrez import (
     chunks,
     query_mygene_chunk,
@@ -11,6 +12,12 @@ from ParetoInsight_CPU.MappingEntrez import (
 
 class TestGeneIDConversion(unittest.TestCase):
 
+    def setUp(self):
+        # Silent prints.
+        self._original_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+
+    ########################## Tests ##########################
     def test_chunks_behavior(self):
         data = list(range(10))
         blocks = list(chunks(data, 3))
@@ -21,7 +28,6 @@ class TestGeneIDConversion(unittest.TestCase):
 
     @patch("mygene.MyGeneInfo")
     def test_query_mygene_chunk_success(self, MockMG):
-        # Prepara dataframe de retorno para simular búsqueda exitosa
         mock_df = pd.DataFrame({
             'entrezgene': [111, 222],
             'notfound': [False, False]
@@ -40,13 +46,11 @@ class TestGeneIDConversion(unittest.TestCase):
         instance = MockMG.return_value
         instance.querymany.return_value = mock_df
         out = query_mygene_chunk(['FAKEGENE'], scopes=['symbol'], taxID=9606)
-        # Debe retornar DataFrame vacío
         self.assertTrue(out.empty)
 
     @patch("requests.exceptions.RequestException", new=Exception)
     @patch("mygene.MyGeneInfo")
     def test_query_mygene_chunk_request_exception(self, MockMG):
-        # Simula excepción de request
         instance = MockMG.return_value
         instance.querymany.side_effect = Exception("network")
         with self.assertRaises(RuntimeError):
@@ -55,20 +59,16 @@ class TestGeneIDConversion(unittest.TestCase):
     @patch("gprofiler.GProfiler")
     @patch("mygene.MyGeneInfo")
     def test_convert_to_entrez_id_priority(self, MockMG, MockGP):
-        # Simula gProfiler preferido y MyGene para los no mapeados
-        # gProfiler retorna mapeo para GENE1
         gp_instance = MockGP.return_value
         gp_instance.convert.return_value = pd.DataFrame({
             'incoming': ['GENE1'],
             'converted': ['101']
         })
-        # MyGene retorna para GENE2
         mg_instance = MockMG.return_value
         mg_instance.querymany.return_value = pd.DataFrame({
             'entrezgene': [202],
             'notfound': [False]
         }, index=['GENE2'])
-        # Entra ambos servicios
         ids = ConvertToEntrezID(['GENE1', 'GENE2'], organism_gp='hsapiens', taxID=9606)
         self.assertEqual(ids[0], 'NA')
         self.assertEqual(ids[1], '202')

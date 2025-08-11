@@ -1,20 +1,27 @@
-import unittest
-import numpy as np
-import cupy as cp
-
+######### Libraries #########
+import unittest                     # Test interface.
+import numpy as np                  # Numbers ADT managment.
+import cupy as cp                   # CPU math structures.
+import sys                          # syscalls.
+import io                           # Input-Output.
 from ParetoInsight_GPU.JaccardValues import (
     JaccardIndexSolutions
 )
 
 class TestJaccardIndexSolutions(unittest.TestCase):
+    
+    ########################## Test's Initialization ##########################
     def setUp(self):
-        # Tres soluciones artificiales, 4 genes cada una
         self.cpu_matrix = np.array([
-            [0, 0, 1, 1],   # Sol1: dos clusters
-            [1, 1, 0, 0],   # Sol2: igual que sol1 pero invertido
-            [0, 1, 0, 1]    # Sol3: alterno
+            [0, 0, 1, 1],   # Solution 1: [0,0], [1,1]
+            [1, 1, 0, 0],   # Solution 2: [1,1], [0,0]
+            [0, 1, 0, 1]    # Solution 3: [0,1], [0,1]
         ])
         self.gpu_matrix = cp.array(self.cpu_matrix)
+        
+        # Silent prints.
+        self._original_stdout = sys.stdout
+        sys.stdout = io.StringIO()        
 
     def test_shape_and_type(self):
         result = JaccardIndexSolutions(self.gpu_matrix)

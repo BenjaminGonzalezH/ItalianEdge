@@ -1,9 +1,9 @@
-import unittest
-import numpy as np
-import pandas as pd
-
-from concurrent.futures import ThreadPoolExecutor
-
+######### Libraries #########
+import unittest                     # Test interface.
+import numpy as np                  # Numbers ADT managment.
+import pandas as pd                 # Dataframes managment.
+import sys                          # syscalls.
+import io                           # Input-Output 
 from ParetoInsight_CPU.JaccardValues import (
     JaccardIndexSolutions,
     JaccardIndexClusters,
@@ -12,39 +12,40 @@ from ParetoInsight_CPU.JaccardValues import (
 )
 
 class TestClusteringJaccard(unittest.TestCase):
+    
+    ########################## Test's Initialization ##########################
     def setUp(self):
-        # Matriz de soluciones artificial, cada fila es una solución, cada columna un gen
-        # Soluciones: Dos agrupaciones diferentes de 4 genes
         self.matrix = np.array([
-            [0, 0, 1, 1],  # Solución 1: [0,0], [1,1]
-            [1, 1, 0, 0],  # Solución 2: [1,1], [0,0]
-            [0, 1, 0, 1]   # Solución 3: [0,1,0,1]
+            [0, 0, 1, 1],  # Solution 1: [0,0], [1,1]
+            [1, 1, 0, 0],  # Solution 2: [1,1], [0,0]
+            [0, 1, 0, 1]   # Solution 3: [0,1], [0,1]
         ])
-        # Representación directa de clústeres como listas de sets
+        # equivalent sets of the previous solutions.
         self.solutions_sets = [
             [set(['a', 'b']), set(['c', 'd'])],
             [set(['a', 'c']), set(['b', 'd'])]
         ]
 
+        # Silent prints.
+        self._original_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+
+    ########################## Tests ##########################
     def test_jaccard_index_solutions(self):
         jaccard = JaccardIndexSolutions(self.matrix, n_threads=2)
-        # Diagonal en 1 y simetría
         self.assertTrue(np.allclose(np.diag(jaccard), 1.0))
         self.assertTrue(np.allclose(jaccard, jaccard.T))
 
     def test_jaccard_index_clusters(self):
         result = JaccardIndexClusters(self.solutions_sets[0], self.solutions_sets[1])
         self.assertEqual(result.shape, (2, 2))
-        # Por ejemplo, todos intersectan al menos en un elemento
 
     def test_compare_solutions_pair(self):
         out = CompareSolutionsPair(0, 1, self.solutions_sets * 2)
         self.assertIsInstance(out, list)
-        # Cada elemento es tupla con dos índices y una similitud
         self.assertTrue(all(isinstance(x, tuple) and len(x) == 3 for x in out))
 
     def test_find_equivalent_clusters(self):
-        # Compara ambas soluciones entre sí
         df = FindEquivalentClusters(self.solutions_sets * 2)
         self.assertIsInstance(df, pd.DataFrame)
         self.assertEqual(

@@ -1,15 +1,15 @@
-import unittest
-import sys
-import os
-import csv
-import numpy as np
-
+######### Libraries #########
+import unittest                     # Test interface.
+import sys                          # syscalls.
+import io                           # Input-Output 
+import os                           # OS calls.
+import csv                          # CSV files.
 from ParetoInsight_CPU.ReadSolution import ReadSolutionsFile
 
 class TestReadSolutionsFile(unittest.TestCase):
 
+    ########################## Test's Initialization ##########################
     def setUp(self):
-        # Archivo CSV con IDs (como columna "SolID" que debería ser ignorada si no es parte de los genes)
         self.file_with_ids = "test_with_ids.csv"
         with open(self.file_with_ids, "w", newline='') as f:
             writer = csv.writer(f)
@@ -18,7 +18,6 @@ class TestReadSolutionsFile(unittest.TestCase):
             writer.writerow(["Sol2", 2, 3])
             writer.writerow(["Sol3", 3, 3])
 
-        # Archivo CSV sin ID
         self.file_without_ids = "test_without_ids.csv"
         with open(self.file_without_ids, "w", newline='') as f:
             writer = csv.writer(f)
@@ -32,18 +31,21 @@ class TestReadSolutionsFile(unittest.TestCase):
         with open(self.empty_file, "w") as f:
             pass
 
+        # Silent prints.
+        self._original_stdout = sys.stdout
+        sys.stdout = io.StringIO()        
+
+    ########################## Test's Deletion ##########################
     def tearDown(self):
         for filename in [self.file_with_ids, self.file_without_ids, self.empty_file]:
             if os.path.exists(filename):
                 os.remove(filename)
 
+    ########################## Tests ##########################
     def test_read_with_ids(self):
         matrix, genes = ReadSolutionsFile(self.file_with_ids, format="csv")
-        # Espera que genes sean ["SolID", "Gene1", "Gene2"]
         self.assertEqual(genes, ["SolID", "Gene1", "Gene2"])
-        # La matriz debe ser de tamaño (3, 3)
         self.assertEqual(matrix.shape, (3, 3))
-        # El primer valor debe ser "Sol1" o 2 según cómo trata tu función los datos
 
     def test_read_without_ids(self):
         matrix, genes = ReadSolutionsFile(self.file_without_ids, format="csv")
