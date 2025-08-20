@@ -15,10 +15,11 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
     import App.ParetoInsight_CPU.Actions as Ac
-    import Graphs.Heatmaps as Heat
-    import Graphs.Go_Plots as Gplot
-    import Graphs.GoNetwork as Gnet
-    import Graphs.Go_heiracialNetwork as GHnet
+    import App.ParetoInsight_CPU.R_Utilities as R_u
+    import App.Graphs.Heatmaps as Heat
+    import App.Graphs.Go_Plots as Gplot
+    import App.Graphs.GoNetwork as Gnet
+    import App.Graphs.Go_heiracialNetwork as GHnet
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -30,7 +31,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.ReadSolutionsFile(file_2,"csv")
+    Matrix, genes  = RD.ReadSolutionsFile(file_3,"csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -39,9 +40,9 @@ if __name__ == "__main__":
     Prop_m, Dist_m = CM.ConsensusMatrix(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_2/Prop_matrix.csv")
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_2/Dist_matrix.csv")
-    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_2/Prop_matrix.html",
+    Ac.save_matrix(Prop_m,  directory + "/Results/File_3/Prop_matrix.csv")
+    Ac.save_matrix(Dist_m,  directory + "/Results/File_3/Dist_matrix.csv")
+    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_3/Prop_matrix.html",
                         x_label="Gen",
                         y_label="Gen",
                         title="Similitud entre genes basada en asignaciones de grupos",
@@ -63,13 +64,13 @@ if __name__ == "__main__":
     Jaccard = JV.JaccardIndexSolutions(Matrix, n_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
-    Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_2/JaccardS.html",
+    Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_3/JaccardS.html",
                         x_label='Solution',
                         y_label='Solution',
                         title='Similitud de Jaccard entre soluciones',
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
-    Ac.save_matrix(Jaccard,  directory + "/Results/File_2/Jaccard_Matrix.csv")
+    Ac.save_matrix(Jaccard,  directory + "/Results/File_3/Jaccard_Matrix.csv")
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
@@ -110,7 +111,13 @@ if __name__ == "__main__":
     GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='athaliana')
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos") 
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### R install packages.
+    start_time = time.time()
+    R_u.install_packages()
+    end_time = time.time()
+    print(f"Instalar paquetes de R) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang.
     EntrezID_P = ME.ConvertToEntrezID(genes, organism_gp='athaliana', taxID=3702)
@@ -146,4 +153,5 @@ if __name__ == "__main__":
                                  term_pvalues, 
                                  save_path=directory + "/Results/File_1/Tree.html")
     
-    ###################################################################################################### Distancia de Wang.
+    ###################################################################################################### Administración de R.
+    
