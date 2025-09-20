@@ -5,23 +5,21 @@ import pandas as pd                  # Dataframe Managment.
 
 ######### AUX elements. #########
 
-# URLs for species (more common in studies).
-# My intention is provide a structure useful structure to check links for
-# species gaf annotations. Also, taxonomy identifier for mygene petitions.
-GAF_URLS = {
-    'human':     ('goa_human', 9606),
-    'mouse':     ('mgi',       10090),
-    'fly':       ('fb',        7227),
-    'zebrafish': ('zfin',      7955),
-    'yeast':     ('sgd',        559292),
-    'athaliana': ('tair',    3702),
-    'schizosaccharomyces_pombe': ('pombase', 4896),
-    'cow':       ('bta',     9913),
-    'dog':       ('upa_dog', 9615),
-    'pig':       ('upa_pig', 9823),
-    'chicken':   ('upa_chicken', 9031),
-    'rat':       ('rgd',     10116),
-    'c_elegans': ('wb',      6239),
+# Respective Taxonomy ID of species.
+TAX_ID = {
+    'human':     9606,
+    'mouse':     10090,
+    'fly':       7227,
+    'zebrafish': 7955,
+    'yeast':     559292,
+    'athaliana': 3702,
+    'schizosaccharomyces_pombe': 4896,
+    'cow':       9913,
+    'dog':       9615,
+    'pig':       9823,
+    'chicken':   9031,
+    'rat':       10116,
+    'c_elegans': 6239
 }
 
 ######### Functions #########

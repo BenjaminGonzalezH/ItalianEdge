@@ -13,7 +13,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.RandValues as RV
     import App.ParetoInsight_CPU.MappingEntrez as ME
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
-    import App.ParetoInsight_CPU.WangIndex as WI
+    import ParetoInsight_CPU.WangIndex as WI
     import App.ParetoInsight_CPU.Actions as Ac
     import Graphs.Heatmaps as Heat
     import Graphs.Go_Plots as Gplot
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.ReadSolutionsFile(file_2,"csv")
+    Matrix, genes  = RD.ReadSolutionsFile(file_1,"csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -39,9 +39,9 @@ if __name__ == "__main__":
     Prop_m, Dist_m = CM.ConsensusMatrix(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_2/Prop_matrix.csv")
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_2/Dist_matrix.csv")
-    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_2/Prop_matrix.html",
+    Ac.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv")
+    Ac.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv")
+    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_1/Prop_matrix.html",
                         x_label="Gen",
                         y_label="Gen",
                         title="Similitud entre genes basada en asignaciones de grupos",
@@ -63,13 +63,13 @@ if __name__ == "__main__":
     Jaccard = JV.JaccardIndexSolutions(Matrix, n_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
-    Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_2/JaccardS.html",
+    Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_1/JaccardS.html",
                         x_label='Solution',
                         y_label='Solution',
                         title='Similitud de Jaccard entre soluciones',
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
-    Ac.save_matrix(Jaccard,  directory + "/Results/File_2/Jaccard_Matrix.csv")
+    Ac.save_matrix(Jaccard,  directory + "/Results/File_1/Jaccard_Matrix.csv")
     
 
     ###################################################################################################### Comparación de composición de clusters (JACCARD).
@@ -101,28 +101,33 @@ if __name__ == "__main__":
 
     ###################################################################################################### Obtener Entrez ID.
     start_time = time.time()
-    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='athaliana', taxID=3702)
+    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
     end_time = time.time()
     print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Go Enrichment.
     start_time = time.time()
-    GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='athaliana')
+    GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='hsapiens')
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos") 
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang.
-    EntrezID_P = ME.ConvertToEntrezID(genes, organism_gp='athaliana', taxID=3702)
+
     start_time = time.time()
-    wang_1 = WI.WangIndexMatrix_1(EntrezID_P, organism='athaliana', n_Process=8)
-    Ac.save_matrix(wang_1,directory + "/Results/File_1/Wang")
+    wang_matrix = WI.SimilarityIndexMatrix(genes,"goa_human",download_gaf=False)
+    Heat.plot_html_heatmap(wang_matrix, save_filepath= directory + "/Results/File_1/Wang_genes.html",
+                        x_label='Gen',
+                        y_label='Gen',
+                        title='Similitud de Wang entre genes',
+                        z_label="Wang",
+                        tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
     end_time = time.time()
     print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Toda la muestra (wang).
     start_time = time.time()
-    wang_s = WI.Solution_Wang_index_similarity_Python(genes, wang_1, df_equivalentes, SC_matrix, num_threads=8)
+    wang_s = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix, df_equivalentes, SC_matrix, num_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Matriz) : {end_time - start_time:.6f} segundos")
     Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")

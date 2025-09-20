@@ -1,16 +1,33 @@
 ######### Libraries #########
-import numpy as np                                      # Efficient Math Operations.  
-from gprofiler import GProfiler                         # Web-server for enrichment analisys.                                 
+import go3                                              # Semantic similarities among genes or terms.
+import requests                                         # Web request handler.
+import gzip                                             # Compresed files managment.
+import shutil                                           # Files managment.
+import os                                               # OS callings.
+from itertools import combinations                      # Possible pair combinations.
 import pandas as pd                                     # Dataframe Managment.
-from pygosemsim.similarity import wang                  # Wang index function.
-from pygosemsim import graph                            # Create GoDag from source.
-from pygosemsim import download                         # Obtain Go obo file.
-from concurrent.futures import ProcessPoolExecutor      # Process managment.
+import numpy as np                                      # Efficient Math Operations.
 from concurrent.futures import ThreadPoolExecutor       # Threads managment.
-import networkx as nx                                   # Networks structures.
-from pygosemsim import term_set
+from gprofiler import GProfiler                         # Web-server for enrichment analisys. 
 
 ######### AUX elements. #########
+
+# URLs for species (more common in studies).
+GAF_URL = {
+    'goa_human':   "http://current.geneontology.org/annotations/goa_human.gaf.gz",
+    'mgi':        "http://current.geneontology.org/annotations/mgi.gaf.gz",
+    'fb':         "http://current.geneontology.org/annotations/fb.gaf.gz",
+    'zfin':      "http://current.geneontology.org/annotations/zfin.gaf.gz",
+    'sgd':        "http://current.geneontology.org/annotations/sgd.gaf.gz",
+    'tair':     "http://current.geneontology.org/annotations/tair.gaf.gz",
+    'pombase': "http://current.geneontology.org/annotations/pombase.gaf.gz",
+    'bta':      "http://current.geneontology.org/annotations/goa_cow.gaf.gz",
+    'goa_dog':  "http://current.geneontology.org/annotations/goa_dog.gaf.gz",
+    'goa_pig':  "http://current.geneontology.org/annotations/goa_pig.gaf.gz",
+    'goa_chicken': "http://current.geneontology.org/annotations/goa_chicken.gaf.gz",
+    'rgd':      "http://current.geneontology.org/annotations/rgd.gaf.gz",
+    'wb':       "http://current.geneontology.org/annotations/wb.gaf.gz"
+}
 
 ######### Functions #########
 
@@ -18,135 +35,152 @@ from pygosemsim import term_set
 This block contains all main functions.
 """
 
-def AnnotationFromEntrezIDs(entrez_ids:list[np.str_],
-                            Ontology=["GO:BP", "GO:CC", "GO:MF"], 
-                            organism='hsapiens') -> dict[str , list[str]]:
+def build_gene_mappings(gaf_file: str):
     """
-    AnnotationFromEntrezIDs(function): Use gprofiler to obtain all terms asociated with each entrezID.
+    Build dictionaries mapping IDs to gene symbols.
+    """
+    id_to_symbol = {}
+    symbol_to_id = {}
+
+    with open(gaf_file+".gaf", "r") as f:
+        for line in f:
+            if line.startswith("!"):  # comentarios
+                continue
+            parts = line.strip().split("\t")
+            if len(parts) > 3:
+                gene_id = parts[1]     # Ej: AT1G80420
+                gene_symbol = parts[2] # Ej: ATXRCC1
+                id_to_symbol[gene_id] = gene_symbol
+                symbol_to_id[gene_symbol] = gene_id
+    
+    return id_to_symbol, symbol_to_id
+
+
+def map_genes(genes, gaf_file: str, to: str = "symbol"):
+    """
+    map_genes(function): Transform a list of genes using the GAF file.
     
     Parameters:
-    - entrez_ids: List of Entrez identifiers.
-    - Ontology: Source of gprofiler query.
-    - organism: Specie of study.
-
-    Returns:
-    - gene_to_go: Dictionary that allocates entrez ID with their associated terms.
+        - genes: list of genes (can be IDs or symbols).
+        - gaf_file: unzipped GAF file.
+        - to: “symbol” → returns symbols, “id” → returns IDs.
     """
-    # Check input
-    if not entrez_ids or not isinstance(entrez_ids, (list, np.ndarray)):
-        raise ValueError("entrez_ids debe ser una lista no vacía de IDs.")
-    
-    valid_sources = {"GO:BP", "GO:CC", "GO:MF", "KEGG", "REAC", "CORUM", "HP"}
-    if any(src not in valid_sources for src in Ontology):
-        raise ValueError(f"Ontology contiene fuentes no soportadas: {Ontology}")
-    
-    # Activate GProfiler instance and return dataframes.
-    gp = GProfiler(return_dataframe=True)
+    id_to_symbol, symbol_to_id = build_gene_mappings(gaf_file)
+    mapped = []
 
-    try:
-        resultado = gp.profile(
-            organism=organism,                          # Species of study.
-            query=entrez_ids,                           # EntrezID provided in input.
-            no_evidences= False,                        # No use experimental evidence.
-            user_threshold=1.0,                         # No stadistic filter.
-            sources=Ontology                            # Source: GO:BP for example.
-        )
-    except Exception as e:
-        raise RuntimeError(f"Error in Gprofiler query: {e}")
-
-    if resultado.empty:
-        return {}
-
-    # Obtain terms for entrezIDs.
-    exploded = resultado[['intersections', 'native']].explode('intersections')
-    # Group all terms in a list per gene.
-    Gene_to_go = exploded.groupby('intersections')['native'].agg(list).to_dict()
-
-    return Gene_to_go
-
-def calcular_batch(batch, preprocessed_terms, EntrezID, Gograph):
-    results = []
-    cache = {}
-    for i, j in batch:
-        terms_i = preprocessed_terms.get(EntrezID[i], [])
-        terms_j = preprocessed_terms.get(EntrezID[j], [])
-        if terms_i and terms_j:
-            def sem_sim(t1, t2):
-                key = (t1, t2) if t1 <= t2 else (t2, t1)
-                if key not in cache:
-                    cache[key] = wang(Gograph, t1, t2)
-                return cache[key]
-            score = term_set.sim_bma(terms_i, terms_j, sem_sim)
+    for g in genes:
+        if to == "symbol":
+            mapped.append(id_to_symbol.get(g, g))
+        elif to == "id":
+            mapped.append(symbol_to_id.get(g, g))
         else:
-            score = 0.0
-        results.append((i, j, score))
-    return results
+            raise ValueError("El parámetro 'to' debe ser 'symbol' o 'id'")
+    
+    return mapped
 
-def WangIndexMatrix_1(EntrezID: list[str], 
-                    organism: str = 'hsapiens',
-                    Ontology: list[str] = ['GO:BP'], 
-                    n_Process: int = 4,
-                    download_f: bool = True) -> np.ndarray:
+def DownloadGAF(
+        url: str, 
+        output_filename: str
+        ) -> None:
     """
-    WangIndexMatrix(function): Computes Wang similarity matrix among genes using term_set.sim_bma.
+    DownloadGAF(function): Download and descompress .gaf from a specie. Use the global variable
+    GAF_URL to obtain correct url.
 
     Parameters:
-    - EntrezID: List of Entrez identifiers.
-    - organism: Specie of study.
-    - Ontology: Source of gprofiler query.
-    - n_Process: Number of processes to use.
-
-    Return:
-    - WangSimilarity: Matrix with Wang index for every pair of genes.
+        - url: Link to file.
+        - output_filename: Name of the descompress file, it is not necessary to use ".gaf".
     """
-    # Obtener anotaciones GO para cada gen
-    Dict_gene_Goterms = AnnotationFromEntrezIDs(EntrezID, Ontology, organism)
+    try:
+        # Download file.
+        print(f"Descargando: {url}")
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        
+        # Save temporal compressed file.
+        temp_gz = f"{output_filename}.gz"
+        with open(temp_gz, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Descompres.
+        print(f"Descomprimiendo: {temp_gz}")
+        with gzip.open(temp_gz, 'rb') as f_in:
+            with open(output_filename, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        
+        # Remove .gz file.
+        os.remove(temp_gz)
+        print(f"Archivo listo: {output_filename + ".gaf"}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Runtime Error {url}: {e}")
+        return False
+
+def pairs_to_matrix(gene_pairs, scores, genes):
+    """
+    pairs_to_matrix(function): Convert gene pairs + score list into a symmetric matrix.
     
-    # Descarga y gestión de archivos GO si es necesario
-    if download_f:
-        try:
-            download.clear()
-            download.obo("go-basic")
-        except Exception as e:
-            raise RuntimeError(f"Error in download GO OBO: {e}")
+    Parameters:
+        - gene_pairs: list of tuples (gene1, gene2)
+        - scores: list of floats (similarities in the same order as gene_pairs)
+        - genes: list of genes
+    
+    Returns:
+        - DataFrame with similarity matrix
+    """
+    df = pd.DataFrame(index=genes, columns=genes, dtype=float)
 
-    # Cargar el grafo GO
-    Gograph = graph.from_resource("go-basic")
+    for g in genes:
+        df.loc[g, g] = 1.0
 
-    # Filtrar términos presentes en el grafo GO
-    preprocessed_terms = {
-        gene: [t for t in Dict_gene_Goterms.get(gene, []) if t in Gograph]
-        for gene in EntrezID
-    }
+    for (g1, g2), score in zip(gene_pairs, scores):
+        df.loc[g1, g2] = score
+        df.loc[g2, g1] = score
 
-    # Crear matriz de salida
-    n = len(EntrezID)
-    WangSimilarity = np.zeros((n, n), dtype=np.float64)
+    return df.to_numpy()
 
-    # Generar pares y dividir en batches
-    pairs = [(i, j) for i in range(n) for j in range(i, n)]
-    batch_size = max(1, len(pairs) // (n_Process * 2))
-    batches = [pairs[k:k+batch_size] for k in range(0, len(pairs), batch_size)]
+def SimilarityIndexMatrix(genes: str,
+                    gaf_name: str,
+                    ontology: str = "BP",
+                    measure: str = "wang",
+                    groupwise: str = "bma",
+                    download_gaf: bool = True,
+                    transform: bool = True):
+    """
+    SimilarityIndexMatrix(function): Creates a similarity index matrix to compare genes
+    according to biological information.
 
-    # Multiprocesamiento
-    with ProcessPoolExecutor(max_workers=n_Process) as executor:
-        futures = [
-            executor.submit(calcular_batch, batch, preprocessed_terms, EntrezID, Gograph)
-            for batch in batches
-        ]
-        for future in futures:
-            for i, j, score in future.result():
-                WangSimilarity[i, j] = score
-                WangSimilarity[j, i] = score  # Simetría
+    Parameters:
+        - genes: List of genes symbols.
+        - gaf_name: Gaf file to use for comparison (has to be the correct specie).
+        - ontology: Subontology from gene ontology.
+        - similarity: Similarity measure (wang, lin, jc, simrel, iccoef, graphic, wang, topoicsim).
+        - groupwise: Combination method to generate the similarities between genes (“bma” or “max”).
+        - download_gaf: Flag to indicate to download gaf.
+        - Transform symbol according to graph.
+    """
 
-    return WangSimilarity
+    if download_gaf:
+        DownloadGAF(GAF_URL[gaf_name], gaf_name)
+    if transform:
+        genes = map_genes(genes, gaf_name, to="symbol")
+    
+    _ = go3.load_go_terms()
+    annotations = go3.load_gaf(gaf_name+".gaf")
+    counter = go3.build_term_counter(annotations)
+    gene_pairs = list(combinations(genes, 2))
+    scores = go3.compare_gene_pairs_batch(gene_pairs, ontology, measure, groupwise, counter)
+    
+    return pairs_to_matrix(gene_pairs, scores, genes)
 
 def Solution_Wang_index_similarity_Python(
         ids: list[str],
         similarity_matrix: np.ndarray,
         df: pd.DataFrame,
         groups_structure: list[set],
-        num_threads: int = 4):
+        num_threads: int = 4) -> np.ndarray:
     """
     Builds a similarity matrix between solutions using Wang distance among genes.
 
@@ -222,3 +256,49 @@ def Solution_Wang_index_similarity_Python(
     np.fill_diagonal(final_matrix, 1)
 
     return final_matrix
+
+def AnnotationFromEntrezIDs(entrez_ids:list[np.str_],
+                            Ontology=["GO:BP", "GO:CC", "GO:MF"], 
+                            organism='hsapiens') -> dict[str , list[str]]:
+    """
+    AnnotationFromEntrezIDs(function): Use gprofiler to obtain all terms asociated with each entrezID.
+    
+    Parameters:
+    - entrez_ids: List of Entrez identifiers.
+    - Ontology: Source of gprofiler query.
+    - organism: Specie of study.
+
+    Returns:
+    - gene_to_go: Dictionary that allocates entrez ID with their associated terms.
+    """
+    # Check input
+    if not entrez_ids or not isinstance(entrez_ids, (list, np.ndarray)):
+        raise ValueError("entrez_ids debe ser una lista no vacía de IDs.")
+    
+    valid_sources = {"GO:BP", "GO:CC", "GO:MF", "KEGG", "REAC", "CORUM", "HP"}
+    if any(src not in valid_sources for src in Ontology):
+        raise ValueError(f"Ontology contiene fuentes no soportadas: {Ontology}")
+    
+    # Activate GProfiler instance and return dataframes.
+    gp = GProfiler(return_dataframe=True)
+
+    try:
+        resultado = gp.profile(
+            organism=organism,                          # Species of study.
+            query=entrez_ids,                           # EntrezID provided in input.
+            no_evidences= False,                        # No use experimental evidence.
+            user_threshold=1.0,                         # No stadistic filter.
+            sources=Ontology                            # Source: GO:BP for example.
+        )
+    except Exception as e:
+        raise RuntimeError(f"Error in Gprofiler query: {e}")
+
+    if resultado.empty:
+        return {}
+
+    # Obtain terms for entrezIDs.
+    exploded = resultado[['intersections', 'native']].explode('intersections')
+    # Group all terms in a list per gene.
+    Gene_to_go = exploded.groupby('intersections')['native'].agg(list).to_dict()
+
+    return Gene_to_go

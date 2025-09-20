@@ -81,7 +81,7 @@ def ConvertToEntrezID(
         na_value: str = 'NA', 
         n_threads: int= 4) -> list[str]:
     """
-    convert_symbols_to_entrez_Python (function): Convert a list of various ID's into EntrezID's using
+    ConvertToEntrezID (function): Convert a list of various ID's into EntrezID's using
     GProfiler and MyGene.info.
 
     Parameters:
@@ -170,4 +170,3 @@ def ConvertToEntrezID(
     entrez_ids = [conversion_dict.get(gene, na_value) for gene in symbol_list]
 
     return entrez_ids
-    
