@@ -15,10 +15,10 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import ParetoInsight_CPU.WangIndex as WI
     import App.ParetoInsight_CPU.Actions as Ac
-    import Graphs.Heatmaps as Heat
-    import Graphs.Go_Plots as Gplot
-    import Graphs.GoNetwork as Gnet
-    import Graphs.Go_heiracialNetwork as GHnet
+    import App.Graphs.Heatmaps as Heat
+    import App.Graphs.Go_Plots as Gplot
+    import App.Graphs.GoNetwork as Gnet
+    import App.Graphs.Go_heiracialNetwork as GHnet
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -151,4 +151,5 @@ if __name__ == "__main__":
                                  term_pvalues, 
                                  save_path=directory + "/Results/File_1/Tree.html")
     
-    ###################################################################################################### Distancia de Wang.
+    ###################################################################################################### Administración de R.
+    
