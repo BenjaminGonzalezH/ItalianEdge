@@ -37,24 +37,31 @@ This block contains all main functions.
 
 def build_gene_mappings(gaf_file: str):
     """
-    Build dictionaries mapping IDs to gene symbols.
+    build_gene_mappings(function): Build dictionaries mapping IDs 
+    to gene symbols.
+
+    Parameters:
+     - gaf_file: filename associated with the graph.
+
+    Return:
+        - Two dictionaries who associates genes id into database with their
+        respective symbol.
     """
     id_to_symbol = {}
     symbol_to_id = {}
 
     with open(gaf_file+".gaf", "r") as f:
         for line in f:
-            if line.startswith("!"):  # comentarios
+            if line.startswith("!"):
                 continue
             parts = line.strip().split("\t")
             if len(parts) > 3:
-                gene_id = parts[1]     # Ej: AT1G80420
-                gene_symbol = parts[2] # Ej: ATXRCC1
+                gene_id = parts[1]
+                gene_symbol = parts[2]
                 id_to_symbol[gene_id] = gene_symbol
                 symbol_to_id[gene_symbol] = gene_id
     
     return id_to_symbol, symbol_to_id
-
 
 def map_genes(genes, gaf_file: str, to: str = "symbol"):
     """
@@ -92,7 +99,7 @@ def DownloadGAF(
     """
     try:
         # Download file.
-        print(f"Descargando: {url}")
+        print(f"Downloading: {url}")
         response = requests.get(url, stream=True)
         response.raise_for_status()
         
@@ -103,14 +110,14 @@ def DownloadGAF(
                 f.write(chunk)
         
         # Descompres.
-        print(f"Descomprimiendo: {temp_gz}")
+        print(f"Uncompressing: {temp_gz}")
         with gzip.open(temp_gz, 'rb') as f_in:
             with open(output_filename, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
         
         # Remove .gz file.
         os.remove(temp_gz)
-        print(f"Archivo listo: {output_filename + ".gaf"}")
+        print(f"File ready: {output_filename + ".gaf"}")
         
         return True
         
@@ -147,7 +154,8 @@ def SimilarityIndexMatrix(genes: str,
                     measure: str = "wang",
                     groupwise: str = "bma",
                     download_gaf: bool = True,
-                    transform: bool = True):
+                    transform: bool = True,
+                    load_go_terms: bool = True):
     """
     SimilarityIndexMatrix(function): Creates a similarity index matrix to compare genes
     according to biological information.
@@ -159,21 +167,43 @@ def SimilarityIndexMatrix(genes: str,
         - similarity: Similarity measure (wang, lin, jc, simrel, iccoef, graphic, wang, topoicsim).
         - groupwise: Combination method to generate the similarities between genes (“bma” or “max”).
         - download_gaf: Flag to indicate to download gaf.
-        - Transform symbol according to graph.
+        - transform: Transform symbol according to graph.
+        - load_go_terms: Download gene ontology terms.
     """
+    try:
+        # Input checking.
+        if not genes or not isinstance(genes, (list, str)):
+            raise TypeError("'genes' must be a list of strings")
+        if not isinstance(gaf_name, str) or len(gaf_name.strip()) == 0:
+            raise TypeError("'gaf_name' must be a valid string")
+        if ontology not in ["BP", "MF", "CC"]:
+            raise ValueError("'ontology' only supports 'BP', 'MF' o 'CC'.")
+        if groupwise not in ["bma", "max"]:
+            raise ValueError("'groupwise' only supports 'bma' o 'max'.")
 
-    if download_gaf:
-        DownloadGAF(GAF_URL[gaf_name], gaf_name)
-    if transform:
-        genes = map_genes(genes, gaf_name, to="symbol")
+        # Download gaf, transform genes symbols and load gene ontology terms
+        # if it is neccesary.
+        if download_gaf:
+            if gaf_name not in GAF_URL:
+                print(GAF_URL)
+                raise ValueError("gaf_name is not in GAF_URL")
+            DownloadGAF(GAF_URL[gaf_name], gaf_name)
+        if transform:
+            genes = map_genes(genes, gaf_name+".gaf", to="symbol")
+        if load_go_terms:
+            go3.load_go_terms()
+        
+        # Wang index calculus.
+        annotations = go3.load_gaf(gaf_name)
+        counter = go3.build_term_counter(annotations)
+        gene_pairs = list(combinations(genes, 2))
+        scores = go3.compare_gene_pairs_batch(gene_pairs, ontology, measure, groupwise, counter)
     
-    _ = go3.load_go_terms()
-    annotations = go3.load_gaf(gaf_name+".gaf")
-    counter = go3.build_term_counter(annotations)
-    gene_pairs = list(combinations(genes, 2))
-    scores = go3.compare_gene_pairs_batch(gene_pairs, ontology, measure, groupwise, counter)
-    
-    return pairs_to_matrix(gene_pairs, scores, genes)
+    # Exception handler.
+    except Exception as e:
+        raise RuntimeError(f"Error in find_equivalent_clusters: {e}")
+    else:
+        return pairs_to_matrix(gene_pairs, scores, genes)
 
 def Solution_Wang_index_similarity_Python(
         ids: list[str],

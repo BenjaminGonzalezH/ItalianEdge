@@ -115,7 +115,7 @@ if __name__ == "__main__":
     ###################################################################################################### Distancia de Wang.
 
     start_time = time.time()
-    wang_matrix = WI.SimilarityIndexMatrix(genes,"goa_human",download_gaf=False)
+    wang_matrix = WI.SimilarityIndexMatrix(genes,"goa_human",transform=False, load_go_terms=True)
     Heat.plot_html_heatmap(wang_matrix, save_filepath= directory + "/Results/File_1/Wang_genes.html",
                         x_label='Gen',
                         y_label='Gen',
@@ -129,13 +129,13 @@ if __name__ == "__main__":
     start_time = time.time()
     wang_s = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix, df_equivalentes, SC_matrix, num_threads=8)
     end_time = time.time()
-    print(f"Tiempo de ejecución (Matriz) : {end_time - start_time:.6f} segundos")
+    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
     Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
 
     ###################################################################################################### Dual Heatmap.
 
-    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='athaliana', taxID=3702)
-    GO_DF_P = GOeP.GoEnrichment(EntrezID_P, organism='athaliana')
+    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
+    GO_DF_P = GOeP.GoEnrichment(EntrezID_P)
     GtoT = WI.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='athaliana')
     print(GtoT)
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
