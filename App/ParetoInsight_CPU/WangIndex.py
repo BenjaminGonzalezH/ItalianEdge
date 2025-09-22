@@ -8,7 +8,6 @@ from itertools import combinations                      # Possible pair combinat
 import pandas as pd                                     # Dataframe Managment.
 import numpy as np                                      # Efficient Math Operations.
 from concurrent.futures import ThreadPoolExecutor       # Threads managment.
-from gprofiler import GProfiler                         # Web-server for enrichment analisys. 
 
 ######### AUX elements. #########
 
@@ -50,7 +49,7 @@ def build_gene_mappings(gaf_file: str):
     id_to_symbol = {}
     symbol_to_id = {}
 
-    with open(gaf_file+".gaf", "r") as f:
+    with open(gaf_file+'.gaf', "r") as f:
         for line in f:
             if line.startswith("!"):
                 continue
@@ -95,7 +94,7 @@ def DownloadGAF(
 
     Parameters:
         - url: Link to file.
-        - output_filename: Name of the descompress file, it is not necessary to use ".gaf".
+        - output_filename: Name of the descompress file, it is not necessary to use '.gaf'.
     """
     try:
         # Download file.
@@ -117,7 +116,7 @@ def DownloadGAF(
         
         # Remove .gz file.
         os.remove(temp_gz)
-        print(f"File ready: {output_filename + ".gaf"}")
+        print(f"File ready: {output_filename + '.gaf'}")
         
         return True
         
@@ -189,7 +188,7 @@ def SimilarityIndexMatrix(genes: str,
                 raise ValueError("gaf_name is not in GAF_URL")
             DownloadGAF(GAF_URL[gaf_name], gaf_name)
         if transform:
-            genes = map_genes(genes, gaf_name+".gaf", to="symbol")
+            genes = map_genes(genes, gaf_name+'.gaf', to="symbol")
         if load_go_terms:
             go3.load_go_terms()
         
@@ -238,26 +237,28 @@ def Solution_Wang_index_similarity_Python(
     df['Cluster 1'] = df['Cluster 1'].astype(int)
     df['Cluster 2'] = df['Cluster 2'].astype(int)
     df['Jaccard Similarity'] = df['Jaccard Similarity'].astype(float)
+    df['Wang Similarity'] = 0.0
 
     #################################################################### Process row function for concurrency execution.
-    def process_row(row):
+    def process_row(idx, row):
         # Extract element from row and define output matrix.
         group_i, group_j, elem_i, elem_j, similarity = row
         local_matrix = np.zeros((n, n), dtype=np.float32)
+        wang_value = 0.0
 
         # Elements into range.
         if group_i >= n or group_j >= n or elem_i >= len(hashable_groups[group_i]) or elem_j >= len(hashable_groups[group_j]):
-            return local_matrix
+            return local_matrix, idx, wang_value
         
         # No comparison posible of groups.
         intersection = hashable_groups[group_i][elem_i] & hashable_groups[group_j][elem_j] - {'NA'}
         if len(intersection) < 2:
-            return local_matrix
+            return local_matrix, idx, wang_value
 
         # No enough genes.
         gene_indices = [id_to_idx[gene] for gene in intersection if gene in id_to_idx]
         if len(gene_indices) < 2:
-            return local_matrix
+            return local_matrix, idx, wang_value
         
         # Submatrix of wang index (upper triangle).
         sim_submatrix = similarity_matrix[np.ix_(gene_indices, gene_indices)]
@@ -265,70 +266,27 @@ def Solution_Wang_index_similarity_Python(
 
         # If there is no index, just return a zero matrix.
         if triu_values.size == 0 or np.isnan(triu_values).all():
-            return local_matrix
+            return local_matrix, idx, wang_value
+        wang_value = float(np.nanmean(triu_values) * similarity)
 
         # Acum index values.
         weighted_similarity = np.nanmean(triu_values) * similarity
         local_matrix[group_i, group_j] += weighted_similarity
         local_matrix[group_j, group_i] += weighted_similarity
-        return local_matrix
+        return local_matrix, idx, wang_value
     ################################################################################################################# Execute in concurrency.
+    rows = list(df[['Solution 1', 'Solution 2', 'Cluster 1', 'Cluster 2', 'Jaccard Similarity']].itertuples(index=False, name=None))
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        results = list(executor.map(process_row, df[['Solution 1', 'Solution 2', 'Cluster 1', 'Cluster 2', 'Jaccard Similarity']].itertuples(index=False, name=None)))
+        results = list(executor.map(lambda args: process_row(*args), enumerate(rows)))
 
     # Merge solutions.
-    for local_matrix in results:
+    for local_matrix, idx, wang_value in results:
         final_matrix += local_matrix
+        df.at[idx, 'Wang Similarity'] = wang_value
 
     # Normalization and fill diag with 1's.
     if np.max(final_matrix) > 0:
         final_matrix = final_matrix / np.max(final_matrix)
     np.fill_diagonal(final_matrix, 1)
 
-    return final_matrix
-
-def AnnotationFromEntrezIDs(entrez_ids:list[np.str_],
-                            Ontology=["GO:BP", "GO:CC", "GO:MF"], 
-                            organism='hsapiens') -> dict[str , list[str]]:
-    """
-    AnnotationFromEntrezIDs(function): Use gprofiler to obtain all terms asociated with each entrezID.
-    
-    Parameters:
-    - entrez_ids: List of Entrez identifiers.
-    - Ontology: Source of gprofiler query.
-    - organism: Specie of study.
-
-    Returns:
-    - gene_to_go: Dictionary that allocates entrez ID with their associated terms.
-    """
-    # Check input
-    if not entrez_ids or not isinstance(entrez_ids, (list, np.ndarray)):
-        raise ValueError("entrez_ids debe ser una lista no vacía de IDs.")
-    
-    valid_sources = {"GO:BP", "GO:CC", "GO:MF", "KEGG", "REAC", "CORUM", "HP"}
-    if any(src not in valid_sources for src in Ontology):
-        raise ValueError(f"Ontology contiene fuentes no soportadas: {Ontology}")
-    
-    # Activate GProfiler instance and return dataframes.
-    gp = GProfiler(return_dataframe=True)
-
-    try:
-        resultado = gp.profile(
-            organism=organism,                          # Species of study.
-            query=entrez_ids,                           # EntrezID provided in input.
-            no_evidences= False,                        # No use experimental evidence.
-            user_threshold=1.0,                         # No stadistic filter.
-            sources=Ontology                            # Source: GO:BP for example.
-        )
-    except Exception as e:
-        raise RuntimeError(f"Error in Gprofiler query: {e}")
-
-    if resultado.empty:
-        return {}
-
-    # Obtain terms for entrezIDs.
-    exploded = resultado[['intersections', 'native']].explode('intersections')
-    # Group all terms in a list per gene.
-    Gene_to_go = exploded.groupby('intersections')['native'].agg(list).to_dict()
-
-    return Gene_to_go
+    return final_matrix, df
