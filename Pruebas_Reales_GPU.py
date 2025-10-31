@@ -6,7 +6,7 @@ if __name__ == "__main__":
     # Librerias propias CPU.
     import App.ParetoInsight_CPU.ReadSolution as RD
     import App.ParetoInsight_CPU.Actions as Ac_CPU
-    import Graphs.Heatmaps as Heat
+    import App.Graphs.Heatmaps as Heat
     import App.ParetoInsight_CPU.He_Clustering as He
 
     # Librerias propias GPU.

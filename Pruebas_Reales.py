@@ -14,6 +14,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.MappingEntrez as ME
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
+    import App.ParetoInsight_CPU.WangIndexR as WIR
     import App.ParetoInsight_CPU.Actions as Ac
     import App.Graphs.Heatmaps as Heat
     import App.Graphs.Go_Plots as Gplot
@@ -114,10 +115,10 @@ if __name__ == "__main__":
 
     ###################################################################################################### Distancia de Wang.
     start_time = time.time()
-    wang_matrix = WI.SimilarityIndexMatrix(genes, "goa_human", transform=False, load_go_terms=True)
+    wang_matrix = WIR.calculate_wang_distance_matrix(genes)
     end_time = time.time()
     print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
-    Heat.plot_html_heatmap(wang_matrix, save_filepath= directory + "/Results/File_1/Wang_genes.html",
+    Heat.plot_html_heatmap(wang_matrix.to_numpy(), save_filepath= directory + "/Results/File_1/Wang_genes.html",
                         x_label='Gen',
                         y_label='Gen',
                         title='Similitud de Wang entre genes',
@@ -149,6 +150,6 @@ if __name__ == "__main__":
     GHnet.plot_go_hierarchy_html(GtoT, 
                                  term_pvalues, 
                                  save_path=directory + "/Results/File_1/Tree.html")
-    
-    ###################################################################################################### Administración de R.
+
+
     
