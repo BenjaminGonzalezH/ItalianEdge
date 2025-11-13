@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Distancia de Wang.
     start_time = time.time()
-    wang_matrix = WIR.calculate_wang_distance_matrix(genes)
+    wang_matrix = WIR.calculate_wang_distance_matrix_enhanced(genes)
     end_time = time.time()
     print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
     Heat.plot_html_heatmap(wang_matrix.to_numpy(), save_filepath= directory + "/Results/File_1/Wang_genes.html",
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Toda la muestra (wang).
     start_time = time.time()
-    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix, df_equivalentes, SC_matrix, num_threads=8)
+    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
     Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")

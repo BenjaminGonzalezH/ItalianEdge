@@ -98,10 +98,103 @@ def calculate_wang_distance_matrix(
         # Obtain dataframe with Wang distance.
         sim_matrix_df = robjects.r(r_code)
         sim_matrix_df = pandas2ri.rpy2py(sim_matrix_df)
+
+        # Refill with zeros.
+        missing_genes = [g for g in entrez_ids if g not in sim_matrix_df.index]
+        for g in missing_genes:
+            sim_matrix_df.loc[g] = 0
+            sim_matrix_df[g] = 0
+        sim_matrix_df = sim_matrix_df.loc[entrez_ids, entrez_ids]
+
         return sim_matrix_df
 
     except Exception as e:
         print(f"Error in calculate_wang_distance_matrix: {e}")
+        return pd.DataFrame()
+    
+def calculate_wang_distance_matrix_enhanced(
+        gene_list: list[str],
+        organism: str = "org.Hs.eg.db",
+        organism_gp: str = "hsapiens",
+        TaxID: int = 9606,
+        ont: str = "BP",
+        convert_ids: bool = True
+    ) -> pd.DataFrame:
+    """
+    calculate_wang_distance_matrix_enhanced:
+    Calcula una matriz de distancias semánticas de Wang para una lista de genes,
+    garantizando la conservación del orden original y el tamaño completo.
+
+    Parámetros:
+    - gene_list (list): Lista de IDs (SYMBOL o Entrez).
+    - organism (str): Base de datos de organismo para GO (ej: "org.Hs.eg.db").
+    - organism_gp (str): Genoma para conversión de IDs.
+    - TaxID (int): Taxonomía del organismo (ej: 9606 para humano).
+    - ont (str): Ontología GO: "BP", "MF" o "CC".
+    - convert_ids (bool): Convertir a Entrez IDs.
+
+    Retorna:
+    - sim_matrix_df (pd.DataFrame): Matriz cuadrada (n x n) alineada con los genes originales.
+    """
+    try:
+        # --- Validación básica ---
+        if gene_list is None or len(gene_list) < 2:
+            raise ValueError("La lista de genes debe contener al menos dos entradas válidas.")
+        if ont not in ("BP", "MF", "CC"):
+            raise ValueError("Ontología inválida. Use 'BP', 'MF' o 'CC'.")
+
+        # --- Conversión de IDs ---
+        if convert_ids:
+            entrez_ids = ConvertToEntrezID(gene_list, organism_gp=organism_gp, taxID=TaxID)
+            entrez_ids = [eid for eid in entrez_ids if eid not in [None, "NA", ""]]
+            if not entrez_ids:
+                raise ValueError("No se obtuvieron IDs válidos tras la conversión.")
+            print(f"[INFO] Se convirtieron {len(gene_list)} genes a {len(entrez_ids)} Entrez IDs válidos.")
+        else:
+            entrez_ids = gene_list
+
+        # --- Enviar lista a R ---
+        r_gene_list = robjects.StrVector(entrez_ids)
+        robjects.r.assign("gene_list", r_gene_list)
+
+        # --- Código R ---
+        r_code = f"""
+        suppressMessages(library(GOSemSim))
+        go_db <- godata(annoDb = "{organism}", ont = "{ont}")
+        sim_matrix <- mgeneSim(genes = gene_list, semData = go_db, measure = "Wang")
+        sim_matrix[is.na(sim_matrix)] <- 0
+        as.data.frame(sim_matrix)
+        """
+
+        # --- Ejecutar en R ---
+        sim_matrix_r = robjects.r(r_code)
+        sim_matrix_df = pandas2ri.rpy2py(sim_matrix_r)
+
+        # --- Alinear orden y tamaño ---
+        sim_matrix_df.index = sim_matrix_df.index.astype(str)
+        sim_matrix_df.columns = sim_matrix_df.columns.astype(str)
+
+        # Detectar genes faltantes
+        missing_genes = [g for g in entrez_ids if g not in sim_matrix_df.index]
+
+        if missing_genes:
+            print(f"[WARN] {len(missing_genes)} genes no fueron encontrados en GO y se completarán con ceros.")
+            for g in missing_genes:
+                sim_matrix_df.loc[g] = 0
+                sim_matrix_df[g] = 0
+
+        # Reordenar según el orden original
+        sim_matrix_df = sim_matrix_df.loc[entrez_ids, entrez_ids]
+
+        # --- Verificación final ---
+        assert sim_matrix_df.shape == (len(entrez_ids), len(entrez_ids)), \
+            "Dimensiones de la matriz no coinciden con la lista original."
+
+        print(f"[OK] Matriz final generada con {sim_matrix_df.shape[0]} genes y preservando orden original.")
+        return sim_matrix_df
+
+    except Exception as e:
+        print(f"[ERROR] Error en calculate_wang_distance_matrix_enhanced: {e}")
         return pd.DataFrame()
 
 def safe_literal_eval(s):
