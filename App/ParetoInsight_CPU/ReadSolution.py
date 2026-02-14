@@ -1,95 +1,78 @@
+"""Utilities to read solution matrices from disk.
+
+This module supports CSV, fixed-width text, and pickle files and returns:
+1) A NumPy matrix with the loaded values.
+2) The list of column names (genes symbos or ID).
+"""
+
 ######### Libraries #########
-import numpy as np                                  # Efficient Math Operations.
-import csv                                          # Read csv.
-from typing import Tuple                            # Multiple returns doc.
-import pandas as pd                                 # Dataframe managment.
+import numpy as np                                          # Efficient Math Operations.
+import pandas as pd                                         # Dataframe managment.
+import csv                                                  # Read csv.
+from pathlib import Path                                    # Confort about paths managments.
+from typing import Tuple                                    # Improve functions specs.
 
-# Note: the return is not a Tuple, this is used for
-# allocates all the multiple elements of output that
-# would have one function.
 
-######### Functions #########
+######### Internal Functions #########
 
-"""
-This block contains all main functions.
-"""
+def _clean_dataframe(df: pd.DataFrame) -> Tuple[np.ndarray, list[str]]:
+    """Validate and normalize a DataFrame before converting to NumPy."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Loaded object is not a pandas DataFrame.")
 
-def ReadSolutionsFile(
-        filepath: str, 
-        format: str = "csv") -> Tuple[np.ndarray, list[str]]:
-    """
-    ReadSolutionsFile (function): Read clustering solutions, represented by a collection
-    of integer arrays, from a file. The primate format of this files has to be compatible 
-    with pandas supported files.
+    # Remove index columns often introduced by CSV exports.
+    df = df.loc[:, ~df.columns.str.contains("Unnamed", case=False)]
 
-    Parameters:
-        - filepath: Location of the file in your PC (Machine). Must contain filename and
-          extention.
-        - format: File extention of the input file.
-    """
-    # Setting string into lowercase to avoid input errors in format.
-    case_string = format.lower()
-    
-    # Configured list of formats.
-    format_list = ["csv", "fwf (fixed-width file)", "pkl (Python Pickle Format)"]
+    if df.empty:
+        raise ValueError("DataFrame is empty.")
 
-    # Checking format.
+    return df.to_numpy(), list(df.columns)
+
+
+def _read_csv(filepath: str) -> pd.DataFrame:
+    """Read CSV while trying to auto-detect delimiter."""
     try:
-        match case_string:
-            
-            ######################################################### CSV.
-            case "csv":
-                # Deducing separator from csv.
-                with open(filepath,"r",encoding="utf-8") as f:
-                    sample = f.read(1024)
-                    delimeter = csv.Sniffer().sniff(sample).delimiter
+        with open(filepath, "r", encoding="utf-8") as f:
+            sample = f.read(2048)
+            delimiter = csv.Sniffer().sniff(sample).delimiter
+    except Exception:
+        # Fallback to comma if detection fails.
+        delimiter = ","
 
-                # Reading file.
-                dataframe = pd.read_csv(filepath, sep=delimeter)
-                df_cleaned = dataframe.loc[:, ~dataframe.columns.str.contains("Unnamed")]
+    return pd.read_csv(filepath, sep=delimiter)
 
-                # Extracting solutions and genes.
-                Matrix = df_cleaned.to_numpy()
-                Genes = list(df_cleaned.columns)
 
-            ######################################################### Fixed-Width Text File.
-            case "fwf" | "fixed-width file":
-                # Reading file.
-                dataframe = pd.read_fwf(filepath)
-                df_cleaned = dataframe.loc[:, ~dataframe.columns.str.contains("Unnamed")]
+def _read_fwf(filepath: str) -> pd.DataFrame:
+    """Read fixed-width formatted text."""
+    return pd.read_fwf(filepath)
 
-                # Extracting solutions and genes.
-                Matrix = dataframe.to_numpy()
-                Genes = list(dataframe.columns)
 
-            ######################################################### Python Pickle Format.
-            case "pkl" | "python pickle format":
-                # Reading file.
-                dataframe = pd.read_pickle(filepath)
-                df_cleaned = dataframe.loc[:, ~dataframe.columns.str.contains("Unnamed")]
+def _read_pkl(filepath: str) -> pd.DataFrame:
+    """Read a pickled pandas DataFrame."""
+    return pd.read_pickle(filepath)
 
-                # Check if pkl is a dataframe.
-                if isinstance(dataframe, pd.DataFrame):
-                    # Extracting solutions and genes.
-                    Matrix = dataframe.to_numpy()
-                    Genes = list(dataframe.columns)
-                else:
-                    print("pkl file is not a dataframe")
-                    # Error return.
-                    Matrix = np.zeros((2,2))
-                    Genes = ["",""]
-        
-            ######################################################### Python Pickle Format.
-            case _:
-                # Feedback message.
-                print(f"Not Supported format: {format} - Better Try: {format_list}.")
 
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File at {filepath} not found.")
-    except KeyboardInterrupt:
-        raise RuntimeError(f"User shutdown process by Keyboard command.")
-    except Exception as e:
-        raise RuntimeError(f"Something went wrong.\nDetails: {e}")
-    else:
-        print(f"File in: {filepath} succesfully readed.\nSolutions and Genes obtained.")
-        return Matrix, Genes
+######### Constanst #########
+# Reader dispatch table by extension / declared format.
+READERS = {
+    "csv": _read_csv,
+    "fwf": _read_fwf,
+    "txt": _read_fwf,
+    "pkl": _read_pkl,
+}
+
+######### Main Function #########
+def read_solutions_file(filepath: str) -> Tuple[np.ndarray, list[str]]:
+    """Read a solutions file using its filename extension."""
+    path = Path(filepath)
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    suffix = path.suffix.lower().replace(".", "")
+
+    if suffix not in READERS:
+        raise ValueError(f"Unsupported format: {suffix}")
+
+    df = READERS[suffix](filepath)
+    return _clean_dataframe(df)

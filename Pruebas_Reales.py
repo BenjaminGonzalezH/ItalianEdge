@@ -14,7 +14,6 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.MappingEntrez as ME
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
-    import App.ParetoInsight_CPU.WangIndexR as WIR
     import App.ParetoInsight_CPU.Actions as Ac
     import App.Graphs.Heatmaps as Heat
     import App.Graphs.Go_Plots as Gplot
@@ -31,17 +30,18 @@ if __name__ == "__main__":
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.ReadSolutionsFile(file_1,"csv")
+    Matrix, genes  = RD.read_solutions_file(file_2)
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Matriz de consenso.
     start_time = time.time()
-    Prop_m, Dist_m = CM.ConsensusMatrix(Matrix)
+    Prop_m, Dist_m = CM.consensus_matrix(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv")
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv")
+    options = Ac.MatrixSaveOptions(mode=Ac.MatrixSaveMode.TEXT_CSV, verbose=True, delimiter=";")
+    Ac.save_matrix(Prop_m,  directory + "/Results/File_2/Prop_matrix.csv",options)
+    Ac.save_matrix(Dist_m,  directory + "/Results/File_2/Dist_matrix.csv",options)
     Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_1/Prop_matrix.html",
                         x_label="Gen",
                         y_label="Gen",

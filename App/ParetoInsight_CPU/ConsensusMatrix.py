@@ -2,62 +2,63 @@
 import numpy as np                                  # Efficient Math Operations.
 from typing import Tuple                            # Document data type.
 
-######### AUX Functions #########
-
-"""
-This block contains all functions that are used repeatedly in other functions.
-In addition, their are used by threads for process concurrency.
-"""
-
-def ConsensusMatrix(Solutions_Matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+######### Main Functions ######### 
+def consensus_matrix(
+    Solutions_Matrix: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     ConsensusMatrix(function): Create a distance matrix based on the proportion where two elements,
     implicitly represented by column index, have the same value. This is for represent the proportion
     of solutions where two genes are in the same cluster.
 
-    Parameters:
-        - Solutions_Matrix: Array of clustering solutions that is, in fact, a matrix.
-    
-    Return:
-        - Coincidence_Matrix: Square Matrix that represent the proportion of solutions where two genes 
-        are in the same cluster.
-        - Consensus_Matrix: Square Matrix that represent the proportion of solutions where two genes 
-        are not in the same cluster. This is used for create consensus solution (heiracial clustering).
+    Parameters
+    ----------
+    Solutions_Matrix : np.ndarray
+        Matrix of shape (n_solutions, n_genes).
+
+    Returns
+    -------
+    Coincidence_Matrix : np.ndarray
+        Proportion matrix of same-cluster occurrences.
+    Consensus_Matrix : np.ndarray
+        Distance matrix (1 - coincidence).
     """
-    try:
-        # Checking Matrix.
-        if Solutions_Matrix.shape[0] == 0:
-            raise ValueError("Empty solutions matrix.")
-        elif Solutions_Matrix.shape[1] < 2:
-            raise ValueError("Matrix at least needs to have two columns (or genes) for valid comparision in solutions.")
 
-        # Obtain unique pairs for comparison.
-        num_cols = Solutions_Matrix.shape[1]                    # Number of genes.
-        upper_tri_indices = np.triu_indices(num_cols, k=1)      # Possible unique pairs of genes (columns).
-        pairs = np.column_stack(upper_tri_indices)              # Format of pairs in 1D arrays of 2.
+    if not isinstance(Solutions_Matrix, np.ndarray):
+        raise TypeError("Solutions_Matrix must be a numpy.ndarray.")
 
-        # Broadcasting to compare each solution with the others.
-        GlobalConnectivityMatrix = Solutions_Matrix[:, pairs[:, 0]] == Solutions_Matrix[:, pairs[:, 1]]
+    if Solutions_Matrix.ndim != 2:
+        raise ValueError("Solutions_Matrix must be 2D.")
 
-        # Sum Connectivity Matrix that are the total of cases where two genes are in the same cluster.
-        Sum_ConnectivityMatrix = np.sum(GlobalConnectivityMatrix, axis=0)
+    n_solutions, n_genes = Solutions_Matrix.shape
 
-        # Square Matrix copy values.
-        Coincidence_Matrix = np.zeros((num_cols, num_cols), dtype=float)
-        Coincidence_Matrix[pairs[:, 0], pairs[:, 1]] = Sum_ConnectivityMatrix
-        Coincidence_Matrix[pairs[:, 1], pairs[:, 0]] = Sum_ConnectivityMatrix
+    if n_solutions == 0:
+        raise ValueError("Empty solutions matrix.")
+    if n_genes < 2:
+        raise ValueError("Matrix must have at least 2 genes.")
 
-        # Proportion calculus.
-        Coincidence_Matrix = Coincidence_Matrix/Solutions_Matrix.shape[0]
-        np.fill_diagonal(Coincidence_Matrix,1)                              # Fill with ones.
-        Consensus_Matrix = 1 - Coincidence_Matrix                           # Distance Matrix.
-        
-    except ValueError as ve:
-        raise RuntimeError(f"Input Matrix Error: {ve}")
-    except IndexError as ie:
-        raise RuntimeError(f"Index error on input matrix: {ie}")
-    except Exception as e:
-        raise RuntimeError(f"Something went wrong.\nDetails: {e}")
-    else:
-        print("Proportion Matrix & Consensus Matrix correctly calculated.")
-        return Coincidence_Matrix, Consensus_Matrix
+    # Final coincidence accumulator
+    coincidence = np.zeros((n_genes, n_genes), dtype=np.float64)
+
+    # Iterate solution by solution (RAM friendly)
+    for solution in Solutions_Matrix:
+
+        # Group indices by cluster label
+        clusters = {}
+        for idx, label in enumerate(solution):
+            clusters.setdefault(label, []).append(idx)
+
+        # Update coincidence matrix
+        for indices in clusters.values():
+            indices = np.array(indices)
+            coincidence[np.ix_(indices, indices)] += 1
+
+    # Convert counts to proportions
+    coincidence /= n_solutions
+
+    # Diagonal must be 1
+    np.fill_diagonal(coincidence, 1.0)
+
+    consensus = 1.0 - coincidence
+
+    return coincidence, consensus
