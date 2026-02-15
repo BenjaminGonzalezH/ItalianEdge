@@ -1,8 +1,12 @@
-######### Libraries #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 import numpy as np                                  # Efficient Math Operations.
 from typing import Tuple                            # Document data type.
 
-######### Main Functions ######### 
+# ──────────────────────────────────────────────────────────────────────────────
+# Main Function
+# ────────────────────────────────────────────────────────────────────────────── 
 def consensus_matrix(
     Solutions_Matrix: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:

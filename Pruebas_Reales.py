@@ -24,13 +24,13 @@ if __name__ == "__main__":
     directory = os.path.dirname(__file__)
 
     # Obtain test files.
-    file_1 = directory + r"\test_files_reals\archivo_prueba_1_116_500.csv"
-    file_2 = directory + r"\test_files_reals\archivo_prueba_2_116_3444.csv"
-    file_3 = directory + r"\test_files_reals\archivo_prueba_3_25_133.csv"
+    file_1 = directory + r"\Test_Files\archivo_prueba_1_116_500.csv"
+    file_2 = directory + r"\Test_Files\archivo_prueba_2_116_3444.csv"
+    file_3 = directory + r"\Test_Files\archivo_prueba_3_25_133.csv"
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
-    Matrix, genes  = RD.read_solutions_file(file_2)
+    Matrix, genes  = RD.read_solutions_file(file_1)
     end_time = time.time()
     print(f"Tiempo de ejecución (lectura) : {end_time - start_time:.6f} segundos")
 
@@ -40,24 +40,27 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
     options = Ac.MatrixSaveOptions(mode=Ac.MatrixSaveMode.TEXT_CSV, verbose=True, delimiter=";")
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_2/Prop_matrix.csv",options)
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_2/Dist_matrix.csv",options)
-    Heat.plot_html_heatmap(Prop_m,  directory + "/Results/File_1/Prop_matrix.html",
-                        x_label="Gen",
-                        y_label="Gen",
-                        title="Similitud entre genes basada en asignaciones de grupos",
-                        z_label="Proporción de coincidencia",
-                        tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Proporción: %{z:.2f}")
+    Ac.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv",options)
+    Ac.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv",options)
+    Heat.plot_html_heatmap(Prop_m,  
+                           directory + "/Results/File_1/Prop_matrix.html",
+                            x_label="Gen",
+                            y_label="Gen",
+                            title="Similitud entre genes basada en asignaciones de grupos",
+                            z_label="Proporción de coincidencia",
+                            tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Proporción: %{z:.2f}")
 
-    ###################################################################################################### Cluster jerárquico.
+    ###################################################################################################### Cluster jerárquico (Co-Ocurrencia + Agr. Jerarquico).
     start_time = time.time()
-    cons_cluster_1 = He.He_clustering(Dist_m, genes, 4, 
-                                    save_path= directory + "/Results/File_1",
-                                    dendrogram_file="Dendogram_file_1.html",
-                                    method="single")
+    cons_cluster_1 = He.he_clustering(Dist_m, 
+                                        genes,
+                                        save_html_to= directory + "/Results/File_1/Dendogram_file_1.html")
     Matrix = np.vstack([Matrix, cons_cluster_1])
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
+
+    ################## Se desea posteriormente ir a consenso por grafos ##################################
+    ######################################################################################################
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
@@ -71,9 +74,17 @@ if __name__ == "__main__":
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
     Ac.save_matrix(Jaccard,  directory + "/Results/File_1/Jaccard_Matrix.csv")
-    
 
-    ###################################################################################################### Comparación de composición de clusters (JACCARD).
+    ###################################################################################################### Comparación de composición de clusters (RAND).
+    start_time = time.time()
+    Rand = RV.RandIndexSolutions(Matrix, 8)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
+
+    ################## Se desea posteriormente ir a Adjusted rand index ##################################
+    ######################################################################################################
+
+    ###################################################################################################### .
     entrez_gen = ME.ConvertToEntrezID(genes,organism_gp='hsapiens', taxID=9606)
     SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 8)
     start_time = time.time()
@@ -81,11 +92,6 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Comparar clusters - Jaccard) : {end_time - start_time:.6f} segundos")
 
-    ###################################################################################################### Comparación de composición de clusters (RAND).
-    start_time = time.time()
-    Rand = RV.RandIndexSolutions(Matrix, 8)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()

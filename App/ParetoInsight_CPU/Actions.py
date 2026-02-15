@@ -7,7 +7,9 @@ Purpose of this file:
 - Provide helper functions to export pandas DataFrames in common formats.
 """
 
-######### Libraries #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 from dataclasses import dataclass                   # Decorator to automatically generate special methods (e.g., __init__).
 from enum import Enum                               # Define enumerations for controlled string values.
 from pathlib import Path                            # Object-oriented filesystem path handling.
@@ -18,12 +20,16 @@ import pandas as pd                                 # DataFrame manipulation and
 import matplotlib                                   # Plot configuration (backend management).
 
 
-######### Configurations #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────────────────────────────────────
 matplotlib.use("Agg")                               # Use non-GUI backend (thread-safe for headless environments).
 logger = logging.getLogger(__name__)                # Initialize module-level logger.
 
 
-######### Classes #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Classes
+# ──────────────────────────────────────────────────────────────────────────────
 
 class MatrixSaveMode(str, Enum):
     """Enumeration of supported matrix file formats."""
@@ -58,11 +64,15 @@ class DataFrameFormat(str, Enum):
     PARQUET = "parquet"
 
 
-######### Data Types #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Data Types
+# ──────────────────────────────────────────────────────────────────────────────
 PathLike = Union[str, Path]     # Accept both string and Path objects.
 
 
-######### Internal Functions #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Internal functions
+# ──────────────────────────────────────────────────────────────────────────────
 
 def _as_path(path: PathLike) -> Path:
     """Ensure the input is converted to a Path object."""
@@ -80,7 +90,9 @@ def _log_or_print(msg: str, verbose: bool = False) -> None:
         print(msg)
 
 
-######### Main Functions #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Min Functions
+# ──────────────────────────────────────────────────────────────────────────────
 
 def ensure_parent_dir(filepath: PathLike) -> Path:
     """

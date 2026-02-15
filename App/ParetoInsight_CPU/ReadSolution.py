@@ -5,7 +5,9 @@ This module supports CSV, fixed-width text, and pickle files and returns:
 2) The list of column names (genes symbos or ID).
 """
 
-######### Libraries #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 import numpy as np                                          # Efficient Math Operations.
 import pandas as pd                                         # Dataframe managment.
 import csv                                                  # Read csv.
@@ -13,7 +15,9 @@ from pathlib import Path                                    # Confort about path
 from typing import Tuple                                    # Improve functions specs.
 
 
-######### Internal Functions #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Internal functions
+# ──────────────────────────────────────────────────────────────────────────────
 
 def _clean_dataframe(df: pd.DataFrame) -> Tuple[np.ndarray, list[str]]:
     """Validate and normalize a DataFrame before converting to NumPy."""
@@ -52,7 +56,9 @@ def _read_pkl(filepath: str) -> pd.DataFrame:
     return pd.read_pickle(filepath)
 
 
-######### Constanst #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────────────────────────────────────
 # Reader dispatch table by extension / declared format.
 READERS = {
     "csv": _read_csv,
@@ -61,7 +67,9 @@ READERS = {
     "pkl": _read_pkl,
 }
 
-######### Main Function #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Main Functions
+# ──────────────────────────────────────────────────────────────────────────────
 def read_solutions_file(filepath: str) -> Tuple[np.ndarray, list[str]]:
     """Read a solutions file using its filename extension."""
     path = Path(filepath)
