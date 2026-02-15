@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
-    Jaccard = JV.JaccardIndexSolutions(Matrix, n_threads=8)
+    Jaccard = JV.jaccard_index_solutions(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
     Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_1/JaccardS.html",
@@ -73,38 +73,48 @@ if __name__ == "__main__":
                         title='Similitud de Jaccard entre soluciones',
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
-    Ac.save_matrix(Jaccard,  directory + "/Results/File_1/Jaccard_Matrix.csv")
+    Ac.save_matrix(Jaccard,  directory + "/Results/File_1/jacca_matrix.csv",options)
 
     ###################################################################################################### Comparación de composición de clusters (RAND).
     start_time = time.time()
-    Rand = RV.RandIndexSolutions(Matrix, 8)
+    Rand = RV.rand_index_solutions(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
+    Ac.save_matrix(Rand,  directory + "/Results/File_1/rand_matrix.csv",options)
 
-    ################## Se desea posteriormente ir a Adjusted rand index ##################################
-    ######################################################################################################
-
-    ###################################################################################################### .
-    entrez_gen = ME.ConvertToEntrezID(genes,organism_gp='hsapiens', taxID=9606)
-    SC_matrix = SCM.SolutionClusterMatrix(Matrix, entrez_gen, 8)
+    ###################################################################################################### Comparación de composición de clusters (ARI).
     start_time = time.time()
-    Jaccard_c = JV.JaccardIndexClusters(SC_matrix[0], SC_matrix[1])
+    Rand = RV.adjusted_rand_index_solutions(Matrix)
     end_time = time.time()
-    print(f"Tiempo de ejecución (Comparar clusters - Jaccard) : {end_time - start_time:.6f} segundos")
-
+    print(f"Tiempo de ejecución (Valores ARI) : {end_time - start_time:.6f} segundos")
+    Ac.save_matrix(Rand,  directory + "/Results/File_1/adj_rand_matrix.csv",options)
 
     ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()
-    SC_matrix = SCM.SolutionClusterMatrix(Matrix, genes, 8)
+    SC_matrix = SCM.solution_cluster_matrix(Matrix, genes, parallel=True, max_workers=8)
     end_time = time.time()
     print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")
 
-    ###################################################################################################### Obtener clusters equivalentes.  
+    ###################################################################################################### Obtener clusters equivalentes (Jaccard).  
     start_time = time.time()
-    df_equivalentes = JV.FindEquivalentClusters(SC_matrix)
+    df_equivalentes = JV.find_equivalent_clusters_jaccard(SC_matrix)
     end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/Equivalentes.csv")
+    print(f"Tiempo de ejecución (grupos equivalentes J) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/jacc_Equivalentes.csv")
+
+    ###################################################################################################### Obtener clusters equivalentes (RI).  
+    start_time = time.time()
+    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes RI) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/Rand_Equivalentes.csv")
+
+    ###################################################################################################### Obtener clusters equivalentes (ARI).  
+    start_time = time.time()
+    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix, metric="adjusted_rand")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes ARI) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/A_Rand_Equivalentes.csv")
 
     ###################################################################################################### Obtener Entrez ID.
     start_time = time.time()
@@ -118,19 +128,6 @@ if __name__ == "__main__":
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
-
-    ###################################################################################################### Distancia de Wang.
-    start_time = time.time()
-    wang_matrix = WIR.calculate_wang_distance_matrix_enhanced(genes)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Wang) : {end_time - start_time:.6f} segundos")
-    Heat.plot_html_heatmap(wang_matrix.to_numpy(), save_filepath= directory + "/Results/File_1/Wang_genes.html",
-                        x_label='Gen',
-                        y_label='Gen',
-                        title='Similitud de Wang entre genes',
-                        z_label="Wang",
-                        tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Wang: %{z:.2f}")
-    Ac.save_matrix(wang_matrix,  directory + "/Results/File_1/Wang_Matrix_Genes.csv")
 
     ###################################################################################################### Toda la muestra (wang).
     start_time = time.time()

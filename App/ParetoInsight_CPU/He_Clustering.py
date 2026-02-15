@@ -5,24 +5,30 @@ Hierarchical clustering utilities with optional interactive dendrogram export.
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass
-from pathlib import Path
-from typing import  List, Optional, Sequence, Tuple, Union, Literal
-import logging
-import numpy as np
-from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
-from scipy.spatial.distance import squareform
-import plotly.graph_objects as go
+from dataclasses import dataclass                                           # Decorator to automatically generate special methods (e.g., __init__).
+from pathlib import Path                                                    # Object-oriented filesystem path handling.
+from typing import  List, Optional, Sequence, Tuple, Union, Literal         # Improve type hints and function signatures.
+import logging                                                              # Advanced logging system for status and error messages.
+import numpy as np                                                          # Efficient numerical computations.
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster           # Clustering functions.
+from scipy.spatial.distance import squareform                               # Distance matrix for clustering.
+import plotly.graph_objects as go                                           # Plotting graphs.
 
 
-logger = logging.getLogger(__name__)
+# ──────────────────────────────────────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)                                        # Initialize module-level logger.
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Data Types
+# ──────────────────────────────────────────────────────────────────────────────
 PathLike = Union[str, Path]
 LinkageMethod = Literal["single", "complete", "average", "weighted", "centroid", "median", "ward"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Options
+# Classes
 # ──────────────────────────────────────────────────────────────────────────────
 @dataclass(frozen=True)
 class ClusteringOptions:
@@ -82,13 +88,18 @@ class ExportOptions:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Internal helpers
+# Internal Functions
 # ──────────────────────────────────────────────────────────────────────────────
 def _as_path(p: PathLike) -> Path:
+    """Ensure the input is converted to a Path object."""
     return p if isinstance(p, Path) else Path(p)
 
-
 def _log_or_print(msg: str, verbose: bool) -> None:
+    """
+    Library-friendly output handler:
+    - Always logs the message using the module logger.
+    - Optionally prints the message if verbose=True.
+    """
     logger.info(msg)
     if verbose:
         print(msg)
@@ -234,10 +245,12 @@ def _build_dendrogram_figure(
 
 
 def _figure_to_html(fig: go.Figure, export: ExportOptions) -> str:
+    """If it is stablish by user, the plot is completely HTML"""
     return fig.to_html(include_plotlyjs=export.include_plotlyjs, full_html=export.full_html)
 
 
 def _write_text(filepath: PathLike, content: str) -> Path:
+    """Write file into a Path"""
     p = _as_path(filepath)
     if p.parent and not p.parent.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -246,7 +259,7 @@ def _write_text(filepath: PathLike, content: str) -> Path:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Public API
+# Main Functions
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_hierarchical_clustering(
     distance_matrix: np.ndarray,

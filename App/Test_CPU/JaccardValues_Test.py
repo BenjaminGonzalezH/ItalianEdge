@@ -1,73 +1,138 @@
+"""
+Unit tests for JaccardValues utilities.
+"""
+
 ######### Libraries #########
-import unittest                     # Test interface.
-import numpy as np                  # Numbers ADT managment.
-import pandas as pd                 # Dataframes managment.
-import sys                          # syscalls.
-import io                           # Input-Output 
+import unittest
+import numpy as np
+import pandas as pd
+
 from ParetoInsight_CPU.JaccardValues import (
-    JaccardIndexSolutions,
-    JaccardIndexClusters,
-    CompareSolutionsPair,
-    FindEquivalentClusters
+    jaccard_index_solutions,
+    jaccard_index_clusters,
+    compare_solutions_pair,
+    find_equivalent_clusters_jaccard,
 )
 
-class TestClusteringJaccard(unittest.TestCase):
-    
-    ########################## Test's Initialization ##########################
+
+class TestJaccardValues(unittest.TestCase):
+    """Test suite for Jaccard similarity utilities."""
+
+    ##########################
+    # Test Initialization
+    ##########################
+
     def setUp(self):
-        self.matrix = np.array([
-            [0, 0, 1, 1],  # Solution 1: [0,0], [1,1]
-            [1, 1, 0, 0],  # Solution 2: [1,1], [0,0]
-            [0, 1, 0, 1]   # Solution 3: [0,1], [0,1]
+        """
+        Build reusable clustering solutions.
+
+        Matrix example:
+        3 solutions, 4 genes
+        """
+        self.solutions_matrix = np.array([
+            [1, 1, 2, 2],
+            [1, 1, 2, 2],
+            [1, 2, 1, 2],
         ])
-        # equivalent sets of the previous solutions.
-        self.solutions_sets = [
-            [set(['a', 'b']), set(['c', 'd'])],
-            [set(['a', 'c']), set(['b', 'd'])]
+
+        self.cluster_solutions = [
+            [{0, 1}, {2, 3}],
+            [{0, 1}, {2, 3}],
+            [{0, 2}, {1, 3}],
         ]
 
-        # Silent prints.
-        self._original_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+    ##########################
+    # jaccard_index_solutions
+    ##########################
 
-    ########################## Tests ##########################
-    def test_jaccard_index_solutions(self):
-        jaccard = JaccardIndexSolutions(self.matrix, n_threads=2)
-        self.assertTrue(np.allclose(np.diag(jaccard), 1.0))
-        self.assertTrue(np.allclose(jaccard, jaccard.T))
+    def test_jaccard_matrix_shape(self):
+        """Purpose: confirm output matrix is square and symmetric."""
+        J = jaccard_index_solutions(self.solutions_matrix)
 
-    def test_jaccard_index_clusters(self):
-        result = JaccardIndexClusters(self.solutions_sets[0], self.solutions_sets[1])
-        self.assertEqual(result.shape, (2, 2))
+        self.assertEqual(J.shape, (3, 3))
+        self.assertTrue(np.allclose(J, J.T))
+        self.assertTrue(np.all(np.diag(J) == 1.0))
 
-    def test_compare_solutions_pair(self):
-        out = CompareSolutionsPair(0, 1, self.solutions_sets * 2)
-        self.assertIsInstance(out, list)
-        self.assertTrue(all(isinstance(x, tuple) and len(x) == 3 for x in out))
+    def test_identical_solutions(self):
+        """Purpose: identical solutions must have Jaccard similarity 1."""
+        J = jaccard_index_solutions(self.solutions_matrix)
 
-    def test_find_equivalent_clusters(self):
-        df = FindEquivalentClusters(self.solutions_sets * 2)
-        self.assertIsInstance(df, pd.DataFrame)
-        self.assertEqual(
-            set(df.columns),
-            {'Solution 1', 'Solution 2', 'Cluster 1', 'Cluster 2', 'Jaccard Similarity'}
+        self.assertEqual(J[0, 1], 1.0)
+
+    def test_invalid_matrix_type(self):
+        """Purpose: non-numpy input raises TypeError."""
+        with self.assertRaises(TypeError):
+            jaccard_index_solutions([[1, 2], [3, 4]])
+
+    def test_invalid_matrix_dimension(self):
+        """Purpose: 1D array raises ValueError."""
+        with self.assertRaises(ValueError):
+            jaccard_index_solutions(np.array([1, 2, 3]))
+
+    def test_empty_matrix(self):
+        """Purpose: empty matrix raises ValueError."""
+        with self.assertRaises(ValueError):
+            jaccard_index_solutions(np.empty((0, 4)))
+
+    ##########################
+    # jaccard_index_clusters
+    ##########################
+
+    def test_cluster_jaccard_matrix(self):
+        """Purpose: confirm cluster comparison returns correct shape."""
+        M = jaccard_index_clusters(
+            self.cluster_solutions[0],
+            self.cluster_solutions[2]
         )
 
-    def test_jaccard_index_solutions_empty(self):
-        with self.assertRaises(RuntimeError):
-            JaccardIndexSolutions(np.empty((0, 4)), n_threads=2)
+        self.assertEqual(M.shape, (2, 2))
+        self.assertTrue(np.all(M >= 0))
+        self.assertTrue(np.all(M <= 1))
 
-    def test_jaccard_index_solutions_one_gene(self):
-        with self.assertRaises(RuntimeError):
-            JaccardIndexSolutions(np.array([[0], [1]]), n_threads=2)
+    def test_cluster_invalid_type(self):
+        """Purpose: non-list input raises TypeError."""
+        with self.assertRaises(TypeError):
+            jaccard_index_clusters("invalid", self.cluster_solutions[0])
 
-    def test_jaccard_index_clusters_type_error(self):
-        with self.assertRaises(RuntimeError):
-            JaccardIndexClusters([1, 2], [set([1])])
+    def test_cluster_empty_solution(self):
+        """Purpose: empty cluster list raises ValueError."""
+        with self.assertRaises(ValueError):
+            jaccard_index_clusters([], self.cluster_solutions[0])
 
-    def test_jaccard_index_clusters_empty(self):
-        with self.assertRaises(RuntimeError):
-            JaccardIndexClusters([], [set([1])])
+    ##########################
+    # compare_solutions_pair
+    ##########################
+
+    def test_compare_solutions_pair_output(self):
+        """Purpose: confirm matching returns valid tuples."""
+        matches = compare_solutions_pair(
+            0, 2, self.cluster_solutions
+        )
+
+        self.assertTrue(isinstance(matches, list))
+        self.assertTrue(all(len(t) == 3 for t in matches))
+        self.assertTrue(all(0 <= t[2] <= 1 for t in matches))
+
+    ##########################
+    # find_equivalent_clusters_jaccard
+    ##########################
+
+    def test_find_equivalent_clusters_dataframe(self):
+        """Purpose: confirm DataFrame structure is correct."""
+        df = find_equivalent_clusters_jaccard(self.cluster_solutions)
+
+        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertIn("Solution 1", df.columns)
+        self.assertIn("Solution 2", df.columns)
+        self.assertIn("Cluster 1", df.columns)
+        self.assertIn("Cluster 2", df.columns)
+        self.assertIn("Jaccard Similarity", df.columns)
+
+    def test_find_equivalent_invalid_input(self):
+        """Purpose: invalid input type raises TypeError."""
+        with self.assertRaises(TypeError):
+            find_equivalent_clusters_jaccard("invalid")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,208 +1,160 @@
-######### Libraries #########
-import numpy as np                                                # Efficient Math Operations.
-from concurrent.futures import ThreadPoolExecutor, as_completed   # Thread Administration.
-import pandas as pd                                               # Dataframe managment.
-
-######### Functions #########
-
 """
-This block contains all main functions.
+Jaccard utilities for clustering solution comparison.
 """
 
-def JaccardIndexSolutions(Solutions_Matrix: np.ndarray, n_threads: int) -> np.ndarray:
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+import numpy as np
+import pandas as pd
+from typing import List, Set, Tuple
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Internal Functions
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _validate_solution_matrix(matrix: np.ndarray) -> None:
+    if not isinstance(matrix, np.ndarray):
+        raise TypeError("Solutions_Matrix must be numpy.ndarray.")
+    if matrix.ndim != 2:
+        raise ValueError("Solutions_Matrix must be 2D.")
+    if matrix.shape[0] == 0:
+        raise ValueError("Empty solutions matrix.")
+    if matrix.shape[1] < 2:
+        raise ValueError("Matrix must contain at least 2 genes.")
+
+
+def _upper_triangle_pairs(n: int):
+    return np.triu_indices(n, k=1)
+
+
+def _solution_to_pair_vector(solution: np.ndarray, tri_indices):
+    """Return boolean vector indicating gene pairs in same cluster."""
+    return solution[tri_indices[0]] == solution[tri_indices[1]]
+
+
+# ──────────────────────────────────────────────────────────────
+#  Main Functions
+# ──────────────────────────────────────────────────────────────
+
+def jaccard_index_solutions(
+    Solutions_Matrix: np.ndarray
+) -> np.ndarray:
     """
-    JaccardIndexSolutions(function): Calculate Jaccard index to compare every solution in parallel.
+    Compute Jaccard similarity between clustering solutions.
 
-    Parameters:
-        - Solutions_Matrix: Clustering solutions represented by 1D integers Array.
-    Returns:
-        - Jaccard_Matrix: Jaccard Index of every pair of solutions.
+    Memory-efficient implementation.
     """
-    try:
-        # Checking Matrix dimension to ensure if it is not empty.
-        if Solutions_Matrix.shape[0] == 0:
-            raise ValueError("Empty solutions matrix.")
-        elif Solutions_Matrix.shape[1] < 2:
-            raise ValueError("Matrix at least needs to have two columns (or genes) for valid comparison.")
+    _validate_solution_matrix(Solutions_Matrix)
 
-        num_rows = Solutions_Matrix.shape[0]            # Amount solutions.
-        n_elements = Solutions_Matrix.shape[1]          # Amount genes.
+    n_solutions, n_genes = Solutions_Matrix.shape
+    tri_indices = _upper_triangle_pairs(n_genes)
 
-        # Create a reshaped matrix that represents all comparitions between solutions adding
-        # a new third dimension.
-        solutions_expanded = Solutions_Matrix.reshape(num_rows, n_elements, 1)
+    # Precompute boolean vectors for each solution
+    pair_vectors = [
+        _solution_to_pair_vector(sol, tri_indices)
+        for sol in Solutions_Matrix
+    ]
 
-        # Broadcasting: Compare every array with itself, this tell us if two genes (element or column)
-        # are thogether in the clusters that allocates the solution.
-        # Avoid clusters labels confusion errors.
-        all_same_matrices = (solutions_expanded == Solutions_Matrix.reshape(num_rows, 1, n_elements))
+    J = np.eye(n_solutions, dtype=float)
 
-        # Unique pairs of genes (no same elements pairs).
-        upper_tri_indices = np.triu_indices(n_elements, k=1)
-        similarity_vectors = np.array([same_matrix[upper_tri_indices] for same_matrix in all_same_matrices])
+    for i in range(n_solutions):
+        for j in range(i + 1, n_solutions):
+            v1 = pair_vectors[i]
+            v2 = pair_vectors[j]
 
-        # Initialize return matrix.
-        Jaccard_Matrix = np.zeros((num_rows, num_rows))
+            r = np.sum(v1 & v2)
+            u = np.sum(v1 & ~v2)
+            v = np.sum(~v1 & v2)
 
-        # Calculus of every component of Jaccard Index of clustering solutions:
-        # Being A and B clustering solutions:
-        # r -> two genes are toghether in A and B.
-        # u -> two genes are toghether in A but no in B.
-        # v -> two genes are toghether in B but no in A.
-        # This is a inner function for ThreadPoolExecutor performance.
-        def compute_jaccard(i, j):
-            r = np.sum(similarity_vectors[i] & similarity_vectors[j])
-            u = np.sum(similarity_vectors[i] & ~similarity_vectors[j])
-            v = np.sum(~similarity_vectors[i] & similarity_vectors[j])
-            return (i, j, r / (r + u + v) if (r + u + v) > 0 else 0.0)
+            denom = r + u + v
+            J[i, j] = J[j, i] = r / denom if denom > 0 else 0.0
 
-        # Do 'compute_Jaccard between all solutions'
-        pairs = [(i, j) for i in range(num_rows) for j in range(i + 1, num_rows)]
-        with ThreadPoolExecutor(max_workers=n_threads) as executor:
-            futures = {executor.submit(compute_jaccard, i, j): (i, j) for i, j in pairs}
+    return J
 
-            for future in as_completed(futures):
-                i, j, jaccard = future.result()
-                Jaccard_Matrix[i, j] = jaccard
-                Jaccard_Matrix[j, i] = jaccard
-
-        # Diagonal of 1's.
-        np.fill_diagonal(Jaccard_Matrix, 1.0)
-
-    except Exception as e:
-        raise RuntimeError(f"Something went wrong: {e}")
-    else:
-        print("Jaccard Index of your solutions successfully calculated.")
-        return Jaccard_Matrix
-
-def JaccardIndexClusters(
-        Solution1: list[set], 
-        Solution2: list[set]
-        ) -> np.ndarray:
+def jaccard_index_clusters(
+    Solution1: List[Set],
+    Solution2: List[Set]
+) -> np.ndarray:
     """
-    JaccardIndexClusters(function): Compute Jaccard similarity matrix for two clustering solutions,
-    evaluating the clusters inside of them.
-
-    Parameters:
-    - Solution1: Clusters of the first solution as list of sets.
-    - Solution2: Clusters of the second solution as list of sets.
-
-    Returns:
-    - MatrixJaccard: Jaccard similarity matrix among the solutions clusters.
+    Compute Jaccard similarity matrix between clusters of two solutions.
     """
-    try:
-        # Check type of input in solution 1 and 2. They must be a list of strings sets, with
-        # each one of them are a representation of the gene (symbol, entrezID, others).
-        if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
-            raise TypeError("Frist parameter (Solution1) must be a list of sets (prefer int and str).")
-        elif not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
-            raise TypeError("Second parameter (Solution2) must be a list of sets (prefer int and str).")
-        # Non-empty solution.
-        elif len(Solution1) == 0 or len(Solution2) == 0:
-            raise ValueError("One of the solutions are empty, no comparison is possible.")
-        
-        # Construction of matrix.
-        n1 = len(Solution1)
-        n2 = len(Solution2)
-        MatrixJaccard = np.zeros((n1, n2))
 
-        # Iteration to compute Jaccard Index (sets version).
-        # We take the set allocated and their respective index.
-        MatrixJaccard = np.fromiter(
-            (len(s1 & s2) / len(s1 | s2) if s1 | s2 else 0 for s1 in Solution1 for s2 in Solution2),
-            dtype=float
-        ).reshape(n1, n2)
+    if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
+        raise TypeError("Solution1 must be list of sets.")
+    if not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
+        raise TypeError("Solution2 must be list of sets.")
+    if not Solution1 or not Solution2:
+        raise ValueError("Solutions must not be empty.")
 
-    except TypeError as te:
-        raise RuntimeError(f"Type error in input sets: {te}")
-    except Exception as e:
-        raise RuntimeError (f"Something went wrong: {e}")
-    else:
-        return MatrixJaccard
+    n1, n2 = len(Solution1), len(Solution2)
+    matrix = np.zeros((n1, n2), dtype=float)
 
-def CompareSolutionsPair(
-        idx1: int, 
-        idx2: int, 
-        solutions: list[list[set]]
-    ) -> list[tuple[int, int, float]]:
+    for i, s1 in enumerate(Solution1):
+        for j, s2 in enumerate(Solution2):
+            union = s1 | s2
+            if union:
+                matrix[i, j] = len(s1 & s2) / len(union)
+
+    return matrix
+
+def compare_solutions_pair(
+    idx1: int,
+    idx2: int,
+    solutions: List[List[Set]]
+) -> List[Tuple[int, int, float]]:
     """
-    CompareSolutionsPair(function): Compares two solutions and returns the equivalence pairs.
-
-    Parameters:
-    - idx1: Index of the first solution.
-    - idx2: Index of the second solution.
-    - solutions: List of clustering solutions (each is a list of sets).
-
-    Returns:
-    - equivalent_pairs: List of tuples (cluster_i, cluster_j, similarity).
+    Compare two clustering solutions and return best matching clusters.
     """
-    try:
-        # Generate Jaccard index comparison among clusters of the groups (clusters).
-        MatrixJaccard = JaccardIndexClusters(solutions[idx1], solutions[idx2])
 
-        # Sort of Jaccard index obtained.
-        similarity_pairs = sorted(
-            [(cluster_1, cluster_2, MatrixJaccard[cluster_1, cluster_2]) 
-             for cluster_1 in range(len(solutions[idx1])) 
-             for cluster_2 in range(len(solutions[idx2]))], 
-            key=lambda x: x[2], reverse=True
-        )
+    M = jaccard_index_clusters(solutions[idx1], solutions[idx2])
+    n1, n2 = M.shape
 
-        # Take just pairs of cluster that have max jaccard index, ensuring no
-        # cluster duplication.
-        used_clusters_1, used_clusters_2 = set(), set()
-        return [(cluster_1, cluster_2, sim) for cluster_1, cluster_2, sim in similarity_pairs if cluster_1 not in used_clusters_1 and cluster_2 not in used_clusters_2 
-                and not (used_clusters_1.add(cluster_1) or used_clusters_2.add(cluster_2))]
+    used1 = set()
+    used2 = set()
+    matches = []
 
-    except Exception as e:
-        raise RuntimeError(f"Error comparing solutions at indices ({idx1}, {idx2}): {e}")
+    # Flatten indices sorted by similarity descending
+    flat_indices = np.argsort(M.ravel())[::-1]
 
-def FindEquivalentClusters(
-        solutions: list[list[set]]
-    ) -> pd.DataFrame:
+    for idx in flat_indices:
+        i = idx // n2
+        j = idx % n2
+
+        if i not in used1 and j not in used2:
+            matches.append((i, j, M[i, j]))
+            used1.add(i)
+            used2.add(j)
+
+        if len(used1) == n1 or len(used2) == n2:
+            break
+
+    return matches
+
+def find_equivalent_clusters_jaccard(
+    solutions: List[List[Set]]
+) -> pd.DataFrame:
     """
-    FindEquivalentClusters(function): Identifier all equivalent clusters in solutions collection.
-
-    Parameters:
-    - solutions: List of clustering collection in format providesd by SolutionClusterMatrix function.
-
-    Returns:
-    - pd.DataFrame(rows): DataFrame allocating columns - Solution 1,Solution 2,Cluster 1,Cluster 2,Jaccard Similarity - as
-      registration of equivalent clusters.
+    Identify equivalent clusters across solution collection.
     """
-    try:
-        # Checking input.
-        if not isinstance(solutions, list) or not all(isinstance(sol, list) for sol in solutions):
-            raise TypeError("Each solution must be a list of sets.")
-        
-        # Result structure (rows for dataframe).
-        rows = []
 
-        # Concurrent execution.
-        with ThreadPoolExecutor() as executor:
-            future_to_pair = {
-                executor.submit(CompareSolutionsPair, idx1, idx2, solutions): (idx1, idx2)
-                for idx1 in range(len(solutions))
-                for idx2 in range(idx1 + 1, len(solutions))
-            }
+    if not isinstance(solutions, list) or not all(isinstance(sol, list) for sol in solutions):
+        raise TypeError("Each solution must be a list of sets.")
 
-            # Define data on rows.
-            for future in future_to_pair:
-                idx1, idx2 = future_to_pair[future]
-                try:
-                    equivalent_pairs = future.result()
-                    for cluster1_idx, cluster2_idx, similarity in equivalent_pairs:
-                        rows.append({
-                            "Solution 1": idx1,
-                            "Solution 2": idx2,
-                            "Cluster 1": cluster1_idx,
-                            "Cluster 2": cluster2_idx,
-                            "Jaccard Similarity": similarity
-                        })
-                except Exception as e:
-                    raise RuntimeError(f"Error processing pair ({idx1}, {idx2}): {e}")
+    rows = []
 
-    except Exception as e:
-        raise RuntimeError(f"Error in find_equivalent_clusters: {e}")
-    else:
-        return pd.DataFrame(rows)
+    for idx1 in range(len(solutions)):
+        for idx2 in range(idx1 + 1, len(solutions)):
+            pairs = compare_solutions_pair(idx1, idx2, solutions)
+
+            for c1, c2, sim in pairs:
+                rows.append({
+                    "Solution 1": idx1,
+                    "Solution 2": idx2,
+                    "Cluster 1": c1,
+                    "Cluster 2": c2,
+                    "Jaccard Similarity": sim
+                })
+
+    return pd.DataFrame(rows)

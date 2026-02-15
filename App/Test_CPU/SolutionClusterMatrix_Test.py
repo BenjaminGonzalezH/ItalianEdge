@@ -1,62 +1,218 @@
-######### Libraries #########
-import unittest                     # Test interface.
-import numpy as np                  # Numbers ADT managment.
-import sys                          # syscalls.
-import io                           # Input-Output 
+"""
+Unit tests for SolutionClusterMatrix module.
+
+Purpose:
+- Validate correct grouping behavior.
+- Validate both output modes ("sets" and "indices").
+- Validate parallel vs non-parallel consistency.
+- Validate input validation.
+- Ensure deterministic cluster ordering.
+"""
+
+import unittest
+import numpy as np
+
 from ParetoInsight_CPU.SolutionClusterMatrix import (
-    ProcessSolution,
-    SolutionClusterMatrix
+    solution_cluster_matrix
 )
 
-class TestSolutionClustering(unittest.TestCase):
 
-    ########################## Test's Initialization ##########################
+class TestSolutionClusterMatrix(unittest.TestCase):
+
+    ############################
+    # Test Initialization
+    ############################
     def setUp(self):
-        self.solution = np.array([0, 0, 1, 1, 0])
-        self.genes_str = ["GeneA", "GeneB", "GeneC", "GeneD", "GeneE"]
-        self.genes_int = [101, 102, 103, 104, 105]
+        """
+        Build small deterministic test matrix:
+
+        2 solutions
+        5 genes
+
+        Solution 0:
+            A A B B C
+        Solution 1:
+            X Y X Y Z
+        """
+
+        self.genes = ["G1", "G2", "G3", "G4", "G5"]
 
         self.matrix = np.array([
-            [0, 0, 1, 1, 0],
-            [1, 1, 2, 2, 1],
+            [0, 0, 1, 1, 2],
+            [5, 6, 5, 6, 7]
         ])
 
-        # Silent prints.
-        self._original_stdout = sys.stdout
-        sys.stdout = io.StringIO()        
+    ############################
+    # Functional Tests - Sets Mode
+    ############################
 
-    ########################## Tests ##########################
-    def test_process_solution_str_genes(self):
-        clusters = ProcessSolution(self.solution, self.genes_str)
-        # Deben ser 2 clusters
-        self.assertEqual(len(clusters), 2)
-        # Uno de los clusters debe contener "GeneA", "GeneB", "GeneE"
-        found = any(set(["GeneA", "GeneB", "GeneE"]) == group for group in clusters)
-        self.assertTrue(found)
+    def test_sets_mode_basic(self):
+        """Ensure correct clustering in sets mode."""
+        result = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="sets",
+            parallel=False
+        )
 
-    def test_process_solution_int_genes(self):
-        clusters = ProcessSolution(self.solution, self.genes_int)
-        self.assertEqual(len(clusters), 2)
-        found = any(set([101, 102, 105]) == group for group in clusters)
-        self.assertTrue(found)
-
-    def test_solution_cluster_matrix(self):
-        result = SolutionClusterMatrix(self.matrix, self.genes_str)
         self.assertEqual(len(result), 2)
-        self.assertTrue(all(isinstance(clusters, list) for clusters in result))
-        self.assertTrue(all(isinstance(cl, set) for group in result for cl in group))
 
-    def test_empty_solution(self):
-        result = ProcessSolution(np.array([]), self.genes_str)
-        self.assertListEqual(result,[])
+        # Solution 0
+        sol0 = result[0]
+        expected0 = [
+            {"G1", "G2"},
+            {"G3", "G4"},
+            {"G5"}
+        ]
+        self.assertEqual(sol0, expected0)
 
-    def test_mismatch_length(self):
-        with self.assertRaises(RuntimeError):
-            ProcessSolution(np.array([0, 1, 2]), ["A", "B"])
+        # Solution 1
+        sol1 = result[1]
+        expected1 = [
+            {"G1", "G3"},
+            {"G2", "G4"},
+            {"G5"}
+        ]
+        self.assertEqual(sol1, expected1)
 
-    def test_matrix_shape_error(self):
-        with self.assertRaises(Exception):
-            SolutionClusterMatrix(np.array([1, 0, 1]), self.genes_str)
+    ############################
+    # Functional Tests - Indices Mode
+    ############################
+
+    def test_indices_mode_basic(self):
+        """Ensure correct clustering in indices mode."""
+        result = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="indices",
+            parallel=False
+        )
+
+        self.assertEqual(len(result), 2)
+
+        sol0 = result[0]
+        expected0 = [
+            np.array([0, 1]),
+            np.array([2, 3]),
+            np.array([4])
+        ]
+
+        for r, e in zip(sol0, expected0):
+            np.testing.assert_array_equal(r, e)
+
+    ############################
+    # Parallel Consistency Tests
+    ############################
+
+    def test_parallel_equals_nonparallel_sets(self):
+        """Parallel and non-parallel should produce identical sets output."""
+        serial = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="sets",
+            parallel=False
+        )
+
+        parallel = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="sets",
+            parallel=True,
+            max_workers=2
+        )
+
+        self.assertEqual(serial, parallel)
+
+    def test_parallel_equals_nonparallel_indices(self):
+        """Parallel and non-parallel should produce identical indices output."""
+        serial = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="indices",
+            parallel=False
+        )
+
+        parallel = solution_cluster_matrix(
+            self.matrix,
+            self.genes,
+            mode="indices",
+            parallel=True,
+            max_workers=2
+        )
+
+        for sol_s, sol_p in zip(serial, parallel):
+            for a, b in zip(sol_s, sol_p):
+                np.testing.assert_array_equal(a, b)
+
+    ############################
+    # Validation Tests
+    ############################
+
+    def test_invalid_matrix_type(self):
+        with self.assertRaises(TypeError):
+            solution_cluster_matrix(
+                matrix="not_array",
+                genes=self.genes
+            )
+
+    def test_invalid_matrix_dim(self):
+        with self.assertRaises(ValueError):
+            solution_cluster_matrix(
+                matrix=np.array([1, 2, 3]),
+                genes=self.genes
+            )
+
+    def test_empty_matrix(self):
+        with self.assertRaises(ValueError):
+            solution_cluster_matrix(
+                matrix=np.empty((0, 5)),
+                genes=self.genes
+            )
+
+    def test_gene_length_mismatch(self):
+        with self.assertRaises(ValueError):
+            solution_cluster_matrix(
+                matrix=self.matrix,
+                genes=["G1", "G2"]
+            )
+
+    def test_invalid_mode(self):
+        with self.assertRaises(ValueError):
+            solution_cluster_matrix(
+                matrix=self.matrix,
+                genes=self.genes,
+                mode="invalid"
+            )
+
+    ############################
+    # Deterministic Ordering Test
+    ############################
+
+    def test_cluster_order_is_sorted_by_label(self):
+        """
+        Ensure clusters are returned sorted by label value.
+        """
+
+        matrix = np.array([
+            [10, 5, 10, 3]
+        ])
+        genes = ["A", "B", "C", "D"]
+
+        result = solution_cluster_matrix(
+            matrix,
+            genes,
+            mode="sets"
+        )
+
+        # Labels sorted: 3,5,10
+        expected = [
+            {"D"},        # label 3
+            {"B"},        # label 5
+            {"A", "C"}    # label 10
+        ]
+
+        self.assertEqual(result[0], expected)
+
 
 if __name__ == "__main__":
     unittest.main()
