@@ -8,6 +8,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.ReadSolution as RD
     import App.ParetoInsight_CPU.ConsensusMatrix as CM
     import App.ParetoInsight_CPU.He_Clustering as He
+    import App.ParetoInsight_CPU.HyperGraphsConsensus as HGC
     import App.ParetoInsight_CPU.SolutionClusterMatrix as SCM
     import App.ParetoInsight_CPU.JaccardValues as JV
     import App.ParetoInsight_CPU.RandValues as RV
@@ -59,8 +60,20 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
 
-    ################## Se desea posteriormente ir a consenso por grafos ##################################
-    ######################################################################################################
+    ###################################################################################################### Cluster jerárquico (Hipergrafos).
+    ###################################################################################################### (Requiere implementación a mano)
+    start_time = time.time()
+    cons_cluster_2 = HGC.cspa_consensus(Matrix, 4)
+    cons_cluster_3 = HGC.mcla_consensus(Matrix, 4)
+    print(cons_cluster_2)
+    print(cons_cluster_3)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
+    fig1 = HGC.plot_cspa_graph(Prop_m, threshold=0.8)
+    fig1.show()
+    fig2 = HGC.plot_cspa_embedding(Prop_m,cons_cluster_2)
+    fig2.show()
+    #HGC.plot_mcla_metagraph(Matrix)
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
