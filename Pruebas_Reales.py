@@ -8,7 +8,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.ReadSolution as RD
     import App.ParetoInsight_CPU.ConsensusMatrix as CM
     import App.ParetoInsight_CPU.He_Clustering as He
-    import App.ParetoInsight_CPU.HyperGraphsConsensus as HGC
+    import App.ParetoInsight_CPU.EssemblingClustering as EssCl
     import App.ParetoInsight_CPU.SolutionClusterMatrix as SCM
     import App.ParetoInsight_CPU.JaccardValues as JV
     import App.ParetoInsight_CPU.RandValues as RV
@@ -60,13 +60,14 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
 
-    ###################################################################################################### Cluster jerárquico (Hipergrafos).
-    ###################################################################################################### (Requiere implementación a mano)
+    ###################################################################################################### Essembling Clustering.
     start_time = time.time()
-    print("pendiente")
+    CSPAoptions = EssCl.CSPAOptions(n_clusters=4,assign_labels="kmeans")
+    embOptions = EssCl.EmbedOptions(n_components=4)
+    cons_cluster_2 = EssCl.ensemble_cspa(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
+    cons_cluster_3 = EssCl.ensemble_plurality_voting(Matrix, Prop_m, genes, embed=embOptions ,save_html_to=directory + "/Results/File_1/Essem_PV.html")
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
-    #HGC.plot_mcla_metagraph(Matrix)
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
@@ -141,6 +142,18 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Entrez a Term) : {end_time - start_time:.6f} segundos")
 
+    ###################################################################################################### Distancia de Wang entre los genes.
+    start_time = time.time()
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
+    
+    start_time = time.time()
+    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
+    Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
+
     ###################################################################################################### Dual Heatmap.
 
     EntrezID_P = ME.Convert_To_Entrez_ID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
@@ -158,15 +171,4 @@ if __name__ == "__main__":
                                  term_pvalues, 
                                  save_path=directory + "/Results/File_1/Tree.html")
 
-
-    ###################################################################################################### Toda la muestra (wang).
-    start_time = time.time()
-    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
-    Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
-
-
-
-    
+ 
