@@ -1,97 +1,176 @@
-######### Libraries #########
-import unittest                                     # Test interface.
-from unittest.mock import patch                     # Replacement of objects.
-import pandas as pd                                 # Dataframe managment.
-import sys                                          # syscalls.
-import io                                           # Input-Output 
+"""
+Unit tests for MappingEntrez module.
+
+Purpose:
+- Validate deterministic selection of minimum EntrezID.
+- Validate correct fallback behavior (gProfiler → MyGene).
+- Validate input validation logic.
+- Ensure output preserves original order.
+- Ensure NA handling works correctly.
+- No real network calls (services are mocked).
+"""
+
+import unittest
+from unittest.mock import patch, MagicMock
+import pandas as pd
+import logging
+
 from ParetoInsight_CPU.MappingEntrez import (
-    chunks,
-    query_mygene_chunk,
-    ConvertToEntrezID
+    convert_to_entrez_id,
+    MappingOptions,
 )
 
-class TestGeneIDConversion(unittest.TestCase):
+
+class TestMappingEntrez(unittest.TestCase):
+
+    ########################## Test Initialization ##########################
 
     def setUp(self):
-        # Silent prints.
-        self._original_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+        """Common reusable test data."""
+        self.genes = ["A", "B", "C", "D"]
+        self.options = MappingOptions(n_threads=1, chunk_size=2)
+        
+        # Disable logging during tests
+        logging.disable(logging.CRITICAL)
 
-    ########################## Tests ##########################
-    def test_chunks_behavior(self):
-        data = list(range(10))
-        blocks = list(chunks(data, 3))
-        self.assertEqual(blocks, [
-            [0,1,2], [3,4,5], [6,7,8], [9]
-        ])
-        self.assertTrue(all(isinstance(b, list) for b in blocks))
+    ########################## Input Validation ##########################
 
-    @patch("mygene.MyGeneInfo")
-    def test_query_mygene_chunk_success(self, MockMG):
-        mock_df = pd.DataFrame({
-            'entrezgene': [111, 222],
-            'notfound': [False, False]
-        }, index=['GENE1', 'GENE2'])
-        instance = MockMG.return_value
-        instance.querymany.return_value = mock_df
-        out = query_mygene_chunk(['GENE1','GENE2'], scopes=['symbol'], taxID=9606)
-        self.assertEqual(list(out['entrezgene']), [111, 222])
-        self.assertFalse(out['notfound'].any())
-
-    @patch("mygene.MyGeneInfo")
-    def test_query_mygene_chunk_notfound(self, MockMG):
-        mock_df = pd.DataFrame({
-            'notfound': [True]
-        }, index=['FAKEGENE'])
-        instance = MockMG.return_value
-        instance.querymany.return_value = mock_df
-        out = query_mygene_chunk(['FAKEGENE'], scopes=['symbol'], taxID=9606)
-        self.assertTrue(out.empty)
-
-    @patch("requests.exceptions.RequestException", new=Exception)
-    @patch("mygene.MyGeneInfo")
-    def test_query_mygene_chunk_request_exception(self, MockMG):
-        instance = MockMG.return_value
-        instance.querymany.side_effect = Exception("network")
-        with self.assertRaises(RuntimeError):
-            query_mygene_chunk(['GENE1'], scopes=['symbol'], taxID=9606)
-
-    @patch("gprofiler.GProfiler")
-    @patch("mygene.MyGeneInfo")
-    def test_convert_to_entrez_id_priority(self, MockMG, MockGP):
-        gp_instance = MockGP.return_value
-        gp_instance.convert.return_value = pd.DataFrame({
-            'incoming': ['GENE1'],
-            'converted': ['101']
-        })
-        mg_instance = MockMG.return_value
-        mg_instance.querymany.return_value = pd.DataFrame({
-            'entrezgene': [202],
-            'notfound': [False]
-        }, index=['GENE2'])
-        ids = ConvertToEntrezID(['GENE1', 'GENE2'], organism_gp='hsapiens', taxID=9606)
-        self.assertEqual(ids[0], 'NA')
-        self.assertEqual(ids[1], '202')
-
-    @patch("gprofiler.GProfiler")
-    @patch("mygene.MyGeneInfo")
-    def test_convert_to_entrez_id_all_na(self, MockMG, MockGP):
-        gp_instance = MockGP.return_value
-        gp_instance.convert.return_value = pd.DataFrame({
-            'incoming': ['GENE3'],
-            'converted': [None]
-        })
-        mg_instance = MockMG.return_value
-        mg_instance.querymany.return_value = pd.DataFrame({
-            'entrezgene': [None],
-            'notfound': [True]
-        }, index=['GENE3'])
-        ids = ConvertToEntrezID(['GENE3'], organism_gp='hsapiens', taxID=9606, na_value='NA')
-        self.assertEqual(ids, ['NA'])
-
-    def test_convert_to_entrez_id_empty(self):
+    def test_empty_input(self):
+        """Purpose: empty list must raise ValueError."""
         with self.assertRaises(ValueError):
-            ConvertToEntrezID([], organism_gp='hsapiens')
+            convert_to_entrez_id([], self.options)
+
+    def test_non_list_input(self):
+        """Purpose: non-list input must raise ValueError."""
+        with self.assertRaises(ValueError):
+            convert_to_entrez_id("A", self.options)
+
+    ########################## gProfiler Tests ##########################
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    def test_gprofiler_basic_mapping(self, mock_gp):
+        """
+        Purpose:
+        - Confirm gProfiler mapping works.
+        - Confirm minimum EntrezID is selected.
+        """
+
+        # Mock dataframe returned by gProfiler
+        df = pd.DataFrame({
+            "incoming": ["A", "A", "B"],
+            "converted": ["10", "5", "20"]
+        })
+
+        mock_instance = MagicMock()
+        mock_instance.convert.return_value = df
+        mock_gp.return_value = mock_instance
+
+        result = convert_to_entrez_id(["A", "B"], self.options)
+
+        # A → min(10,5) = 5
+        self.assertEqual(result, ["5", "20"])
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    def test_gprofiler_no_results(self, mock_gp):
+        """Purpose: if gProfiler returns empty, fallback must handle."""
+        mock_instance = MagicMock()
+        mock_instance.convert.return_value = pd.DataFrame()
+        mock_gp.return_value = mock_instance
+
+        result = convert_to_entrez_id(["X"], self.options)
+
+        self.assertEqual(result, ["NA"])
+
+    ########################## MyGene Fallback ##########################
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    @patch("ParetoInsight_CPU.MappingEntrez.mygene.MyGeneInfo")
+    def test_mygene_fallback(self, mock_mg, mock_gp):
+        """
+        Purpose:
+        - gProfiler returns empty.
+        - MyGene resolves gene.
+        """
+
+        # gProfiler empty
+        mock_gp.return_value.convert.return_value = pd.DataFrame()
+
+        # MyGene returns valid mapping
+        df = pd.DataFrame({
+            "entrezgene": [100]
+        }, index=["A"])
+
+        df["notfound"] = False
+
+        mock_mg.return_value.querymany.return_value = df
+
+        result = convert_to_entrez_id(["A"], self.options)
+
+        self.assertEqual(result, ["100"])
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    @patch("ParetoInsight_CPU.MappingEntrez.mygene.MyGeneInfo")
+    def test_mygene_multiple_entrez_selects_min(self, mock_mg, mock_gp):
+        """
+        Purpose:
+        - MyGene returns multiple EntrezIDs.
+        - Minimum must be selected deterministically.
+        """
+
+        mock_gp.return_value.convert.return_value = pd.DataFrame()
+
+        df = pd.DataFrame({
+            "entrezgene": [[50, 10, 40]]
+        }, index=["A"])
+
+        df["notfound"] = False
+
+        mock_mg.return_value.querymany.return_value = df
+
+        result = convert_to_entrez_id(["A"], self.options)
+
+        self.assertEqual(result, ["10"])
+
+    ########################## Order Preservation ##########################
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    def test_output_order_preserved(self, mock_gp):
+        """
+        Purpose:
+        - Output order must match input order.
+        """
+
+        df = pd.DataFrame({
+            "incoming": ["C", "A"],
+            "converted": ["3", "1"]
+        })
+
+        mock_gp.return_value.convert.return_value = df
+
+        result = convert_to_entrez_id(["A", "B", "C"], self.options)
+
+        # A → 1
+        # B → NA
+        # C → 3
+        self.assertEqual(result, ["1", "NA", "3"])
+
+    ########################## NA Handling ##########################
+
+    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
+    def test_na_value_custom(self, mock_gp):
+        """
+        Purpose:
+        - Custom NA value must be respected.
+        """
+
+        mock_gp.return_value.convert.return_value = pd.DataFrame()
+
+        custom_opts = MappingOptions(na_value="MISSING")
+
+        result = convert_to_entrez_id(["A"], custom_opts)
+
+        self.assertEqual(result, ["MISSING"])
+
 
 if __name__ == "__main__":
     unittest.main()

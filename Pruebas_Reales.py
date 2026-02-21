@@ -63,16 +63,9 @@ if __name__ == "__main__":
     ###################################################################################################### Cluster jerárquico (Hipergrafos).
     ###################################################################################################### (Requiere implementación a mano)
     start_time = time.time()
-    cons_cluster_2 = HGC.cspa_consensus(Matrix, 4)
-    cons_cluster_3 = HGC.mcla_consensus(Matrix, 4)
-    print(cons_cluster_2)
-    print(cons_cluster_3)
+    print("pendiente")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
-    fig1 = HGC.plot_cspa_graph(Prop_m, threshold=0.8)
-    fig1.show()
-    fig2 = HGC.plot_cspa_embedding(Prop_m,cons_cluster_2)
-    fig2.show()
+    print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
     #HGC.plot_mcla_metagraph(Matrix)
 
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
@@ -129,30 +122,28 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (grupos equivalentes ARI) : {end_time - start_time:.6f} segundos")
     Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/A_Rand_Equivalentes.csv")
 
-    ###################################################################################################### Obtener Entrez ID.
+    ###################################################################################################### Obtener simbolos canonicos.
     start_time = time.time()
-    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
+    EntrezID = ME.Convert_To_Entrez_ID(genes)
     end_time = time.time()
     print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Go Enrichment.
     start_time = time.time()
-    GO_DF_P = GOeP.GoEnrichment(EntrezID_P,organism='hsapiens')
+    GO_DF_P = GOeP.GoEnrichment(EntrezID,organism='hsapiens')
     Ac.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
     end_time = time.time()
     print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
 
-    ###################################################################################################### Toda la muestra (wang).
+    ###################################################################################################### Enterz ID to Term.
     start_time = time.time()
-    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
+    En_to_Ant = GOeP.AnnotationFromEntrezIDs(EntrezID,organism='hsapiens')
     end_time = time.time()
-    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
-    Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
+    print(f"Tiempo de ejecución (Entrez a Term) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Dual Heatmap.
 
-    EntrezID_P = ME.ConvertToEntrezID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
+    EntrezID_P = ME.Convert_To_Entrez_ID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
     GO_DF_P = GOeP.GoEnrichment(EntrezID_P)
     GtoT = GOeP.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='hsapiens')
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
@@ -166,6 +157,16 @@ if __name__ == "__main__":
     GHnet.plot_go_hierarchy_html(GtoT, 
                                  term_pvalues, 
                                  save_path=directory + "/Results/File_1/Tree.html")
+
+
+    ###################################################################################################### Toda la muestra (wang).
+    start_time = time.time()
+    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
+    Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
+    Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
+
 
 
     
