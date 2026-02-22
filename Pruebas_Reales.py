@@ -16,6 +16,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
     import App.ParetoInsight_CPU.Actions as Ac
+    import App.ParetoInsight_CPU.Classify_Clusters as CC
     import App.Graphs.Heatmaps as Heat
     import App.Graphs.Go_Plots as Gplot
     import App.Graphs.GoNetwork as Gnet
@@ -186,5 +187,10 @@ if __name__ == "__main__":
                                  term_pvalues,
                                  options=net_options,
                                  save_html_to = directory + "/Results/File_1/Tree.html")
+
+    vt = CC.compute_threshold(df_equivalentes_1["Jaccard Similarity"])
+    print(vt)
+
+
 
  
