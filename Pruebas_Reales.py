@@ -104,10 +104,10 @@ if __name__ == "__main__":
 
     ###################################################################################################### Obtener clusters equivalentes (Jaccard).  
     start_time = time.time()
-    df_equivalentes = JV.find_equivalent_clusters_jaccard(SC_matrix)
+    df_equivalentes_1 = JV.find_equivalent_clusters_jaccard(SC_matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (grupos equivalentes J) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/jacc_Equivalentes.csv")
+    Ac.save_dataframe(df_equivalentes_1, directory + "/Results/File_1/jacc_Equivalentes.csv")
 
     ###################################################################################################### Obtener clusters equivalentes (RI).  
     start_time = time.time()
@@ -143,12 +143,25 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (Entrez a Term) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang entre los genes.
+    import pandas as pd
+    def entrez_to_symbol_ncbi(entrez_ids, gene_info_path):
+        df = pd.read_csv(gene_info_path, sep="\t", dtype=str)
+
+        mapping = df.set_index("GeneID")["Symbol"].to_dict()
+
+        return [mapping.get(str(e), "NA") for e in entrez_ids]
+    
+    symbols = WI.entrez_to_symbol_ncbi(entrez_ids=EntrezID, gene_info_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\Homo_sapiens.gene_info")
+    symbols[symbols.index("MALAT1")] = "URS000001C914_9606"
+    symbols[symbols.index("C1orf56")] = "MENT"
+
     start_time = time.time()
+    order, Wang_Index = WI.compute_gene_similarity_matrix_go3(symbols, "goa_human")
     end_time = time.time()
-    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
+    print(f"Tiempo de ejecución (Indice de Wang) : {end_time - start_time:.6f} segundos")
     
     start_time = time.time()
-    wang_s, df_mod = WI.Solution_Wang_index_similarity_Python(genes, wang_matrix.to_numpy(), df_equivalentes, SC_matrix, num_threads=8)
+    wang_s, df_mod = WI.solution_wang_similarity_from_dataframe(genes, Wang_Index, df_equivalentes_1, SC_matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
     Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
@@ -162,13 +175,16 @@ if __name__ == "__main__":
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
     Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_1/GR.html")
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_1/QS.html")
+    options_net = Gnet.GoNetworkOptions(min_genes_per_term=10)
     Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, 
-                                          similarity_threshold=0.7,
-                                          min_genes_per_term=5,
-                                          max_node_size=30.0,
-                                          save_path = directory + "/Results/File_1/Net.html")
+                                          gaf_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\goa_human",
+                                          obo_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\go-basic.obo",
+                                          options= options_net,
+                                          save_html_to = directory + "/Results/File_1/Net.html")
+    net_options = GHnet.GoHierarchyOptions(ontology="BP", min_genes_per_term=10, obo_path=r"go-basic.obo")
     GHnet.plot_go_hierarchy_html(GtoT, 
-                                 term_pvalues, 
-                                 save_path=directory + "/Results/File_1/Tree.html")
+                                 term_pvalues,
+                                 options=net_options,
+                                 save_html_to = directory + "/Results/File_1/Tree.html")
 
  

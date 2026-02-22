@@ -58,3 +58,5 @@ docs/_build/
 Results/
 *.obo
 *.gaf
+*goa_human
+*Homo_sapiens.gene_info
