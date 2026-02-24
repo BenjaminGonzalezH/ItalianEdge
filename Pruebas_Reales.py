@@ -19,6 +19,7 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.Classify_Clusters as CC
     import App.Graphs.Heatmaps as Heat
     import App.Graphs.Go_Plots as Gplot
+    import App.Graphs.GenesPlot as GenePlot
     import App.Graphs.GoNetwork as Gnet
     import App.Graphs.Go_heiracialNetwork as GHnet
 
@@ -176,6 +177,9 @@ if __name__ == "__main__":
     term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
     Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_1/GR.html")
     Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_1/QS.html")
+    Gplot.plot_go_lollipop(GO_DF_P,save_path=directory + "/Results/File_1/LOL.html")
+    GenePlot.plot_gene_embedding_2d(Wang_Index,symbols,save_html_to= directory + "/Results/File_1/GeneEMB.html")
+    GenePlot.plot_gene_similarity_network(Wang_Index, symbols,save_html_to= directory + "/Results/File_1/GeneNet.html")
     options_net = Gnet.GoNetworkOptions(min_genes_per_term=10)
     Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, 
                                           gaf_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\goa_human",

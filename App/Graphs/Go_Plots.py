@@ -216,3 +216,76 @@ def plot_qscore(
         return_fig=return_fig,
         return_html=return_html,
     )
+
+def plot_go_lollipop(
+    df: pd.DataFrame,
+    metric: MetricType = "gene_ratio",
+    save_path: PathLike = "go_lollipop.html",
+    options: GOPlotOptions = GOPlotOptions(),
+    return_fig: bool = False,
+    return_html: bool = False,
+):
+    """
+    Lollipop plot for GO enrichment.
+
+    X-axis:
+        gene_ratio or qscore
+
+    Y-axis:
+        GO term name
+
+    Color:
+        -log10(p_value)
+
+    Always saves HTML.
+    """
+
+    required_cols = ["name", metric, "p_value"]
+    if metric == "gene_ratio":
+        required_cols.append("intersection_size")
+
+    _validate_go_dataframe(df, required_cols)
+    df = _prepare_dataframe(df, metric, options)
+
+    df = df.sort_values("p_value", ascending=True)
+
+    fig = px.scatter(
+        df,
+        x=metric,
+        y="name",
+        color="neg_log10_p",
+        color_continuous_scale=options.colorscale,
+        size=None,
+        title=f"Lollipop Plot ({metric.replace('_',' ').title()})",
+        labels={
+            metric: metric.replace("_", " ").title(),
+            "neg_log10_p": "-log10(p-value)"
+        },
+        hover_data=["p_value"]
+    )
+
+    # Add horizontal segments (lollipop sticks)
+    for i, row in df.iterrows():
+        fig.add_shape(
+            type="line",
+            x0=0,
+            x1=row[metric],
+            y0=row["name"],
+            y1=row["name"],
+            line=dict(width=2, color="rgba(150,150,150,0.5)")
+        )
+
+    # Reverse Y axis (most significant on top)
+    fig.update_yaxes(autorange="reversed")
+
+    html = fig.to_html(include_plotlyjs="cdn", full_html=True)
+    out = _write_html(save_path, html)
+    _log_or_print(f"[GO lollipop] HTML saved at: {out}", options.verbose)
+
+    if return_fig and return_html:
+        return fig, html
+    if return_fig:
+        return fig
+    if return_html:
+        return html
+    return None
