@@ -16,10 +16,13 @@ if __name__ == "__main__":
     import App.ParetoInsight_CPU.GoEnrishment as GOeP
     import App.ParetoInsight_CPU.WangIndex as WI
     import App.ParetoInsight_CPU.Actions as Ac
+    import App.ParetoInsight_CPU.SimilarityThreshold as ST
     import App.Graphs.Heatmaps as Heat
     import App.Graphs.Go_Plots as Gplot
     import App.Graphs.GoNetwork as Gnet
     import App.Graphs.Go_heiracialNetwork as GHnet
+    import App.Graphs.Raincloud as RC
+    import App.Graphs.GoChordDiagram as GCD
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -143,14 +146,6 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (Entrez a Term) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang entre los genes.
-    import pandas as pd
-    def entrez_to_symbol_ncbi(entrez_ids, gene_info_path):
-        df = pd.read_csv(gene_info_path, sep="\t", dtype=str)
-
-        mapping = df.set_index("GeneID")["Symbol"].to_dict()
-
-        return [mapping.get(str(e), "NA") for e in entrez_ids]
-    
     symbols = WI.entrez_to_symbol_ncbi(entrez_ids=EntrezID, gene_info_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\Homo_sapiens.gene_info")
     symbols[symbols.index("MALAT1")] = "URS000001C914_9606"
     symbols[symbols.index("C1orf56")] = "MENT"
@@ -160,6 +155,7 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Indice de Wang) : {end_time - start_time:.6f} segundos")
     
+    ###################################################################################################### Dual Heatmap.
     start_time = time.time()
     wang_s, df_mod = WI.solution_wang_similarity_from_dataframe(genes, Wang_Index, df_equivalentes_1, SC_matrix)
     end_time = time.time()
@@ -167,8 +163,7 @@ if __name__ == "__main__":
     Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
     Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
 
-    ###################################################################################################### Dual Heatmap.
-
+    ###################################################################################################### Go Graph.
     EntrezID_P = ME.Convert_To_Entrez_ID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
     GO_DF_P = GOeP.GoEnrichment(EntrezID_P)
     GtoT = GOeP.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='hsapiens')
@@ -186,6 +181,23 @@ if __name__ == "__main__":
                                  term_pvalues,
                                  options=net_options,
                                  save_html_to = directory + "/Results/File_1/Tree.html")
+    GCD.plot_go_chord_html(
+    GtoT,
+    save_html_to="go_chord.html"
+    )
 
 
- 
+    ###################################################################################################### Threshold.
+    threshold = ST.estimate_similarity_threshold(
+        df_mod,
+        column="Jaccard Similarity",
+        plot=True,
+        save_png_to="results/gmm_threshold.png"
+    )
+    print(threshold)
+
+    RC.plot_similarity_raincloud_html(
+        df_mod,
+        column="Jaccard Similarity",
+        save_html_to="similarity_raincloud.html"
+    )  
