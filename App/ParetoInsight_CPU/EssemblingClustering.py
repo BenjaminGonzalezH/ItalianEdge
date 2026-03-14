@@ -36,7 +36,7 @@ from sklearn.manifold import SpectralEmbedding
 logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
-StabilityMetric = Literal["ari", "rand"]
+StabilityMetric = Literal["ari", "rand", "jaccard"]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -281,15 +281,49 @@ def _rand_from_counts(nij: np.ndarray, a_sum: np.ndarray, b_sum: np.ndarray, n: 
     return float((same_in_both + diff_in_both) / total_pairs)
 
 
+def _jaccard_from_counts(nij: np.ndarray, a_sum: np.ndarray, b_sum: np.ndarray, n: int) -> float:
+    """
+    Jaccard index for clustering partitions.
+
+    J = a / (a + b + c)
+
+    where:
+      a = same cluster in both
+      b = same cluster in A only
+      c = same cluster in B only
+    """
+
+    same_in_both = int(_comb2(nij).sum())
+    same_in_a = int(_comb2(a_sum).sum())
+    same_in_b = int(_comb2(b_sum).sum())
+
+    b = same_in_a - same_in_both
+    c = same_in_b - same_in_both
+
+    denom = same_in_both + b + c
+    if denom == 0:
+        return 0.0
+
+    return float(same_in_both / denom)
+
+
 def _similarity(labels_a: np.ndarray, labels_b: np.ndarray, metric: StabilityMetric) -> float:
+
     _, inv_a = _factorize_labels(labels_a)
     _, inv_b = _factorize_labels(labels_b)
+
     nij, a_sum, b_sum, n, _ = _contingency_counts(inv_a, inv_b)
+
     if metric == "ari":
         return _adjusted_rand_from_counts(nij, a_sum, b_sum, n)
+
     if metric == "rand":
         return _rand_from_counts(nij, a_sum, b_sum, n)
-    raise ValueError("metric must be 'ari' or 'rand'.")
+
+    if metric == "jaccard":
+        return _jaccard_from_counts(nij, a_sum, b_sum, n)
+
+    raise ValueError("metric must be 'ari', 'rand', or 'jaccard'")
 
 
 def _best_reference_partition(labels_matrix: np.ndarray, metric: StabilityMetric) -> int:

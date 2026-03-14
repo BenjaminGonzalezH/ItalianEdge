@@ -19,7 +19,7 @@ import tempfile
 import os
 import logging
 
-from Graphs.GoChordDiagram import (
+from App.Graphs.CirGO import (
     plot_go_chord_html,
     GoChordOptions,
     _gene2terms_to_dataframe

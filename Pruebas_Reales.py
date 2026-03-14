@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import App.Graphs.GoNetwork as Gnet
     import App.Graphs.Go_heiracialNetwork as GHnet
     import App.Graphs.Raincloud as RC
-    import App.Graphs.GoChordDiagram as GCD
+    import App.Graphs.CirGO as GCD
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -181,20 +181,32 @@ if __name__ == "__main__":
                                  term_pvalues,
                                  options=net_options,
                                  save_html_to = directory + "/Results/File_1/Tree.html")
-    GCD.plot_go_chord_html(
+    GCD.plot_cirgo(
     GtoT,
-    save_html_to="go_chord.html"
+    save_html_to="go_circle.html"
     )
 
 
     ###################################################################################################### Threshold.
+    options_GMM = ST.GMMThresholdOptions(n_components = 4)
     threshold = ST.estimate_similarity_threshold(
         df_mod,
         column="Jaccard Similarity",
+        options= options_GMM,
         plot=True,
-        save_png_to="results/gmm_threshold.png"
+        save_html_to="gmm_threshold.html"
     )
     print(threshold)
+
+    options_GMM = ST.GMMThresholdOptions(n_components = 4)
+    thresholds = ST.estimate_similarity_threshold_combined(
+        df_mod,
+        columns=["Jaccard Similarity", "Wang Similarity"],
+        options= options_GMM,
+        plot=True,
+         save_html_to="gmm_threshold_combined.html"
+    )
+    print(thresholds)
 
     RC.plot_similarity_raincloud_html(
         df_mod,
