@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+
+title: GClusters_Characterization
+
+message: >
+  If you use this software, please cite it using the metadata below.
+
+type: software
+
+authors:
+  - family-names: Inostroza Ponta
+    given-names: Mario
+    affiliation: Universidad de Santiago de Chile
+    email: mario.inostroza@usach.cl
+
+  - family-names: Gonzalez Hurtado
+    given-names: Benjamin
+    affiliation: Universidad de Santiago de Chile
+    email: benjamin.gonzalez.h@usach.cl
+
+  - family-names: Castro
+    given-names: Sofia Paz Lourdes
+    affiliation: Universidad de Santiago de Chile
+    email: sofia.castro@usach.cl
+
+repository-code: https://github.com/BenjaminGonzalezH/ItalianEdge
+
+version: 1.0.0
+
+date-released: 2026-03-14
+
+license: MIT
+
+keywords:
+  - bioinformatics
+  - gene ontology
+  - clustering
+  - semantic similarity
+  - GO visualization

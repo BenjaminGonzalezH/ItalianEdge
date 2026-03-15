@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gclusters_characterization"
+version = "1.0.0"
+description = "Toolkit for gene clustering characterization"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+authors = [
+  {name = "Mario Inostroza Ponta", email = "mario.inostroza@usach.cl"},
+  {name = "Benjamín González Hurtado", email = "benjamin.gonzalez.h@usach.cl"},
+  {name = "Sofía Paz Lourdes Castro", email = "sofia.castro@usach.cl"}
+]
+
+keywords = [
+  "bioinformatics",
+  "gene ontology",
+  "clustering",
+  "ensemble clustering",
+  "semantic similarity",
+  "GO visualization"
+]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "networkx>=3.0",
+  "plotly>=5.0",
+  "matplotlib>=3.7",
+  "scikit-learn>=1.3",
+  "scipy>=1.10",
+  "goatools>=1.3",
+  "gprofiler-official>=1.0",
+  "mygene>=3.2",
+  "go3>=0.3.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/BenjaminGonzalezH/ItalianEdge"
+Repository = "https://github.com/BenjaminGonzalezH/ItalianEdge"
+Issues = "https://github.com/BenjaminGonzalezH/ItalianEdge"
+Documentation = "https://github.com/BenjaminGonzalezH/ItalianEdge"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "black",
+  "ruff",
+  "mypy"
+]
+
+docs = [
+  "mkdocs",
+  "mkdocs-material"
+]
