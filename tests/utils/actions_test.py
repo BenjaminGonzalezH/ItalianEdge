@@ -1,93 +1,110 @@
-"""
-Unit tests for Actions.py
+"""Unit tests for Actions module.
 
-Purpose of this file:
-- Validate matrix save/load behavior across supported formats.
-- Validate DataFrame export formats.
-- Verify expected errors are raised for invalid inputs.
-- Ensure no residual files are left after execution.
+These tests validate matrix persistence, loading behavior,
+and DataFrame export functionality across supported formats.
 """
 
-######### Libraries #########
-import unittest                     # Test framework.
-import tempfile                     # Use of temporal files.
-import numpy as np                  # Efficient numerical computations.
-import pandas as pd                 # DataFrame manipulation and data analysis.
-from pathlib import Path            # Object-oriented filesystem path handling.
+import unittest
+import tempfile
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import logging
 
-# Imports from the librarie to test.
-from ParetoInsight_CPU.Actions import (
+from gclusters_characterization.utils.actions import (
     save_matrix,
     load_matrix,
     save_dataframe,
+    ensure_parent_dir,
     MatrixSaveOptions,
     MatrixSaveMode,
 )
 
 
 class TestMatrixIO(unittest.TestCase):
-    """Test suite for matrix save and load functionality."""
 
     def setUp(self):
-        """Create temporary directory and sample matrix."""
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.base_path = Path(self.temp_dir.name)
+        self.base = Path(self.temp_dir.name)
         self.matrix = np.array([[1, 2], [3, 4]])
+        logging.disable(logging.CRITICAL)
 
     def tearDown(self):
-        """Cleanup temporary directory automatically."""
         self.temp_dir.cleanup()
 
-    ##########################
-    # Matrix Save Tests
-    ##########################
-
     def test_save_and_load_npy(self):
-        """Confirm .npy save and load works correctly."""
-        filepath = self.base_path / "matrix"
+        filepath = self.base / "matrix"
+
         save_matrix(self.matrix, filepath)
 
         loaded = load_matrix(filepath)
+
         np.testing.assert_array_equal(self.matrix, loaded)
 
     def test_save_and_load_npz(self):
-        """Confirm compressed .npz save and load works correctly."""
-        filepath = self.base_path / "matrix"
-        options = MatrixSaveOptions(mode=MatrixSaveMode.COMPRESSED_NPZ)
+        filepath = self.base / "matrix"
+        opts = MatrixSaveOptions(mode=MatrixSaveMode.COMPRESSED_NPZ)
 
-        save_matrix(self.matrix, filepath, options)
+        save_matrix(self.matrix, filepath, opts)
+
         loaded = load_matrix(filepath)
 
         np.testing.assert_array_equal(self.matrix, loaded)
 
     def test_save_and_load_csv(self):
-        """Confirm text CSV save and load works correctly."""
-        filepath = self.base_path / "matrix"
-        options = MatrixSaveOptions(mode=MatrixSaveMode.TEXT_CSV)
+        filepath = self.base / "matrix"
+        opts = MatrixSaveOptions(mode=MatrixSaveMode.TEXT_CSV)
 
-        save_matrix(self.matrix, filepath, options)
+        save_matrix(self.matrix, filepath, opts)
 
-        # CSV load requires suffix
         loaded = np.loadtxt(filepath.with_suffix(".csv"), delimiter=",")
+
         np.testing.assert_array_equal(self.matrix, loaded)
 
     def test_invalid_matrix_type(self):
-        """Confirm non-numpy input raises TypeError."""
         with self.assertRaises(TypeError):
-            save_matrix([[1, 2], [3, 4]], self.base_path / "bad")
+            save_matrix([[1, 2], [3, 4]], self.base / "bad")
+
+    def test_invalid_save_mode(self):
+        filepath = self.base / "matrix"
+
+        class FakeMode:
+            value = "bad"
+
+        opts = MatrixSaveOptions(mode=FakeMode())
+
+        with self.assertRaises(ValueError):
+            save_matrix(self.matrix, filepath, opts)
 
     def test_load_nonexistent_file(self):
-        """Confirm missing file raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
-            load_matrix(self.base_path / "missing_file")
+            load_matrix(self.base / "missing")
+
+    def test_npz_missing_key(self):
+        filepath = self.base / "matrix.npz"
+
+        np.savez_compressed(filepath, other=np.array([1, 2]))
+
+        with self.assertRaises(KeyError):
+            load_matrix(filepath)
+
+    def test_display_flag(self):
+        filepath = self.base / "matrix"
+
+        save_matrix(self.matrix, filepath)
+
+        loaded = load_matrix(filepath, display=True)
+
+        np.testing.assert_array_equal(self.matrix, loaded)
 
 
 class TestDataFrameIO(unittest.TestCase):
-    """Test suite for DataFrame save functionality."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.base_path = Path(self.temp_dir.name)
+        self.base = Path(self.temp_dir.name)
+        logging.disable(logging.CRITICAL)
+
         self.df = pd.DataFrame({
             "A": [1, 2],
             "B": [3, 4]
@@ -96,43 +113,60 @@ class TestDataFrameIO(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    ##########################
-    # DataFrame Save Tests
-    ##########################
-
     def test_save_csv(self):
-        """Confirm DataFrame saves correctly as CSV."""
-        filepath = self.base_path / "df"
-        save_dataframe(self.df, filepath, format="csv")
+        path = self.base / "df"
 
-        loaded = pd.read_csv(filepath.with_suffix(".csv"))
+        save_dataframe(self.df, path, format="csv")
+
+        loaded = pd.read_csv(path.with_suffix(".csv"))
+
         pd.testing.assert_frame_equal(self.df, loaded)
 
     def test_save_excel(self):
-        """Confirm DataFrame saves correctly as Excel."""
-        filepath = self.base_path / "df"
-        save_dataframe(self.df, filepath, format="excel")
+        path = self.base / "df"
 
-        loaded = pd.read_excel(filepath.with_suffix(".xlsx"))
+        save_dataframe(self.df, path, format="excel")
+
+        loaded = pd.read_excel(path.with_suffix(".xlsx"))
+
         pd.testing.assert_frame_equal(self.df, loaded)
 
     def test_save_parquet(self):
-        """Confirm DataFrame saves correctly as Parquet."""
-        filepath = self.base_path / "df"
-        save_dataframe(self.df, filepath, format="parquet")
+        path = self.base / "df"
 
-        loaded = pd.read_parquet(filepath.with_suffix(".parquet"))
+        save_dataframe(self.df, path, format="parquet")
+
+        loaded = pd.read_parquet(path.with_suffix(".parquet"))
+
         pd.testing.assert_frame_equal(self.df, loaded)
 
     def test_invalid_format(self):
-        """Confirm unsupported format raises ValueError."""
         with self.assertRaises(ValueError):
-            save_dataframe(self.df, self.base_path / "df", format="json")
+            save_dataframe(self.df, self.base / "df", format="json")
 
     def test_invalid_dataframe_type(self):
-        """Confirm non-DataFrame input raises TypeError."""
         with self.assertRaises(TypeError):
-            save_dataframe([1, 2, 3], self.base_path / "df")
+            save_dataframe([1, 2, 3], self.base / "df")
+
+    def test_extension_correction(self):
+        path = self.base / "df.txt"
+
+        save_dataframe(self.df, path, format="csv")
+
+        self.assertTrue((self.base / "df.csv").exists())
+
+
+class TestUtilities(unittest.TestCase):
+
+    def test_ensure_parent_dir(self):
+
+        with tempfile.TemporaryDirectory() as tmp:
+
+            path = Path(tmp) / "nested" / "file.npy"
+
+            ensure_parent_dir(path)
+
+            self.assertTrue((Path(tmp) / "nested").exists())
 
 
 if __name__ == "__main__":

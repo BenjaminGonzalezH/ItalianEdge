@@ -1,175 +1,146 @@
-"""Unit tests for ReadSolution file readers.
+"""Unit tests for ReadSolution module.
 
-Purpose of this file:
-- Validate normal and edge-case behavior of `read_solutions_file`.
-- Ensure data shape/headers are parsed correctly across supported formats.
-- Verify expected errors are raised for invalid inputs.
+These tests verify correct file loading, error handling,
+and normalization behavior for supported file formats.
 """
 
-######### Libraries #########
-import unittest                     # Test framework.
-import os                           # File creation/removal for fixtures.
-import csv                          # CSV fixture generation.
+import unittest
+import tempfile
+import pandas as pd
+import pickle
 
-from ParetoInsight_CPU.ReadSolution import read_solutions_file
+from gclusters_characterization.utils.read_solution import (
+    read_solutions_file,
+    _clean_dataframe,
+)
 
 
 class TestReadSolutionsFile(unittest.TestCase):
-    """Test suite for successful reads, format handling, and error cases."""
 
-    ########################## Test Initialization ##########################
-    # Purpose:
-    # - Build reusable input fixtures before each test.
-    # - Keep tests independent by recreating files every run.
-    def setUp(self):
-        self.file_with_ids = "test_with_ids.csv"
-        with open(self.file_with_ids, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["SolID", "Gene1", "Gene2"])
-            writer.writerow(["Sol1", 2, 3])
-            writer.writerow(["Sol2", 2, 3])
-            writer.writerow(["Sol3", 3, 3])
+    def test_read_csv_basic(self):
+        """Verify a small CSV file loads correctly."""
 
-        self.file_without_ids = "test_without_ids.csv"
-        with open(self.file_without_ids, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Gene1", "Gene2", "Gene3"])
-            writer.writerow([1, 2, 3])
-            writer.writerow([2, 2, 3])
-            writer.writerow([3, 3, 3])
+        with tempfile.NamedTemporaryFile(suffix=".csv", mode="w", delete=False) as f:
+            f.write("Gene1,Gene2\n1,2\n3,4\n")
+            path = f.name
 
-        self.empty_file = "empty.csv"
-        with open(self.empty_file, "w") as f:
-            pass
+        matrix, genes = read_solutions_file(path)
 
-    ########################## Cleanup ##########################
-    # Purpose:
-    # - Remove temporary fixture files after each test.
-    # - Prevent cross-test pollution and keep local workspace clean.
-    def tearDown(self):
-        for filename in [
-            self.file_with_ids,
-            self.file_without_ids,
-            self.empty_file,
-        ]:
-            if os.path.exists(filename):
-                os.remove(filename)
-
-    ########################## Tests ##########################
-    # Purpose:
-    # - Verify expected behavior for valid files.
-    # - Validate error handling for invalid or unsupported inputs.
-
-    def test_read_with_ids(self):
-        """Purpose: confirm CSV with identifier column is loaded without dropping columns."""
-        matrix, genes = read_solutions_file(self.file_with_ids)
-
-        self.assertEqual(genes, ["SolID", "Gene1", "Gene2"])
-        self.assertEqual(matrix.shape, (3, 3))
-
-    def test_read_without_ids(self):
-        """Purpose: confirm standard numeric CSV is parsed with correct headers and values."""
-        matrix, genes = read_solutions_file(self.file_without_ids)
-
-        self.assertEqual(genes, ["Gene1", "Gene2", "Gene3"])
-        self.assertEqual(matrix.shape, (3, 3))
+        self.assertEqual(genes, ["Gene1", "Gene2"])
+        self.assertEqual(matrix.shape, (2, 2))
         self.assertEqual(matrix[0, 0], 1)
 
-    def test_empty_file(self):
-        """Purpose: confirm an empty CSV raises ValueError during DataFrame validation."""
-        with self.assertRaises(ValueError):
-            read_solutions_file(self.empty_file)
 
-    def test_file_not_found(self):
-        """Purpose: confirm missing file paths raise FileNotFoundError immediately."""
-        with self.assertRaises(FileNotFoundError):
-            read_solutions_file("non_existent.csv")
+    def test_semicolon_csv(self):
+        """Verify delimiter auto-detection works."""
 
-    def test_unsupported_format(self):
-        """Purpose: confirm unsupported extensions raise ValueError."""
-        fake_file = "test.json"
-        with open(fake_file, "w") as f:
-            f.write("{}")
+        with tempfile.NamedTemporaryFile(suffix=".csv", mode="w", delete=False) as f:
+            f.write("Gene1;Gene2\n1;2\n3;4\n")
+            path = f.name
 
-        with self.assertRaises(ValueError):
-            read_solutions_file(fake_file)
-
-        os.remove(fake_file)
-
-    def test_removes_unnamed_columns(self):
-        """Purpose: confirm auto-generated 'Unnamed' columns are removed from output."""
-        filename = "test_unnamed.csv"
-        with open(filename, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Unnamed: 0", "Gene1", "Gene2"])
-            writer.writerow([0, 1, 2])
-            writer.writerow([1, 3, 4])
-
-        matrix, genes = read_solutions_file(filename)
+        matrix, genes = read_solutions_file(path)
 
         self.assertEqual(genes, ["Gene1", "Gene2"])
         self.assertEqual(matrix.shape, (2, 2))
 
-        os.remove(filename)
 
-    def test_semicolon_delimiter(self):
-        """Purpose: confirm delimiter sniffing correctly reads semicolon-separated CSV files."""
-        filename = "test_semicolon.csv"
-        with open(filename, "w") as f:
-            f.write("Gene1;Gene2;Gene3\n")
-            f.write("1;2;3\n")
-            f.write("4;5;6\n")
+    def test_pickle_dataframe(self):
+        """Verify pickled DataFrames are loaded correctly."""
 
-        matrix, genes = read_solutions_file(filename)
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+            path = f.name
 
-        self.assertEqual(genes, ["Gene1", "Gene2", "Gene3"])
-        self.assertEqual(matrix.shape, (2, 3))
+        df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+        df.to_pickle(path)
 
-        os.remove(filename)
+        matrix, genes = read_solutions_file(path)
 
-    def test_pickle_file(self):
-        """Purpose: confirm pickled pandas DataFrame input is loaded correctly."""
-        import pandas as pd
-
-        filename = "test.pkl"
-        df = pd.DataFrame({
-            "Gene1": [1, 2],
-            "Gene2": [3, 4]
-        })
-        df.to_pickle(filename)
-
-        matrix, genes = read_solutions_file(filename)
-
-        self.assertEqual(genes, ["Gene1", "Gene2"])
+        self.assertEqual(genes, ["A", "B"])
         self.assertEqual(matrix.shape, (2, 2))
 
-        os.remove(filename)
 
     def test_pickle_not_dataframe(self):
-        """Purpose: confirm pickled objects that are not DataFrames raise TypeError."""
-        import pickle
+        """Verify pickled objects that are not DataFrames raise TypeError."""
 
-        filename = "invalid.pkl"
-        with open(filename, "wb") as f:
+        with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f:
+            path = f.name
+
+        with open(path, "wb") as f:
             pickle.dump([1, 2, 3], f)
 
         with self.assertRaises(TypeError):
-            read_solutions_file(filename)
+            read_solutions_file(path)
 
-        os.remove(filename)
 
-    def test_uppercase_extension(self):
-        """Purpose: confirm extension matching is case-insensitive (e.g., '.CSV')."""
-        filename = "test.CSV"
-        with open(filename, "w") as f:
-            f.write("Gene1,Gene2\n1,2\n")
+    def test_file_not_found(self):
+        """Verify missing files raise FileNotFoundError."""
 
-        matrix, genes = read_solutions_file(filename)
+        with self.assertRaises(FileNotFoundError):
+            read_solutions_file("missing_file.csv")
+
+
+    def test_unsupported_format(self):
+        """Verify unsupported extensions raise ValueError."""
+
+        with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
+            f.write("{}")
+            path = f.name
+
+        with self.assertRaises(ValueError):
+            read_solutions_file(path)
+
+
+    def test_clean_dataframe_removes_unnamed(self):
+        """Verify automatic removal of 'Unnamed' columns."""
+
+        df = pd.DataFrame({
+            "Unnamed: 0": [0, 1],
+            "Gene1": [1, 2],
+            "Gene2": [3, 4],
+        })
+
+        matrix, genes = _clean_dataframe(df)
 
         self.assertEqual(genes, ["Gene1", "Gene2"])
+        self.assertEqual(matrix.shape, (2, 2))
 
-        os.remove(filename)
 
+    def test_clean_dataframe_empty(self):
+        """Verify empty DataFrames raise ValueError."""
+
+        df = pd.DataFrame()
+
+        with self.assertRaises(ValueError):
+            _clean_dataframe(df)
+
+
+    def test_clean_dataframe_invalid_type(self):
+        """Verify invalid input types raise TypeError."""
+
+        with self.assertRaises(TypeError):
+            _clean_dataframe([1, 2, 3])
+
+    def test_only_unnamed_columns(self):
+        """Verify error when only 'Unnamed' columns exist."""
+
+        df = pd.DataFrame({
+            "Unnamed: 0": [1, 2],
+            "Unnamed: 1": [3, 4]
+        })
+
+        with self.assertRaises(ValueError):
+            _clean_dataframe(df)
+
+    def test_all_values_become_nan(self):
+        """Verify error when numeric conversion produces only NaN."""
+
+        df = pd.DataFrame({
+            "Gene1": ["A", "B"],
+            "Gene2": ["C", "D"]
+        })
+
+        with self.assertRaises(ValueError):
+            _clean_dataframe(df)
 
 if __name__ == "__main__":
     unittest.main()

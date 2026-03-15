@@ -5,32 +5,36 @@ if __name__ == "__main__":
     import numpy as np
 
     # Librerias propias.
-    import GClusters_Characterization.utils.ReadSolution as RD
-    import GClusters_Characterization.clustering.ConsensusMatrix as CM
-    import GClusters_Characterization.clustering.He_Clustering as He
-    import GClusters_Characterization.clustering.EssemblingClustering as EssCl
-    import GClusters_Characterization.utils.SolutionClusterMatrix as SCM
-    import GClusters_Characterization.clustering.JaccardValues as JV
-    import GClusters_Characterization.clustering.RandValues as RV
-    import GClusters_Characterization.go.MappingEntrez as ME
-    import GClusters_Characterization.go.GoEnrishment as GOeP
-    import GClusters_Characterization.go.GeneSimilarity as WI
-    import GClusters_Characterization.utils.Actions as Ac
-    import GClusters_Characterization.clustering.SimilarityThreshold as ST
-    import GClusters_Characterization.visualization.Heatmaps as Heat
-    import GClusters_Characterization.visualization.Go_Plots as Gplot
-    import GClusters_Characterization.visualization.GoNetwork as Gnet
-    import GClusters_Characterization.visualization.Go_heiracialNetwork as GHnet
-    import GClusters_Characterization.visualization.Raincloud as RC
-    import GClusters_Characterization.visualization.CirGO as GCD
+    import gclusters_characterization.utils.read_solution as RD
+    import gclusters_characterization.utils.actions       as AC
+
+    import gclusters_characterization.clustering.consensus_matrix as CM
+    
+    import gclusters_characterization.visualization.heatmaps as Heat
+
+#    import gclusters_characterization.clustering.He_Clustering as He
+#    import gclusters_characterization.clustering.EssemblingClustering as EssCl
+#    import gclusters_characterization.utils.SolutionClusterMatrix as SCM
+#    import gclusters_characterization.clustering.JaccardValues as JV
+#    import gclusters_characterization.clustering.RandValues as RV
+#    import gclusters_characterization.go.MappingEntrez as ME
+#    import gclusters_characterization.go.GoEnrishment as GOeP
+#    import gclusters_characterization.go.GeneSimilarity as WI
+#    import gclusters_characterization.utils.Actions as Ac
+#    import gclusters_characterization.clustering.SimilarityThreshold as ST
+#    import gclusters_characterization.visualization.Go_Plots as Gplot
+#    import gclusters_characterization.visualization.GoNetwork as Gnet
+#    import gclusters_characterization.visualization.Go_heiracialNetwork as GHnet
+#    import gclusters_characterization.visualization.Raincloud as RC
+#    import gclusters_characterization.visualization.CirGO as GCD
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
 
     # Obtain test files.
-    file_1 = directory + r"\Test_Files\archivo_prueba_1_116_500.csv"
-    file_2 = directory + r"\Test_Files\archivo_prueba_2_116_3444.csv"
-    file_3 = directory + r"\Test_Files\archivo_prueba_3_25_133.csv"
+    file_1 = directory + r"\examples_tests_files\archivo_prueba_1_116_500.csv"
+    file_2 = directory + r"\examples_tests_files\archivo_prueba_2_116_3444.csv"
+    file_3 = directory + r"\examples_tests_files\archivo_prueba_3_25_133.csv"
 
     ###################################################################################################### Lectura de archivo.
     start_time = time.time()
@@ -43,9 +47,12 @@ if __name__ == "__main__":
     Prop_m, Dist_m = CM.consensus_matrix(Matrix)
     end_time = time.time()
     print(f"Tiempo de ejecución (consenso) : {end_time - start_time:.6f} segundos")
-    options = Ac.MatrixSaveOptions(mode=Ac.MatrixSaveMode.TEXT_CSV, verbose=True, delimiter=";")
-    Ac.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv",options)
-    Ac.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv",options)
+    options = AC.MatrixSaveOptions(mode=AC.MatrixSaveMode.TEXT_CSV, verbose=True, delimiter=",")
+    AC.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv",options)
+    AC.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv",options)
+    
+    
+    
     Heat.plot_html_heatmap(Prop_m,  
                            directory + "/Results/File_1/Prop_matrix.html",
                             x_label="Gen",
