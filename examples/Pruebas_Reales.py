@@ -10,9 +10,11 @@ if __name__ == "__main__":
 
     import gclusters_characterization.clustering.consensus_matrix       as CM
     import gclusters_characterization.clustering.he_clustering          as HC
-#    import gclusters_characterization.clustering.essembling_clustering  as EssCl
     import gclusters_characterization.clustering.jaccard_values         as JV
     import gclusters_characterization.clustering.rand_values            as RV
+    import gclusters_characterization.clustering.cspa_method            as CSPA
+    import gclusters_characterization.clustering.plurarity_voting       as PV
+    import gclusters_characterization.clustering.solutioncluster_matrix as SCM
     
     import gclusters_characterization.visualization.heatmaps as Heat
 
@@ -84,17 +86,23 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (Valores ARI) : {end_time - start_time:.6f} segundos")
     AC.save_matrix(Rand,  directory + "/Results/File_1/adj_rand_matrix.csv",options)
 
+    ###################################################################################################### Essembling Clustering.
+    start_time = time.time()
+    CSPAoptions = CSPA.CSPAOptions(n_clusters=4,assign_labels="kmeans")
+    embOptions = CSPA.EmbedOptions(n_components=4)
+    cons_cluster_2 = CSPA.cspa_method(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
+    cons_cluster_3 = PV.plurality_voting(Matrix, plot_stability=True, save_plot_to=directory + "/Results/File_1/Essem_PV.html")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
+    start_time = time.time()
+    SC_matrix = SCM.solution_cluster_matrix(Matrix, genes, parallel=True, max_workers=8)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")
 
 
     ###################################################################################################### Essembling Clustering.
-    start_time = time.time()
-    CSPAoptions = EssCl.CSPAOptions(n_clusters=4,assign_labels="kmeans")
-    embOptions = EssCl.EmbedOptions(n_components=4)
-    cons_cluster_2 = EssCl.ensemble_cspa(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
-    cons_cluster_3 = EssCl.ensemble_plurality_voting(Matrix, Prop_m, genes, embed=embOptions ,save_html_to=directory + "/Results/File_1/Essem_PV.html")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
-    
     
     Heat.plot_html_heatmap(Prop_m,  
                            directory + "/Results/File_1/Prop_matrix.html",
@@ -112,13 +120,6 @@ if __name__ == "__main__":
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
     
 
-
-
-    ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
-    start_time = time.time()
-    SC_matrix = SCM.solution_cluster_matrix(Matrix, genes, parallel=True, max_workers=8)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Obtener clusters equivalentes (Jaccard).  
     start_time = time.time()
