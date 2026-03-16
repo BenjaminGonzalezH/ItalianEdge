@@ -8,13 +8,15 @@ if __name__ == "__main__":
     import gclusters_characterization.utils.read_solution as RD
     import gclusters_characterization.utils.actions       as AC
 
-    import gclusters_characterization.clustering.consensus_matrix as CM
-    import gclusters_characterization.clustering.he_clustering    as HC
+    import gclusters_characterization.clustering.consensus_matrix       as CM
+    import gclusters_characterization.clustering.he_clustering          as HC
+#    import gclusters_characterization.clustering.essembling_clustering  as EssCl
+    import gclusters_characterization.clustering.jaccard_values         as JV
+    import gclusters_characterization.clustering.rand_values            as RV
     
     import gclusters_characterization.visualization.heatmaps as Heat
 
-#    import gclusters_characterization.clustering.He_Clustering as He
-#    import gclusters_characterization.clustering.EssemblingClustering as EssCl
+
 #    import gclusters_characterization.utils.SolutionClusterMatrix as SCM
 #    import gclusters_characterization.clustering.JaccardValues as JV
 #    import gclusters_characterization.clustering.RandValues as RV
@@ -60,15 +62,28 @@ if __name__ == "__main__":
     Matrix = np.vstack([Matrix, cons_cluster_1])
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
-    
-    
-    Heat.plot_html_heatmap(Prop_m,  
-                           directory + "/Results/File_1/Prop_matrix.html",
-                            x_label="Gen",
-                            y_label="Gen",
-                            title="Similitud entre genes basada en asignaciones de grupos",
-                            z_label="Proporción de coincidencia",
-                            tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Proporción: %{z:.2f}")
+
+    ###################################################################################################### Comparación de composición de soluciones (JACCARD).
+    start_time = time.time()
+    Jaccard = JV.jaccard_index_solutions(Matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
+    AC.save_matrix(Jaccard,  directory + "/Results/File_1/jacca_matrix.csv",options)
+
+    ###################################################################################################### Comparación de composición de clusters (RAND).
+    start_time = time.time()
+    Rand = RV.rand_index_solutions(Matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
+    AC.save_matrix(Rand,  directory + "/Results/File_1/rand_matrix.csv",options)
+
+    ###################################################################################################### Comparación de composición de clusters (ARI).
+    start_time = time.time()
+    Rand = RV.adjusted_rand_index_solutions(Matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Valores ARI) : {end_time - start_time:.6f} segundos")
+    AC.save_matrix(Rand,  directory + "/Results/File_1/adj_rand_matrix.csv",options)
+
 
 
     ###################################################################################################### Essembling Clustering.
@@ -79,33 +94,25 @@ if __name__ == "__main__":
     cons_cluster_3 = EssCl.ensemble_plurality_voting(Matrix, Prop_m, genes, embed=embOptions ,save_html_to=directory + "/Results/File_1/Essem_PV.html")
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
-
-    ###################################################################################################### Comparación de composición de soluciones (JACCARD).
-    start_time = time.time()
-    Jaccard = JV.jaccard_index_solutions(Matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Valores Jaccard) : {end_time - start_time:.6f} segundos")
+    
+    
+    Heat.plot_html_heatmap(Prop_m,  
+                           directory + "/Results/File_1/Prop_matrix.html",
+                            x_label="Gen",
+                            y_label="Gen",
+                            title="Similitud entre genes basada en asignaciones de grupos",
+                            z_label="Proporción de coincidencia",
+                            tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Proporción: %{z:.2f}")
+    
     Heat.plot_html_heatmap(Jaccard, save_filepath= directory + "/Results/File_1/JaccardS.html",
                         x_label='Solution',
                         y_label='Solution',
                         title='Similitud de Jaccard entre soluciones',
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
-    Ac.save_matrix(Jaccard,  directory + "/Results/File_1/jacca_matrix.csv",options)
+    
 
-    ###################################################################################################### Comparación de composición de clusters (RAND).
-    start_time = time.time()
-    Rand = RV.rand_index_solutions(Matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Valores RI) : {end_time - start_time:.6f} segundos")
-    Ac.save_matrix(Rand,  directory + "/Results/File_1/rand_matrix.csv",options)
 
-    ###################################################################################################### Comparación de composición de clusters (ARI).
-    start_time = time.time()
-    Rand = RV.adjusted_rand_index_solutions(Matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Valores ARI) : {end_time - start_time:.6f} segundos")
-    Ac.save_matrix(Rand,  directory + "/Results/File_1/adj_rand_matrix.csv",options)
 
     ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()
