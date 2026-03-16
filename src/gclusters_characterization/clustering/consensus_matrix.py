@@ -1,58 +1,95 @@
+"""ConsensusMatrix
+
+This module computes a consensus matrix from multiple clustering solutions.
+
+The consensus matrix represents how frequently two elements (genes)
+are assigned to the same cluster across different clustering solutions.
+
+Functions
+1. consensus_matrix – Compute coincidence and consensus matrices from clustering solutions.
+"""
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy as np                                  # Efficient Math Operations.
-from typing import Tuple                            # Document data type.
+import numpy as np
+from typing import Tuple
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Function
-# ────────────────────────────────────────────────────────────────────────────── 
+# ──────────────────────────────────────────────────────────────────────────────
+
 def consensus_matrix(
     Solutions_Matrix: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    ConsensusMatrix(function): Create a distance matrix based on the proportion where two elements,
-    implicitly represented by column index, have the same value. This is for represent the proportion
-    of solutions where two genes are in the same cluster.
+    Compute a consensus matrix from multiple clustering solutions.
+
+    Each column represents an element (e.g., gene), and each row represents
+    a clustering solution assigning elements to clusters.
+
+    The coincidence matrix stores the proportion of solutions where
+    two elements belong to the same cluster.
+
+    The consensus matrix is defined as:
+
+        consensus = 1 − coincidence
 
     Parameters
     ----------
-    Solutions_Matrix : np.ndarray
-        Matrix of shape (n_solutions, n_genes).
+    Solutions_Matrix : numpy.ndarray
+        Matrix of shape (n_solutions, n_genes) where each row contains
+        cluster labels for a clustering solution.
 
     Returns
     -------
-    Coincidence_Matrix : np.ndarray
-        Proportion matrix of same-cluster occurrences.
-    Consensus_Matrix : np.ndarray
-        Distance matrix (1 - coincidence).
+    coincidence_matrix : numpy.ndarray
+        Matrix representing the proportion of times two elements appear
+        in the same cluster.
+
+    consensus_matrix : numpy.ndarray
+        Distance matrix computed as (1 − coincidence_matrix).
+
+    Raises
+    ------
+    TypeError
+        If the input is not a NumPy array.
+
+    ValueError
+        If the matrix is not 2D, empty, or contains fewer than two columns.
     """
 
+    # Ensure input is a NumPy array
     if not isinstance(Solutions_Matrix, np.ndarray):
         raise TypeError("Solutions_Matrix must be a numpy.ndarray.")
 
+    # Ensure matrix has two dimensions
     if Solutions_Matrix.ndim != 2:
         raise ValueError("Solutions_Matrix must be 2D.")
 
     n_solutions, n_genes = Solutions_Matrix.shape
 
+    # Validate matrix size
     if n_solutions == 0:
         raise ValueError("Empty solutions matrix.")
+
     if n_genes < 2:
         raise ValueError("Matrix must have at least 2 genes.")
 
-    # Final coincidence accumulator
+    # Initialize coincidence accumulator
     coincidence = np.zeros((n_genes, n_genes), dtype=np.float64)
 
-    # Iterate solution by solution (RAM friendly)
+    # Process each clustering solution independently
     for solution in Solutions_Matrix:
 
-        # Group indices by cluster label
+        # Group gene indices by cluster label
         clusters = {}
+
         for idx, label in enumerate(solution):
             clusters.setdefault(label, []).append(idx)
 
-        # Update coincidence matrix
+        # Update coincidence counts for each cluster
         for indices in clusters.values():
             indices = np.array(indices)
             coincidence[np.ix_(indices, indices)] += 1
@@ -60,7 +97,7 @@ def consensus_matrix(
     # Convert counts to proportions
     coincidence /= n_solutions
 
-    # Diagonal must be 1
+    # Diagonal represents self-similarity
     np.fill_diagonal(coincidence, 1.0)
 
     consensus = 1.0 - coincidence

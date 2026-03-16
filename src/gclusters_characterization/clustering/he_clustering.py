@@ -1,24 +1,44 @@
 """
-Hierarchical clustering utilities with optional interactive dendrogram export.
+HeClustering
+
+This module provides utilities for hierarchical clustering using a
+distance matrix representation of elements (e.g., genes).
+
+The module supports:
+- Computation of hierarchical clustering using SciPy linkage methods.
+- Generation of flat clusters via the maxclust criterion.
+- Optional creation of interactive dendrogram visualizations using Plotly.
+- Export of dendrogram figures to HTML format.
+
+Functions
+1. compute_hierarchical_clustering – Perform hierarchical clustering and compute cluster labels.
+2. he_clustering – High-level interface for clustering, visualization, and export.
+3. _validate_distance_matrix – Validate structural properties of a distance matrix.
+4. _validate_genes – Validate gene labels associated with the distance matrix.
+5. _build_dendrogram_figure – Construct an interactive dendrogram figure.
+6. _figure_to_html – Convert a Plotly figure into HTML.
+7. _write_text – Write HTML output to disk.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass                                           # Decorator to automatically generate special methods (e.g., __init__).
-from pathlib import Path                                                    # Object-oriented filesystem path handling.
-from typing import  List, Optional, Sequence, Tuple, Union, Literal         # Improve type hints and function signatures.
-import logging                                                              # Advanced logging system for status and error messages.
-import numpy as np                                                          # Efficient numerical computations.
-from scipy.cluster.hierarchy import linkage, dendrogram, fcluster           # Clustering functions.
-from scipy.spatial.distance import squareform                               # Distance matrix for clustering.
-import plotly.graph_objects as go                                           # Plotting graphs.
+from dataclasses import dataclass
+from pathlib import Path
+from typing import  List, Optional, Sequence, Tuple, Union, Literal
+import logging
+import numpy as np
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster, cophenet
+from scipy.spatial.distance import squareform
+import plotly.graph_objects as go
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
-logger = logging.getLogger(__name__)                                        # Initialize module-level logger.
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Data Types
@@ -45,6 +65,7 @@ class ClusteringOptions:
     method: LinkageMethod = "single"
     validate_distance: bool = True
     sym_tol: float = 1e-12
+    verbose = True
 
 
 @dataclass(frozen=True)
@@ -96,9 +117,17 @@ def _as_path(p: PathLike) -> Path:
 
 def _log_or_print(msg: str, verbose: bool) -> None:
     """
-    Library-friendly output handler:
-    - Always logs the message using the module logger.
-    - Optionally prints the message if verbose=True.
+    Convert an input path-like object to a Path instance.
+
+    Parameters
+    ----------
+    p : PathLike
+        Input path provided as string or Path.
+
+    Returns
+    -------
+    Path
+        Normalized Path object.
     """
     logger.info(msg)
     if verbose:
@@ -106,6 +135,26 @@ def _log_or_print(msg: str, verbose: bool) -> None:
 
 
 def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
+    """
+    Validate gene identifiers against the expected matrix size.
+
+    Parameters
+    ----------
+    genes : Sequence[str]
+        Gene identifiers corresponding to the distance matrix rows.
+    n : int
+        Expected number of genes.
+
+    Returns
+    -------
+    List[str]
+        List of validated gene names converted to strings.
+
+    Raises
+    ------
+    ValueError
+        If the number of genes does not match the matrix size.
+    """
     if not isinstance(genes, (list, tuple)):
         genes = list(genes)
 
@@ -118,6 +167,24 @@ def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
 
 
 def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
+    """
+    Validate that the provided matrix is a proper distance matrix.
+
+    Parameters
+    ----------
+    distance_matrix : numpy.ndarray
+        Square matrix representing pairwise distances.
+    tol : float
+        Numerical tolerance used for symmetry and diagonal checks.
+
+    Raises
+    ------
+    TypeError
+        If matrix is not numeric or not a numpy array.
+    ValueError
+        If matrix is not square, symmetric, contains NaN values,
+        negative values, or a non-zero diagonal.
+    """
     if not isinstance(distance_matrix, np.ndarray):
         raise TypeError(f"distance_matrix must be a numpy.ndarray, got: {type(distance_matrix)}")
 
@@ -152,12 +219,23 @@ def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
 
 def _compute_cutoff_height(Z: np.ndarray, num_groups: int) -> Optional[float]:
     """
-    Compute a cutoff height for visualization only.
+    Compute a visualization cutoff height for the dendrogram.
 
-    For maxclust:
-    - If num_groups <= 1: no cutoff line is meaningful.
-    - Otherwise, a common heuristic is to use the merge height that yields that many clusters.
-      We use Z[-(num_groups-1), 2] but guarded for safety.
+    This cutoff is used only for visualization purposes and does not
+    affect clustering assignments.
+
+    Parameters
+    ----------
+    Z : numpy.ndarray
+        Linkage matrix produced by SciPy hierarchical clustering.
+    num_groups : int
+        Number of clusters requested by the user.
+
+    Returns
+    -------
+    float or None
+        Height at which a horizontal cutoff line should be drawn,
+        or None if no cutoff is appropriate.
     """
     if num_groups <= 1:
         return None
@@ -176,18 +254,49 @@ def _build_dendrogram_figure(
     num_groups: int,
     opts: DendrogramOptions,
 ) -> go.Figure:
+    """
+    Construct an interactive Plotly dendrogram figure.
+    """
+
     # Labels with stable index prefix
     labels = [f"{i}-{g}" for i, g in enumerate(genes)]
 
-    # Compute dendrogram structure without plotting
-    ddata = dendrogram(Z, labels=labels, no_plot=True)
+    # Compute cutoff height used for coloring
+    cutoff_height = _compute_cutoff_height(Z, num_groups)
+
+    # Compute dendrogram structure
+    ddata = dendrogram(
+        Z,
+        labels=labels,
+        color_threshold=cutoff_height,
+        above_threshold_color=opts.line_color,
+        no_plot=True
+    )
 
     fig = go.Figure()
 
+    # Get matplotlib default color cycle
+    mpl_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
     # Add dendrogram segments
-    # SciPy gives icoord/dcoord; each entry is length-4 polyline.
-    for x, y in zip(ddata["icoord"], ddata["dcoord"]):
-        # We break into segments with None separators for plotly
+    for x, y, color in zip(
+        ddata["icoord"],
+        ddata["dcoord"],
+        ddata["color_list"]
+    ):
+
+        # Convert matplotlib shorthand colors (C0, C1, ...)
+        try:
+            if isinstance(color, str) and color.startswith("C"):
+                idx = int(color[1:])
+                color = mpl_cycle[idx % len(mpl_cycle)]
+
+            # Convert to hex for plotly compatibility
+            color = mcolors.to_hex(color)
+
+        except (ValueError, TypeError):
+            color = opts.line_color
+
         xs = [x[0], x[1], None, x[1], x[2], None, x[2], x[3], None]
         ys = [y[0], y[1], None, y[1], y[2], None, y[2], y[3], None]
 
@@ -196,32 +305,37 @@ def _build_dendrogram_figure(
                 x=xs,
                 y=ys,
                 mode="lines",
-                line=dict(color=opts.line_color),
+                line=dict(color=color),
                 hoverinfo="none",
                 showlegend=False,
             )
         )
 
-    # Leaf labels and positions (Scipy's convention: 5, 15, 25, ...)
+    # Leaf ordering
     leaf_idx = ddata["leaves"]
     leaf_labels = [labels[i] for i in leaf_idx]
     leaf_positions = [5 + 10 * i for i in range(len(leaf_idx))]
 
     # Optional cutoff line
-    cutoff_height = _compute_cutoff_height(Z, num_groups)
     if opts.show_cutoff and cutoff_height is not None:
+
         x_range = [0, 10 * len(leaf_idx)]
+
         fig.add_trace(
             go.Scatter(
                 x=x_range,
                 y=[cutoff_height, cutoff_height],
                 mode="lines",
-                line=dict(color=opts.cutoff_color, dash=opts.cutoff_dash),
+                line=dict(
+                    color=opts.cutoff_color,
+                    dash=opts.cutoff_dash
+                ),
                 hoverinfo="skip",
                 showlegend=False,
             )
         )
 
+    # Title
     title = opts.title
     if num_groups > 1:
         title = f"{opts.title} ({num_groups} clusters)"
@@ -245,12 +359,40 @@ def _build_dendrogram_figure(
 
 
 def _figure_to_html(fig: go.Figure, export: ExportOptions) -> str:
-    """If it is stablish by user, the plot is completely HTML"""
+    """
+    Convert a Plotly figure to HTML representation.
+
+    Parameters
+    ----------
+    fig : plotly.graph_objects.Figure
+        Plotly figure object.
+    export : ExportOptions
+        Export configuration.
+
+    Returns
+    -------
+    str
+        HTML representation of the figure.
+    """
     return fig.to_html(include_plotlyjs=export.include_plotlyjs, full_html=export.full_html)
 
 
 def _write_text(filepath: PathLike, content: str) -> Path:
-    """Write file into a Path"""
+    """
+    Write text content to a file.
+
+    Parameters
+    ----------
+    filepath : PathLike
+        Destination path.
+    content : str
+        Text content to write.
+
+    Returns
+    -------
+    Path
+        Path where the file was written.
+    """
     p = _as_path(filepath)
     if p.parent and not p.parent.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -265,14 +407,38 @@ def compute_hierarchical_clustering(
     distance_matrix: np.ndarray,
     genes: Sequence[str],
     options: ClusteringOptions = ClusteringOptions(),
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, float]:
     """
-    Compute hierarchical clustering (linkage + flat clusters).
+    Perform hierarchical clustering and evaluate dendrogram quality.
 
-    Returns:
-        Z: linkage matrix
-        labels: 1D array with cluster assignment per gene
+    In addition to computing cluster assignments, this function
+    calculates the cophenetic correlation coefficient which measures
+    how faithfully the dendrogram preserves the original distances.
+
+    Parameters
+    ----------
+    distance_matrix : numpy.ndarray
+        Square pairwise distance matrix (n x n).
+
+    genes : Sequence[str]
+        Gene identifiers corresponding to matrix rows.
+
+    options : ClusteringOptions
+        Configuration parameters for hierarchical clustering.
+
+    Returns
+    -------
+    Z : numpy.ndarray
+        Linkage matrix describing the hierarchical clustering.
+
+    labels : numpy.ndarray
+        Cluster label assigned to each gene.
+
+    cophenetic_corr : float
+        Cophenetic correlation coefficient measuring how well the
+        dendrogram preserves the original pairwise distances.
     """
+
     if options.num_groups < 1:
         raise ValueError("num_groups must be >= 1.")
 
@@ -282,16 +448,32 @@ def compute_hierarchical_clustering(
     n = distance_matrix.shape[0]
     genes = _validate_genes(genes, n)
 
-    # Convert square distance matrix to condensed form
-    condensed = squareform(distance_matrix, checks=False)  # checks handled above
+    # Convert to condensed form
+    condensed = squareform(distance_matrix, checks=False)
 
-    # Linkage
+    # Compute hierarchical clustering
     Z = linkage(condensed, method=options.method)
 
-    # Flat clustering: maxclust
+    # Compute flat clusters
     labels = fcluster(Z, options.num_groups, criterion="maxclust")
 
-    return Z, labels
+    # Compute cophenetic correlation
+    cophenetic_corr, _ = cophenet(Z, condensed)
+
+    # information logging.
+    interpretation = (
+        "strong" if cophenetic_corr > 0.75
+        else "moderate" if cophenetic_corr > 0.5
+        else "weak"
+    )
+
+    _log_or_print(
+        f"Cophenetic correlation coefficient: {cophenetic_corr:.4f} " +
+        f"({interpretation} clustering structure)",
+        verbose=options.verbose
+    )
+
+    return Z, labels, cophenetic_corr
 
 
 def he_clustering(
@@ -327,7 +509,7 @@ def he_clustering(
         If both True -> returns (labels, fig, html)
     """
     try:
-        Z, labels = compute_hierarchical_clustering(
+        Z, labels, _ = compute_hierarchical_clustering(
             distance_matrix=distance_matrix,
             genes=genes,
             options=clustering,

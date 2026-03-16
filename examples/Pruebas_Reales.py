@@ -9,6 +9,7 @@ if __name__ == "__main__":
     import gclusters_characterization.utils.actions       as AC
 
     import gclusters_characterization.clustering.consensus_matrix as CM
+    import gclusters_characterization.clustering.he_clustering    as HC
     
     import gclusters_characterization.visualization.heatmaps as Heat
 
@@ -50,7 +51,15 @@ if __name__ == "__main__":
     options = AC.MatrixSaveOptions(mode=AC.MatrixSaveMode.TEXT_CSV, verbose=True, delimiter=",")
     AC.save_matrix(Prop_m,  directory + "/Results/File_1/Prop_matrix.csv",options)
     AC.save_matrix(Dist_m,  directory + "/Results/File_1/Dist_matrix.csv",options)
-    
+
+    ###################################################################################################### Cluster jerárquico (Co-Ocurrencia + Agr. Jerarquico).
+    start_time = time.time()
+    cons_cluster_1 = HC.he_clustering(Dist_m, 
+                                        genes,
+                                        save_html_to= directory + "/Results/File_1/Dendogram_file_1.html")
+    Matrix = np.vstack([Matrix, cons_cluster_1])
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
     
     
     Heat.plot_html_heatmap(Prop_m,  
@@ -61,14 +70,6 @@ if __name__ == "__main__":
                             z_label="Proporción de coincidencia",
                             tooltip_format="Gen_ID_1: %{x}<br>Gen_ID_2: %{y}<br>Proporción: %{z:.2f}")
 
-    ###################################################################################################### Cluster jerárquico (Co-Ocurrencia + Agr. Jerarquico).
-    start_time = time.time()
-    cons_cluster_1 = He.he_clustering(Dist_m, 
-                                        genes,
-                                        save_html_to= directory + "/Results/File_1/Dendogram_file_1.html")
-    Matrix = np.vstack([Matrix, cons_cluster_1])
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Essembling Clustering.
     start_time = time.time()

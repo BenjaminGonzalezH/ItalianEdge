@@ -2,10 +2,10 @@
 Unit tests for He_Clustering module.
 
 Purpose of this file:
-- Validate correct hierarchical clustering behavior.
+- Validate hierarchical clustering behavior.
 - Validate input validation logic.
-- Ensure dendrogram export works without leaving residual files.
-- Confirm optional return modes (fig/html).
+- Confirm dendrogram generation and export.
+- Validate optional return modes.
 """
 
 ######### Libraries #########
@@ -15,7 +15,7 @@ import os
 import numpy as np
 import logging
 
-from ParetoInsight_CPU.He_Clustering import (
+from gclusters_characterization.clustering.he_clustering import (
     he_clustering,
     compute_hierarchical_clustering,
     ClusteringOptions,
@@ -25,17 +25,20 @@ from ParetoInsight_CPU.He_Clustering import (
 
 
 class TestHeClustering(unittest.TestCase):
-    """Test suite for clustering logic, validation, and export behavior."""
+    """Test suite validating clustering logic and export behavior."""
 
     ########################## Test Initialization ##########################
+
     def setUp(self):
         """
-        Build reusable small symmetric distance matrix.
-        4 genes with two obvious clusters:
-            Cluster A: 0-1
-            Cluster B: 2-3
+        Create reusable symmetric distance matrix.
+
+        Structure:
+        Cluster A -> genes 0 and 1
+        Cluster B -> genes 2 and 3
         """
-        # Disable logging during tests
+
+        # Disable logs and prints produced by verbose options
         logging.disable(logging.CRITICAL)
 
         self.genes = ["G1", "G2", "G3", "G4"]
@@ -50,8 +53,16 @@ class TestHeClustering(unittest.TestCase):
     ########################## Core Clustering Tests ##########################
 
     def test_compute_hierarchical_clustering_basic(self):
-        """Purpose: confirm clustering produces correct number of labels."""
-        Z, labels = compute_hierarchical_clustering(
+        """
+        Confirm clustering produces valid outputs.
+
+        Checks:
+        - linkage matrix shape
+        - label count
+        - cophenetic coefficient type
+        """
+
+        Z, labels, cophenetic_corr = compute_hierarchical_clustering(
             self.distance_matrix,
             self.genes,
             ClusteringOptions(num_groups=2)
@@ -59,9 +70,14 @@ class TestHeClustering(unittest.TestCase):
 
         self.assertEqual(len(labels), 4)
         self.assertEqual(len(np.unique(labels)), 2)
+        self.assertTrue(isinstance(cophenetic_corr, float))
+        self.assertTrue(Z.shape[1] == 4)
 
     def test_he_clustering_returns_labels_only(self):
-        """Purpose: confirm default behavior returns only cluster labels."""
+        """
+        Confirm default behavior returns cluster labels.
+        """
+
         labels = he_clustering(
             self.distance_matrix,
             self.genes,
@@ -72,7 +88,10 @@ class TestHeClustering(unittest.TestCase):
         self.assertEqual(len(np.unique(labels)), 2)
 
     def test_num_groups_one(self):
-        """Purpose: confirm num_groups=1 assigns all genes to same cluster."""
+        """
+        Confirm num_groups=1 places all genes in one cluster.
+        """
+
         labels = he_clustering(
             self.distance_matrix,
             self.genes,
@@ -84,21 +103,25 @@ class TestHeClustering(unittest.TestCase):
     ########################## Validation Tests ##########################
 
     def test_non_square_matrix(self):
-        """Purpose: confirm non-square matrix raises RuntimeError."""
+        """Confirm non-square matrix triggers validation error."""
+
         bad_matrix = np.array([[0, 1, 2]])
+
         with self.assertRaises(RuntimeError):
             he_clustering(bad_matrix, self.genes)
 
     def test_non_symmetric_matrix(self):
-        """Purpose: confirm non-symmetric matrix raises error."""
+        """Confirm non-symmetric matrix triggers validation error."""
+
         bad_matrix = self.distance_matrix.copy()
-        bad_matrix[0, 1] = 0.9  # break symmetry
+        bad_matrix[0, 1] = 0.9
 
         with self.assertRaises(RuntimeError):
             he_clustering(bad_matrix, self.genes)
 
     def test_negative_values(self):
-        """Purpose: confirm negative distances are rejected."""
+        """Confirm negative distances are rejected."""
+
         bad_matrix = self.distance_matrix.copy()
         bad_matrix[0, 1] = -1.0
         bad_matrix[1, 0] = -1.0
@@ -107,7 +130,8 @@ class TestHeClustering(unittest.TestCase):
             he_clustering(bad_matrix, self.genes)
 
     def test_nan_values(self):
-        """Purpose: confirm NaN values are rejected."""
+        """Confirm NaN values are rejected."""
+
         bad_matrix = self.distance_matrix.copy()
         bad_matrix[0, 1] = np.nan
         bad_matrix[1, 0] = np.nan
@@ -116,14 +140,18 @@ class TestHeClustering(unittest.TestCase):
             he_clustering(bad_matrix, self.genes)
 
     def test_gene_length_mismatch(self):
-        """Purpose: confirm mismatch between genes and matrix size raises error."""
+        """Confirm mismatch between gene labels and matrix size."""
+
         with self.assertRaises(RuntimeError):
             he_clustering(self.distance_matrix, ["G1", "G2"])
 
     ########################## Dendrogram & Export Tests ##########################
 
     def test_return_figure(self):
-        """Purpose: confirm return_fig=True returns a plotly Figure."""
+        """
+        Confirm return_fig=True returns a Plotly Figure.
+        """
+
         labels, fig = he_clustering(
             self.distance_matrix,
             self.genes,
@@ -135,7 +163,10 @@ class TestHeClustering(unittest.TestCase):
         self.assertTrue(hasattr(fig, "to_html"))
 
     def test_return_html(self):
-        """Purpose: confirm return_html=True returns HTML string."""
+        """
+        Confirm return_html=True returns HTML output.
+        """
+
         labels, html = he_clustering(
             self.distance_matrix,
             self.genes,
@@ -143,16 +174,16 @@ class TestHeClustering(unittest.TestCase):
             return_html=True
         )
 
-        self.assertIn("<div", html)
         self.assertEqual(len(labels), 4)
+        self.assertTrue("<div" in html)
 
     def test_export_html_temp_directory(self):
         """
-        Purpose:
-        - Confirm HTML file is created.
-        - Ensure no residual files remain outside TemporaryDirectory.
+        Validate HTML export using temporary directory.
         """
+
         with tempfile.TemporaryDirectory() as tmpdir:
+
             filepath = os.path.join(tmpdir, "dendrogram.html")
 
             labels = he_clustering(
@@ -166,19 +197,23 @@ class TestHeClustering(unittest.TestCase):
             self.assertTrue(os.path.exists(filepath))
             self.assertEqual(len(labels), 4)
 
-        # After exiting block, directory is automatically removed.
         self.assertFalse(os.path.exists(tmpdir))
 
     ########################## Stability Tests ##########################
 
     def test_different_linkage_methods(self):
-        """Purpose: confirm different linkage methods do not crash."""
+        """
+        Confirm multiple linkage methods run without failure.
+        """
+
         for method in ["single", "complete", "average"]:
+
             labels = he_clustering(
                 self.distance_matrix,
                 self.genes,
                 clustering=ClusteringOptions(num_groups=2, method=method)
             )
+
             self.assertEqual(len(labels), 4)
 
 
