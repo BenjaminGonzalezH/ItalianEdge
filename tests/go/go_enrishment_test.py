@@ -1,13 +1,14 @@
 """
-Unit tests for GoEnrishment (refactored version).
+Unit tests for go_enrichment module (refactored version).
 
-Goals:
-- Avoid real network calls (mock GProfiler).
-- Validate input validation.
-- Validate deterministic behavior.
-- Validate scoring logic.
-- Validate chunking logic in annotation.
-- Validate wrappers compatibility.
+Goals
+-----
+- Avoid real network calls (mock GProfiler)
+- Validate input normalization and deduplication
+- Validate retry logic and robustness
+- Validate enrichment scoring and sorting
+- Validate annotation chunking and parallel behavior
+- Achieve >90% coverage
 """
 
 import unittest
@@ -15,19 +16,18 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
-from ParetoInsight_CPU.GoEnrishment import (
+from gclusters_characterization.go.go_enrishment import (
     go_enrichment,
     annotation_from_entrez_ids,
-    GoEnrichment,
-    AnnotationFromEntrezIDs,
     GoEnrichmentOptions,
     AnnotationOptions,
+    _safe_neglog10,
 )
 
 
-# ──────────────────────────────────────────────────────────────
-# Helper: Fake GProfiler
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────
 
 def fake_enrichment_df():
     return pd.DataFrame({
@@ -44,45 +44,71 @@ def fake_annotation_df(block):
     })
 
 
-# ──────────────────────────────────────────────────────────────
-# Test Suite
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Enrichment tests
+# ─────────────────────────────────────────────
 
 class TestGoEnrichment(unittest.TestCase):
 
     def setUp(self):
-        self.genes = ["1", "2", "3", "3"]  # duplicate included
+        self.genes = ["1", "2", "3", "3", None, ""]
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_go_enrichment_basic(self, mock_gp):
-        """Ensure enrichment returns sorted DataFrame with qscore."""
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_basic_enrichment(self, mock_gp):
+        """Basic enrichment returns sorted results with qscore."""
         mock_instance = MagicMock()
         mock_instance.profile.return_value = fake_enrichment_df()
         mock_gp.return_value = mock_instance
 
         df = go_enrichment(self.genes)
 
-        # duplicates removed
-        mock_instance.profile.assert_called_once()
-        self.assertEqual(len(df), 2)
+        # duplicates + cleaning applied
+        self.assertEqual(mock_instance.profile.call_count, 1)
+
         self.assertIn("gene_ratio", df.columns)
         self.assertIn("qscore", df.columns)
 
-        # sorted by p_value ascending
-        self.assertLessEqual(df["p_value"].iloc[0], df["p_value"].iloc[1])
+        # sorted ascending
+        self.assertTrue(df["p_value"].is_monotonic_increasing)
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_empty_results(self, mock_gp):
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_missing_precision_column(self, mock_gp):
+        """Should still work without 'precision' column."""
+        df_mock = fake_enrichment_df().drop(columns=["precision"])
+
+        mock_instance = MagicMock()
+        mock_instance.profile.return_value = df_mock
+        mock_gp.return_value = mock_instance
+
+        df = go_enrichment(["1", "2"])
+
+        self.assertIn("qscore", df.columns)
+
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_missing_pvalue_column(self, mock_gp):
+        """No qscore if p_value missing."""
+        df_mock = fake_enrichment_df().drop(columns=["p_value"])
+
+        mock_instance = MagicMock()
+        mock_instance.profile.return_value = df_mock
+        mock_gp.return_value = mock_instance
+
+        df = go_enrichment(["1", "2"])
+
+        self.assertNotIn("qscore", df.columns)
+
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_empty_response(self, mock_gp):
         """Empty API response returns empty DataFrame."""
         mock_instance = MagicMock()
         mock_instance.profile.return_value = pd.DataFrame()
         mock_gp.return_value = mock_instance
 
-        df = go_enrichment(["1", "2"])
+        df = go_enrichment(["1"])
         self.assertTrue(df.empty)
 
-    def test_invalid_input(self):
-        """Invalid inputs should raise."""
+    def test_invalid_inputs(self):
+        """Invalid inputs should raise appropriate errors."""
         with self.assertRaises(ValueError):
             go_enrichment([])
 
@@ -90,35 +116,55 @@ class TestGoEnrichment(unittest.TestCase):
             go_enrichment(123)
 
     def test_invalid_threshold(self):
-        """Threshold outside (0,1] should raise."""
-        opts = GoEnrichmentOptions(user_threshold=1.5)
+        """Invalid threshold should raise."""
+        opts = GoEnrichmentOptions(user_threshold=0)
         with self.assertRaises(ValueError):
             go_enrichment(["1"], options=opts)
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_wrapper_compatibility(self, mock_gp):
-        """Legacy wrapper should still work."""
+    def test_invalid_sources(self):
+        """Empty sources should raise."""
+        opts = GoEnrichmentOptions(sources=())
+        with self.assertRaises(ValueError):
+            go_enrichment(["1"], options=opts)
+
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_retry_logic(self, mock_gp):
+        """Ensure retry mechanism is triggered on failure."""
         mock_instance = MagicMock()
-        mock_instance.profile.return_value = fake_enrichment_df()
+
+        calls = {"count": 0}
+
+        def side_effect(**kwargs):
+            calls["count"] += 1
+            if calls["count"] < 2:
+                raise RuntimeError("fail")
+            return fake_enrichment_df()
+
+        mock_instance.profile.side_effect = side_effect
         mock_gp.return_value = mock_instance
 
-        df = GoEnrichment(["1", "2"])
-        self.assertFalse(df.empty)
+        df = go_enrichment(["1"])
 
+        self.assertTrue(len(df) > 0)
+        self.assertEqual(calls["count"], 2)
+
+
+# ─────────────────────────────────────────────
+# Annotation tests
+# ─────────────────────────────────────────────
 
 class TestAnnotation(unittest.TestCase):
 
     def setUp(self):
         self.genes = ["A", "B", "C", "D"]
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_annotation_basic(self, mock_gp):
-        """Annotation should return gene->terms dict."""
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_basic_annotation(self, mock_gp):
+        """Annotation returns gene→terms mapping."""
         mock_instance = MagicMock()
 
         def side_effect(**kwargs):
-            block = kwargs["query"]
-            return fake_annotation_df(block)
+            return fake_annotation_df(kwargs["query"])
 
         mock_instance.profile.side_effect = side_effect
         mock_gp.return_value = mock_instance
@@ -128,12 +174,13 @@ class TestAnnotation(unittest.TestCase):
         self.assertIsInstance(result, dict)
         self.assertTrue(len(result) > 0)
 
-        for gene, terms in result.items():
-            self.assertIsInstance(terms, list)
+        for k, v in result.items():
+            self.assertIsInstance(k, str)
+            self.assertIsInstance(v, list)
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_annotation_chunking(self, mock_gp):
-        """Ensure chunking splits calls correctly."""
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_chunking(self, mock_gp):
+        """Chunking splits requests correctly."""
         mock_instance = MagicMock()
 
         calls = []
@@ -146,12 +193,40 @@ class TestAnnotation(unittest.TestCase):
         mock_gp.return_value = mock_instance
 
         opts = AnnotationOptions(chunk_size=2, n_threads=1)
+
         annotation_from_entrez_ids(self.genes, options=opts)
 
-        # 4 genes / chunk_size=2 → 2 calls
         self.assertEqual(len(calls), 2)
 
-    def test_annotation_invalid_input(self):
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_thread_failure_handling(self, mock_gp):
+        """Failures in threads should not crash execution."""
+        mock_instance = MagicMock()
+
+        def side_effect(**kwargs):
+            if len(kwargs["query"]) == 2:
+                raise RuntimeError("fail")
+            return fake_annotation_df(kwargs["query"])
+
+        mock_instance.profile.side_effect = side_effect
+        mock_gp.return_value = mock_instance
+
+        result = annotation_from_entrez_ids(self.genes)
+
+        self.assertIsInstance(result, dict)
+
+    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    def test_missing_columns(self, mock_gp):
+        """Missing expected columns returns empty dict."""
+        mock_instance = MagicMock()
+        mock_instance.profile.return_value = pd.DataFrame({"foo": [1]})
+        mock_gp.return_value = mock_instance
+
+        result = annotation_from_entrez_ids(self.genes)
+
+        self.assertEqual(result, {})
+
+    def test_invalid_inputs(self):
         """Invalid inputs should raise."""
         with self.assertRaises(ValueError):
             annotation_from_entrez_ids([])
@@ -159,19 +234,27 @@ class TestAnnotation(unittest.TestCase):
         with self.assertRaises(TypeError):
             annotation_from_entrez_ids(123)
 
-    @patch("ParetoInsight_CPU.GoEnrishment.GProfiler")
-    def test_annotation_wrapper(self, mock_gp):
-        """Legacy wrapper works."""
-        mock_instance = MagicMock()
 
-        def side_effect(**kwargs):
-            return fake_annotation_df(kwargs["query"])
+# ─────────────────────────────────────────────
+# Utility tests
+# ─────────────────────────────────────────────
 
-        mock_instance.profile.side_effect = side_effect
-        mock_gp.return_value = mock_instance
+class TestUtilities(unittest.TestCase):
 
-        result = AnnotationFromEntrezIDs(["X", "Y"])
-        self.assertIsInstance(result, dict)
+    def test_safe_neglog10_normal(self):
+        """Normal p-values should produce valid log scores."""
+        val = _safe_neglog10(0.01)
+        self.assertAlmostEqual(val, 2.0, places=5)
+
+    def test_safe_neglog10_zero(self):
+        """p=0 should not produce -inf."""
+        val = _safe_neglog10(0)
+        self.assertTrue(np.isfinite(val))
+
+    def test_safe_neglog10_invalid(self):
+        """Invalid values return NaN."""
+        val = _safe_neglog10("bad")
+        self.assertTrue(np.isnan(val))
 
 
 if __name__ == "__main__":

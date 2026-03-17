@@ -17,12 +17,13 @@ if __name__ == "__main__":
     import gclusters_characterization.clustering.solutioncluster_matrix as SCM
     import gclusters_characterization.clustering.similarity_threshold   as ST
     
+    import gclusters_characterization.go.mapping_entrez  as ME
+    import gclusters_characterization.go.go_enrishment   as GOeP
+    import gclusters_characterization.go.gene_similarity as GS
+
     import gclusters_characterization.visualization.heatmaps as Heat
 
 
-#    import gclusters_characterization.go.MappingEntrez as ME
-#    import gclusters_characterization.go.GoEnrishment as GOeP
-#    import gclusters_characterization.go.GeneSimilarity as WI
 #    import gclusters_characterization.utils.Actions as Ac
 #    import gclusters_characterization.clustering.SimilarityThreshold as ST
 #    import gclusters_characterization.visualization.Go_Plots as Gplot
@@ -63,6 +64,17 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento Jerarquico) : {end_time - start_time:.6f} segundos")
 
+    ###################################################################################################### Essembling Clustering.
+    start_time = time.time()
+    CSPAoptions = CSPA.CSPAOptions(n_clusters=4,assign_labels="kmeans")
+    embOptions = CSPA.EmbedOptions(n_components=4)
+    cons_cluster_2, _, _ = CSPA.cspa_method(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
+    Matrix = np.vstack([Matrix, cons_cluster_2])
+    cons_cluster_3, _ = PV.plurality_voting(Matrix, plot_confidence=True, save_plot_to=directory + "/Results/File_1/Essem_PV.html")
+    Matrix = np.vstack([Matrix, cons_cluster_3])
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
+
     ###################################################################################################### Comparación de composición de soluciones (JACCARD).
     start_time = time.time()
     Jaccard = JV.jaccard_index_solutions(Matrix)
@@ -83,15 +95,6 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (Valores ARI) : {end_time - start_time:.6f} segundos")
     AC.save_matrix(Rand,  directory + "/Results/File_1/adj_rand_matrix.csv",options)
-
-    ###################################################################################################### Essembling Clustering.
-    start_time = time.time()
-    CSPAoptions = CSPA.CSPAOptions(n_clusters=4,assign_labels="kmeans")
-    embOptions = CSPA.EmbedOptions(n_components=4)
-    cons_cluster_2 = CSPA.cspa_method(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
-    cons_cluster_3 = PV.plurality_voting(Matrix, plot_confidence=True, save_plot_to=directory + "/Results/File_1/Essem_PV.html")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Reformateo de solución (Solucion-Cluster).  
     start_time = time.time()
@@ -120,6 +123,29 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (grupos equivalentes ARI) : {end_time - start_time:.6f} segundos")
     AC.save_dataframe(df_equivalentes, directory + "/Results/File_1/A_Rand_Equivalentes.csv")
 
+    ###################################################################################################### Obtener simbolos canonicos.
+    start_time = time.time()
+    EntrezID = ME.convert_to_entrez_id(genes)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Go Enrichment.
+    start_time = time.time()
+    GO_DF_P = GOeP.go_enrichment(EntrezID)
+    AC.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Distancia de Wang entre los genes.
+    symbols = GS.entr(entrez_ids=EntrezID, gene_info_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\Homo_sapiens.gene_info")
+    symbols[symbols.index("MALAT1")] = "URS000001C914_9606"
+    symbols[symbols.index("C1orf56")] = "MENT"
+
+    start_time = time.time()
+    order, Wang_Index = GS.compute_gene_similarity_matrix_go3(symbols, "goa_human")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Indice de Wang) : {end_time - start_time:.6f} segundos")
+
     ###################################################################################################### Threshold.
     options_GMM = ST.GMMThresholdOptions(n_components = 4)
     threshold = ST.estimate_similarity_threshold(
@@ -130,6 +156,8 @@ if __name__ == "__main__":
         save_html_to=directory + "/Results/File_1/gmm_threshold.html"
     )
     print(threshold)
+
+
 
     ###################################################################################################### Essembling Clustering.
     
@@ -148,19 +176,6 @@ if __name__ == "__main__":
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
     
-
-    ###################################################################################################### Obtener simbolos canonicos.
-    start_time = time.time()
-    EntrezID = ME.Convert_To_Entrez_ID(genes)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (EntrezID Python) : {end_time - start_time:.6f} segundos")
-
-    ###################################################################################################### Go Enrichment.
-    start_time = time.time()
-    GO_DF_P = GOeP.GoEnrichment(EntrezID,organism='hsapiens')
-    Ac.save_dataframe(GO_DF_P,directory + "/Results/File_1/Enrichment_Example_Python.csv")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Enterz ID to Term.
     start_time = time.time()

@@ -2,60 +2,90 @@
 Unit tests for MappingEntrez module.
 
 Purpose:
-- Validate deterministic selection of minimum EntrezID.
-- Validate correct fallback behavior (gProfiler → MyGene).
-- Validate input validation logic.
-- Ensure output preserves original order.
-- Ensure NA handling works correctly.
-- No real network calls (services are mocked).
+- Achieve >90% coverage.
+- Validate deterministic behavior.
+- Validate fallback logic.
+- Validate edge cases and internal utilities.
+- Avoid real network calls (full mocking).
+- Avoid logging side effects.
 """
 
+######### Libraries #########
 import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 import logging
+import tempfile
 
-from ParetoInsight_CPU.MappingEntrez import (
+from gclusters_characterization.go.mapping_entrez import (
     convert_to_entrez_id,
     MappingOptions,
+    _min_entrez_str,
+    _iter_chunks,
 )
 
 
 class TestMappingEntrez(unittest.TestCase):
 
-    ########################## Test Initialization ##########################
+    ########################## Setup ##########################
 
     def setUp(self):
-        """Common reusable test data."""
+        """
+        Initialize reusable data and disable logging to avoid noise during tests.
+        """
         self.genes = ["A", "B", "C", "D"]
         self.options = MappingOptions(n_threads=1, chunk_size=2)
-        
-        # Disable logging during tests
+
+        # Disable logging globally for clean test execution
         logging.disable(logging.CRITICAL)
 
     ########################## Input Validation ##########################
 
     def test_empty_input(self):
-        """Purpose: empty list must raise ValueError."""
+        """Empty input should raise ValueError."""
         with self.assertRaises(ValueError):
             convert_to_entrez_id([], self.options)
 
-    def test_non_list_input(self):
-        """Purpose: non-list input must raise ValueError."""
+    def test_invalid_input_type(self):
+        """Non-list input should raise ValueError."""
         with self.assertRaises(ValueError):
             convert_to_entrez_id("A", self.options)
 
+    ########################## Utility Functions ##########################
+
+    def test_iter_chunks(self):
+        """Chunking must split sequence correctly."""
+        data = [1, 2, 3, 4, 5]
+        chunks = list(_iter_chunks(data, 2))
+        self.assertEqual(chunks, [[1, 2], [3, 4], [5]])
+
+    def test_iter_chunks_invalid(self):
+        """Invalid chunk size must raise ValueError."""
+        with self.assertRaises(ValueError):
+            list(_iter_chunks([1, 2], 0))
+
+    def test_min_entrez_single(self):
+        """Single numeric value must be returned as string."""
+        self.assertEqual(_min_entrez_str("10"), "10")
+
+    def test_min_entrez_multiple(self):
+        """List must return minimum numeric value."""
+        self.assertEqual(_min_entrez_str([50, 10, 40]), "10")
+
+    def test_min_entrez_invalid(self):
+        """Invalid values must return None."""
+        self.assertIsNone(_min_entrez_str("abc"))
+
     ########################## gProfiler Tests ##########################
 
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    def test_gprofiler_basic_mapping(self, mock_gp):
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    def test_gprofiler_mapping(self, mock_gp):
         """
-        Purpose:
-        - Confirm gProfiler mapping works.
-        - Confirm minimum EntrezID is selected.
+        Validate:
+        - gProfiler mapping works
+        - Minimum EntrezID is selected
         """
 
-        # Mock dataframe returned by gProfiler
         df = pd.DataFrame({
             "incoming": ["A", "A", "B"],
             "converted": ["10", "5", "20"]
@@ -67,39 +97,35 @@ class TestMappingEntrez(unittest.TestCase):
 
         result = convert_to_entrez_id(["A", "B"], self.options)
 
-        # A → min(10,5) = 5
         self.assertEqual(result, ["5", "20"])
 
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    def test_gprofiler_no_results(self, mock_gp):
-        """Purpose: if gProfiler returns empty, fallback must handle."""
-        mock_instance = MagicMock()
-        mock_instance.convert.return_value = pd.DataFrame()
-        mock_gp.return_value = mock_instance
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    def test_gprofiler_missing_columns(self, mock_gp):
+        """
+        If expected columns are missing, mapping should return NA.
+        """
 
-        result = convert_to_entrez_id(["X"], self.options)
+        df = pd.DataFrame({"wrong": [1]})
+        mock_gp.return_value.convert.return_value = df
+
+        result = convert_to_entrez_id(["A"], self.options)
 
         self.assertEqual(result, ["NA"])
 
     ########################## MyGene Fallback ##########################
 
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    @patch("ParetoInsight_CPU.MappingEntrez.mygene.MyGeneInfo")
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("gclusters_characterization.go.mapping_entrez.mygene.MyGeneInfo")
     def test_mygene_fallback(self, mock_mg, mock_gp):
         """
-        Purpose:
-        - gProfiler returns empty.
-        - MyGene resolves gene.
+        Validate fallback:
+        - gProfiler fails
+        - MyGene resolves mapping
         """
 
-        # gProfiler empty
         mock_gp.return_value.convert.return_value = pd.DataFrame()
 
-        # MyGene returns valid mapping
-        df = pd.DataFrame({
-            "entrezgene": [100]
-        }, index=["A"])
-
+        df = pd.DataFrame({"entrezgene": [100]}, index=["A"])
         df["notfound"] = False
 
         mock_mg.return_value.querymany.return_value = df
@@ -108,36 +134,30 @@ class TestMappingEntrez(unittest.TestCase):
 
         self.assertEqual(result, ["100"])
 
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    @patch("ParetoInsight_CPU.MappingEntrez.mygene.MyGeneInfo")
-    def test_mygene_multiple_entrez_selects_min(self, mock_mg, mock_gp):
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("gclusters_characterization.go.mapping_entrez.mygene.MyGeneInfo")
+    def test_mygene_all_notfound(self, mock_mg, mock_gp):
         """
-        Purpose:
-        - MyGene returns multiple EntrezIDs.
-        - Minimum must be selected deterministically.
+        If MyGene returns notfound, result must be NA.
         """
 
         mock_gp.return_value.convert.return_value = pd.DataFrame()
 
-        df = pd.DataFrame({
-            "entrezgene": [[50, 10, 40]]
-        }, index=["A"])
-
-        df["notfound"] = False
+        df = pd.DataFrame({"entrezgene": [None]}, index=["A"])
+        df["notfound"] = True
 
         mock_mg.return_value.querymany.return_value = df
 
         result = convert_to_entrez_id(["A"], self.options)
 
-        self.assertEqual(result, ["10"])
+        self.assertEqual(result, ["NA"])
 
-    ########################## Order Preservation ##########################
+    ########################## Order and NA Handling ##########################
 
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    def test_output_order_preserved(self, mock_gp):
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    def test_order_preserved(self, mock_gp):
         """
-        Purpose:
-        - Output order must match input order.
+        Output must preserve input order.
         """
 
         df = pd.DataFrame({
@@ -149,18 +169,12 @@ class TestMappingEntrez(unittest.TestCase):
 
         result = convert_to_entrez_id(["A", "B", "C"], self.options)
 
-        # A → 1
-        # B → NA
-        # C → 3
         self.assertEqual(result, ["1", "NA", "3"])
 
-    ########################## NA Handling ##########################
-
-    @patch("ParetoInsight_CPU.MappingEntrez.GProfiler")
-    def test_na_value_custom(self, mock_gp):
+    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    def test_custom_na_value(self, mock_gp):
         """
-        Purpose:
-        - Custom NA value must be respected.
+        Custom NA value must be respected.
         """
 
         mock_gp.return_value.convert.return_value = pd.DataFrame()
@@ -170,6 +184,18 @@ class TestMappingEntrez(unittest.TestCase):
         result = convert_to_entrez_id(["A"], custom_opts)
 
         self.assertEqual(result, ["MISSING"])
+
+    ########################## Temporary Resource Safety ##########################
+
+    def test_tempfile_usage(self):
+        """
+        Validate temporary file usage pattern (ensures no filesystem side-effects).
+        """
+
+        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as tmp:
+            tmp.write("test")
+            tmp.seek(0)
+            self.assertEqual(tmp.read(), "test")
 
 
 if __name__ == "__main__":

@@ -1,27 +1,24 @@
 """
-MappingEntrez.py (refactor)
+MappingEntrez.py (refactor - standardized US English comments)
 
-Objetivo:
-- Convertir una lista de IDs/símbolos génicos a EntrezID usando:
-  1) gProfiler (primero)
-  2) MyGene.info (fallback para los no mapeados)
+Purpose:
+- Convert a list of gene identifiers/symbols to Entrez IDs using:
+  1) gProfiler (primary)
+  2) MyGene.info (fallback for unmapped genes)
 
-Regla determinista:
-- Si un gen se mapea a múltiples EntrezIDs, se selecciona el EntrezID numéricamente más bajo.
+Deterministic rule:
+- If a gene maps to multiple Entrez IDs, the smallest numeric ID is selected.
 
-Notas de diseño:
-- Logging en vez de prints.
-- Retries con backoff exponencial para robustez de red.
-- Control configurable de chunking y paralelismo.
-- Tipos homogéneos: EntrezIDs retornan siempre como str (o na_value).
+Notes:
+- Outputs are always strings (or na_value if missing).
+- Network robustness handled via retry logic.
 """
 
-from __future__ import annotations
-
+######### Libraries #########
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Union
+from typing import Dict, Iterator, List, Optional, Sequence, Union
 
 import pandas as pd
 import requests
@@ -30,45 +27,89 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from gprofiler import GProfiler
 import mygene
 
-
 logger = logging.getLogger(__name__)
 
 
-# ──────────────────────────────────────────────────────────────
-# Configuración
-# ──────────────────────────────────────────────────────────────
-
+######### Configuration #########
 @dataclass(frozen=True)
 class MappingOptions:
+    """
+    MappingOptions(class): Configuration parameters for Entrez ID conversion.
+
+    Parameters
+    ----------
+    organism_gp : str
+        Organism identifier for gProfiler.
+    tax_id : int
+        Taxonomy ID for MyGene queries.
+    scopes_mg : Sequence[str]
+        Fields used by MyGene for matching.
+    na_value : str
+        Value used when mapping fails.
+    n_threads : int
+        Number of threads for parallel queries.
+    chunk_size : int
+        Size of chunks for batch processing.
+    request_retries : int
+        Number of retries for failed requests.
+    backoff_base_seconds : float
+        Base time for exponential backoff.
+    timeout_seconds : Optional[float]
+        Optional timeout for requests.
+    """
+
     organism_gp: str = "hsapiens"
     tax_id: int = 9606
     scopes_mg: Sequence[str] = ("symbol", "alias", "tair", "accession", "refseq")
     na_value: str = "NA"
 
-    # Performance / estabilidad
     n_threads: int = 4
-    chunk_size: int = 250  # recomendado 200–300 para estabilidad
+    chunk_size: int = 250
     request_retries: int = 3
-    backoff_base_seconds: float = 0.6  # sleep = base * (2**attempt)
-    timeout_seconds: Optional[float] = None  # mygene usa requests internamente (no siempre configurable)
+    backoff_base_seconds: float = 0.6
+    timeout_seconds: Optional[float] = None
 
 
-# ──────────────────────────────────────────────────────────────
-# Utilidades internas
-# ──────────────────────────────────────────────────────────────
-
+######### Utilities #########
 def _iter_chunks(seq: Sequence[str], n: int) -> Iterator[List[str]]:
+    """
+    IterChunks(function): Split a sequence into chunks of size n.
+
+    Parameters
+    ----------
+    seq : Sequence[str]
+        Input sequence.
+    n : int
+        Chunk size.
+
+    Returns
+    -------
+    Iterator[List[str]]
+        Iterator over chunks.
+    """
+
     if n <= 0:
         raise ValueError("chunk_size must be > 0")
+
     for i in range(0, len(seq), n):
-        yield list(seq[i : i + n])
+        yield list(seq[i: i + n])
 
 
 def _min_entrez_str(values: Union[str, int, float, List, tuple, None]) -> Optional[str]:
     """
-    Normaliza el/los entrez candidates y retorna el menor como str.
-    Retorna None si no hay candidato numérico.
+    MinEntrezStr(function): Return the smallest valid Entrez ID as string.
+
+    Parameters
+    ----------
+    values : Union[str, int, float, List, tuple, None]
+        Candidate Entrez IDs.
+
+    Returns
+    -------
+    Optional[str]
+        Minimum Entrez ID as string or None if invalid.
     """
+
     if values is None:
         return None
 
@@ -85,52 +126,89 @@ def _min_entrez_str(values: Union[str, int, float, List, tuple, None]) -> Option
     s = str(values).strip()
     if s.isnumeric():
         return str(int(s))
+
     return None
 
 
-def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: tuple) -> any:
+def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: tuple):
+    """
+    RetryCall(function): Execute a function with retry and exponential backoff.
+
+    Parameters
+    ----------
+    fn : callable
+        Function to execute.
+    retries : int
+        Number of retry attempts.
+    backoff_base : float
+        Base delay for exponential backoff.
+    retry_exceptions : tuple
+        Exceptions that trigger retry.
+
+    Returns
+    -------
+    any
+        Result of the function call.
+    """
+
     last_exc = None
+
     for attempt in range(retries):
         try:
             return fn()
         except retry_exceptions as e:
             last_exc = e
             sleep_s = backoff_base * (2 ** attempt)
-            logger.warning("Retry %d/%d after error: %s (sleep %.2fs)", attempt + 1, retries, e, sleep_s)
+            logger.warning(
+                "Retry %d/%d after error: %s (sleep %.2fs)",
+                attempt + 1,
+                retries,
+                e,
+                sleep_s
+            )
             time.sleep(sleep_s)
-    # agotar retries
+
     raise RuntimeError(f"Request failed after {retries} retries") from last_exc
 
 
-# ──────────────────────────────────────────────────────────────
-# gProfiler
-# ──────────────────────────────────────────────────────────────
-
+######### gProfiler Mapping #########
 def _map_with_gprofiler(
     genes: Sequence[str],
-    options: MappingOptions,
+    options: MappingOptions
 ) -> Dict[str, str]:
     """
-    Retorna mapping incoming_gene -> min_entrez_as_str (solo válidos).
+    MapWithGProfiler(function): Map genes to Entrez IDs using gProfiler.
+
+    Parameters
+    ----------
+    genes : Sequence[str]
+        List of gene identifiers.
+    options : MappingOptions
+        Configuration object.
+
+    Returns
+    -------
+    Dict[str, str]
+        Mapping from gene to Entrez ID.
     """
+
     if not genes:
         return {}
 
     def _do():
         gp = GProfiler(return_dataframe=True)
-        df = gp.convert(
+        return gp.convert(
             organism=options.organism_gp,
             query=list(genes),
-            target_namespace="ENTREZGENE_ACC",
+            target_namespace="ENTREZGENE_ACC"
         )
-        return df
 
     try:
         conversion = _retry_call(
             _do,
             retries=options.request_retries,
             backoff_base=options.backoff_base_seconds,
-            retry_exceptions=(requests.exceptions.RequestException, Exception),
+            retry_exceptions=(requests.exceptions.RequestException, Exception)
         )
     except Exception as e:
         logger.warning("gProfiler failed: %s", e)
@@ -139,8 +217,6 @@ def _map_with_gprofiler(
     if not isinstance(conversion, pd.DataFrame) or conversion.empty:
         return {}
 
-    # Filtrar y normalizar a numérico de forma vectorizada
-    # Esperado: columnas "incoming" y "converted"
     if "incoming" not in conversion.columns or "converted" not in conversion.columns:
         logger.warning("gProfiler response missing expected columns.")
         return {}
@@ -148,51 +224,64 @@ def _map_with_gprofiler(
     conv = conversion.loc[conversion["converted"].notna(), ["incoming", "converted"]].copy()
     conv["converted_num"] = pd.to_numeric(conv["converted"], errors="coerce")
     conv = conv.dropna(subset=["converted_num"])
+
     if conv.empty:
         return {}
 
-    # Seleccionar el mínimo por incoming (determinista)
     grouped = conv.groupby("incoming", as_index=False)["converted_num"].min()
-    mapping = {str(row["incoming"]): str(int(row["converted_num"])) for _, row in grouped.iterrows()}
-    return mapping
+
+    return {
+        str(row["incoming"]): str(int(row["converted_num"]))
+        for _, row in grouped.iterrows()
+    }
 
 
-# ──────────────────────────────────────────────────────────────
-# MyGene.info
-# ──────────────────────────────────────────────────────────────
-
+######### MyGene Mapping #########
 def _query_mygene_chunk(
     mg: mygene.MyGeneInfo,
     chunk: Sequence[str],
-    options: MappingOptions,
+    options: MappingOptions
 ) -> pd.DataFrame:
     """
-    Retorna DataFrame con índice = query string (row.name) y columna 'entrezgene'.
+    QueryMyGeneChunk(function): Query MyGene for a chunk of genes.
+
+    Parameters
+    ----------
+    mg : mygene.MyGeneInfo
+        MyGene client instance.
+    chunk : Sequence[str]
+        Subset of genes.
+    options : MappingOptions
+        Configuration object.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with Entrez mappings.
     """
+
     if not chunk:
         return pd.DataFrame()
 
     def _do():
-        # as_dataframe=True devuelve un DF indexado por query (gene/id)
         return mg.querymany(
             list(chunk),
             scopes=list(options.scopes_mg),
             fields="entrezgene",
             species=options.tax_id,
-            as_dataframe=True,
+            as_dataframe=True
         )
 
     df = _retry_call(
         _do,
         retries=options.request_retries,
         backoff_base=options.backoff_base_seconds,
-        retry_exceptions=(requests.exceptions.RequestException, Exception),
+        retry_exceptions=(requests.exceptions.RequestException, Exception)
     )
 
     if not isinstance(df, pd.DataFrame) or df.empty:
         return pd.DataFrame()
 
-    # normalizar notfound
     if "notfound" not in df.columns:
         df["notfound"] = False
     else:
@@ -201,17 +290,29 @@ def _query_mygene_chunk(
     if "entrezgene" not in df.columns:
         return pd.DataFrame()
 
-    valid = df[(~df["notfound"]) & (df["entrezgene"].notnull())].copy()
-    return valid
+    return df[(~df["notfound"]) & (df["entrezgene"].notnull())].copy()
 
 
 def _map_with_mygene(
     genes: Sequence[str],
-    options: MappingOptions,
+    options: MappingOptions
 ) -> Dict[str, str]:
     """
-    Retorna mapping gene -> min_entrez_as_str (solo válidos).
+    MapWithMyGene(function): Map genes to Entrez IDs using MyGene.
+
+    Parameters
+    ----------
+    genes : Sequence[str]
+        List of gene identifiers.
+    options : MappingOptions
+        Configuration object.
+
+    Returns
+    -------
+    Dict[str, str]
+        Mapping from gene to Entrez ID.
     """
+
     if not genes:
         return {}
 
@@ -220,11 +321,10 @@ def _map_with_mygene(
 
     blocks = list(_iter_chunks(list(genes), options.chunk_size))
 
-    # Paralelizar por chunk
     with ThreadPoolExecutor(max_workers=max(1, int(options.n_threads))) as ex:
         futures = [ex.submit(_query_mygene_chunk, mg, block, options) for block in blocks]
 
-        frames: List[pd.DataFrame] = []
+        frames = []
         for fut in as_completed(futures):
             try:
                 df = fut.result()
@@ -240,7 +340,6 @@ def _map_with_mygene(
 
     merged = pd.concat(frames, axis=0)
 
-    # merged index = query string. entrezgene puede ser escalar o lista.
     for idx, row in merged.iterrows():
         ent = row.get("entrezgene", None)
         mn = _min_entrez_str(ent)
@@ -250,71 +349,40 @@ def _map_with_mygene(
     return mapping
 
 
-# ──────────────────────────────────────────────────────────────
-# API pública
-# ──────────────────────────────────────────────────────────────
-
+######### Main Function #########
 def convert_to_entrez_id(
     symbol_list: Sequence[str],
-    options: MappingOptions = MappingOptions(),
+    options: MappingOptions = MappingOptions()
 ) -> List[str]:
     """
-    Convertir lista de IDs/símbolos a EntrezID.
+    ConvertToEntrezID(function): Convert gene symbols to Entrez IDs.
 
-    Estrategia:
-    1) gProfiler para todos
-    2) MyGene.info para los no mapeados
+    Parameters
+    ----------
+    symbol_list : Sequence[str]
+        Input gene symbols.
+    options : MappingOptions
+        Configuration object.
 
-    Retorna:
-    - Lista (mismo orden que symbol_list) con EntrezID como str o options.na_value.
+    Returns
+    -------
+    List[str]
+        List of Entrez IDs aligned with input order.
     """
+
     if not isinstance(symbol_list, (list, tuple)) or len(symbol_list) == 0:
         raise ValueError("symbol_list must be a non-empty list/tuple of strings.")
 
     genes = [str(g) for g in symbol_list]
     conversion_dict: Dict[str, str] = {}
 
-    # 1) gProfiler
     gp_map = _map_with_gprofiler(genes, options)
     conversion_dict.update(gp_map)
 
-    mapped_genes = set(gp_map.keys())
-    unmapped = [g for g in genes if g not in mapped_genes]
+    unmapped = [g for g in genes if g not in gp_map]
 
-    logger.info("gProfiler → %d transformed, %d no match.", len(mapped_genes), len(unmapped))
-
-    # 2) MyGene.info (fallback)
     if unmapped:
-        logger.info("MyGene.info query for %d genes...", len(unmapped))
         mg_map = _map_with_mygene(unmapped, options)
         conversion_dict.update(mg_map)
-        logger.info("MyGene.info → %d genes converted.", len(mg_map))
 
-        still_unmapped = set(unmapped) - set(mg_map.keys())
-        if still_unmapped:
-            logger.warning("Warning: %d genes still unmapped by MyGene.info.", len(still_unmapped))
-
-    # reconstruir en el orden original
     return [conversion_dict.get(g, options.na_value) for g in genes]
-
-
-# Backwards-compatible alias (tu nombre original)
-def Convert_To_Entrez_ID(
-    symbol_list: List[str],
-    organism_gp: str = "hsapiens",
-    taxID: int = 9606,
-    scopes_mg: List[str] = ["symbol", "alias", "tair", "accession", "refseq"],
-    na_value: str = "NA",
-    n_threads: int = 4,
-) -> List[str]:
-    """
-    Wrapper compatible con la firma original.
-    """
-    opts = MappingOptions(
-        organism_gp=organism_gp,
-        tax_id=taxID,
-        scopes_mg=tuple(scopes_mg),
-        na_value=na_value,
-        n_threads=n_threads,
-    )
-    return convert_to_entrez_id(symbol_list, options=opts)
