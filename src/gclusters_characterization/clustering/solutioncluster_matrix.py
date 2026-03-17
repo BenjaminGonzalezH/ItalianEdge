@@ -1,28 +1,69 @@
 """
-Optimized SolutionClusterMatrix utilities.
+solutioncluster_matrix.py
 
-Improvements:
-- O(n_genes) grouping (single pass).
-- Optional real parallelism using ProcessPoolExecutor.
-- Optional compact output mode (indices instead of gene sets).
-- Robust input validation.
+Utility functions for converting clustering solutions into structured
+cluster representations.
+
+Description
+-----------
+This module transforms a matrix of clustering solutions into grouped
+cluster representations. Each solution row contains cluster labels
+assigned to a set of genes. The module groups genes belonging to the
+same cluster label.
+
+The implementation focuses on performance and memory efficiency:
+
+• Single-pass grouping algorithm (O(n_genes))
+• Optional multiprocessing using ProcessPoolExecutor
+• Two output formats:
+    - sets of gene identifiers
+    - arrays of gene indices (RAM-efficient)
+
+Functionality
+-------------
+1. Validate inputs for clustering matrix and gene identifiers.
+2. Convert clustering labels into grouped clusters.
+3. Provide optional parallel processing.
+4. Allow memory-efficient cluster representations.
+
+Functions
+---------
+1. _validate_inputs
+2. _process_solution_sets
+3. _process_solution_indices
+4. solution_cluster_matrix
 """
-
-# ──────────────────────────────────────────────────────────────
-# Libraries
-# ──────────────────────────────────────────────────────────────
-from __future__ import annotations
-
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from typing import List, Set, Union, Iterable, Optional
+from typing import List, Set, Optional
 
 
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # Internal validation
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 
 def _validate_inputs(matrix: np.ndarray, genes: List[str]) -> None:
+    """
+    Validate the input clustering matrix and gene identifiers.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Matrix of clustering solutions with shape
+        (n_solutions, n_genes).
+
+    genes : list[str]
+        List of gene identifiers corresponding to matrix columns.
+
+    Raises
+    ------
+    TypeError
+        If matrix is not a NumPy array.
+
+    ValueError
+        If matrix dimensions are invalid or gene count mismatches.
+    """
+
     if not isinstance(matrix, np.ndarray):
         raise TypeError("Matrix must be numpy.ndarray.")
 
@@ -41,15 +82,30 @@ def _validate_inputs(matrix: np.ndarray, genes: List[str]) -> None:
         )
 
 
-# ──────────────────────────────────────────────────────────────
-# Core grouping logic (O(n_genes))
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Core grouping logic
+# ─────────────────────────────────────────────
 
 def _process_solution_sets(args) -> List[Set[str]]:
     """
-    Convert one solution row into list-of-sets (gene IDs).
-    Single-pass grouping: O(n_genes)
+    Convert one clustering solution into sets of gene identifiers.
+
+    Each unique cluster label is transformed into a set containing
+    the gene identifiers assigned to that cluster.
+
+    Parameters
+    ----------
+    args : tuple
+        Tuple containing:
+        - solution (array of cluster labels)
+        - genes (list of gene identifiers)
+
+    Returns
+    -------
+    List[Set[str]]
+        List of clusters represented as gene sets.
     """
+
     solution, genes = args
     clusters = {}
 
@@ -61,20 +117,37 @@ def _process_solution_sets(args) -> List[Set[str]]:
 
 def _process_solution_indices(solution: np.ndarray) -> List[np.ndarray]:
     """
-    Convert one solution row into list-of-index arrays.
-    More RAM-efficient than sets.
+    Convert one clustering solution into index arrays.
+
+    Instead of storing gene identifiers, this representation stores
+    indices of the genes belonging to each cluster. This reduces memory
+    consumption for large datasets.
+
+    Parameters
+    ----------
+    solution : np.ndarray
+        Cluster labels for a single solution.
+
+    Returns
+    -------
+    List[np.ndarray]
+        List of arrays containing gene indices per cluster.
     """
+
     clusters = {}
+
     for idx, label in enumerate(solution):
         clusters.setdefault(label, []).append(idx)
 
-    # Convert lists to numpy arrays for efficiency
-    return [np.array(indices, dtype=np.int32) for indices in clusters.values()]
+    return [
+        np.array(indices, dtype=np.int32)
+        for indices in clusters.values()
+    ]
 
 
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # Public API
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 
 def solution_cluster_matrix(
     matrix: np.ndarray,
@@ -85,25 +158,36 @@ def solution_cluster_matrix(
     max_workers: Optional[int] = None,
 ) -> List:
     """
-    Generate clustered representation for each solution.
+    Convert clustering solutions into grouped cluster structures.
 
     Parameters
     ----------
     matrix : np.ndarray
-        Shape (n_solutions, n_genes)
+        Clustering matrix with shape (n_solutions, n_genes).
+        Each row represents a clustering solution.
+
     genes : list[str]
-        Gene identifiers.
+        Gene identifiers corresponding to matrix columns.
+
     mode : str
-        "sets"   → returns List[List[Set[str]]]
-        "indices" → returns List[List[np.ndarray]] (RAM efficient)
+        Output format:
+
+        "sets"
+            Returns clusters as sets of gene identifiers.
+
+        "indices"
+            Returns clusters as arrays of gene indices.
+
     parallel : bool
-        If True, uses ProcessPoolExecutor (real parallelism).
+        If True, execute clustering conversion in parallel.
+
     max_workers : int or None
-        Number of processes (default: OS decides).
+        Number of worker processes used in parallel mode.
 
     Returns
     -------
-    List of clustered solutions.
+    list
+        List containing clustered representation for each solution.
     """
 
     _validate_inputs(matrix, genes)
@@ -114,8 +198,9 @@ def solution_cluster_matrix(
     n_solutions = matrix.shape[0]
 
     # ─────────────────────────────
-    # Non-parallel mode (often fastest for small/medium datasets)
+    # Serial execution
     # ─────────────────────────────
+
     if not parallel:
 
         if mode == "sets":
@@ -124,33 +209,40 @@ def solution_cluster_matrix(
                 for i in range(n_solutions)
             ]
 
-        else:  # indices mode
+        else:
             return [
                 _process_solution_indices(matrix[i])
                 for i in range(n_solutions)
             ]
 
     # ─────────────────────────────
-    # Parallel mode (true CPU parallelism)
+    # Parallel execution
     # ─────────────────────────────
+
     else:
 
         if mode == "sets":
+
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
+
                 results = list(
                     executor.map(
                         _process_solution_sets,
                         ((matrix[i], genes) for i in range(n_solutions))
                     )
                 )
+
             return results
 
-        else:  # indices mode
+        else:
+
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
+
                 results = list(
                     executor.map(
                         _process_solution_indices,
                         (matrix[i] for i in range(n_solutions))
                     )
                 )
+
             return results

@@ -15,13 +15,11 @@ if __name__ == "__main__":
     import gclusters_characterization.clustering.cspa_method            as CSPA
     import gclusters_characterization.clustering.plurarity_voting       as PV
     import gclusters_characterization.clustering.solutioncluster_matrix as SCM
+    import gclusters_characterization.clustering.similarity_threshold   as ST
     
     import gclusters_characterization.visualization.heatmaps as Heat
 
 
-#    import gclusters_characterization.utils.SolutionClusterMatrix as SCM
-#    import gclusters_characterization.clustering.JaccardValues as JV
-#    import gclusters_characterization.clustering.RandValues as RV
 #    import gclusters_characterization.go.MappingEntrez as ME
 #    import gclusters_characterization.go.GoEnrishment as GOeP
 #    import gclusters_characterization.go.GeneSimilarity as WI
@@ -91,7 +89,7 @@ if __name__ == "__main__":
     CSPAoptions = CSPA.CSPAOptions(n_clusters=4,assign_labels="kmeans")
     embOptions = CSPA.EmbedOptions(n_components=4)
     cons_cluster_2 = CSPA.cspa_method(Prop_m, genes, cspa = CSPAoptions, embed= embOptions, save_html_to=directory + "/Results/File_1/Essem_CSPA.html")
-    cons_cluster_3 = PV.plurality_voting(Matrix, plot_stability=True, save_plot_to=directory + "/Results/File_1/Essem_PV.html")
+    cons_cluster_3 = PV.plurality_voting(Matrix, plot_confidence=True, save_plot_to=directory + "/Results/File_1/Essem_PV.html")
     end_time = time.time()
     print(f"Tiempo de ejecución (Agrupamiento otros consensos) : {end_time - start_time:.6f} segundos")
 
@@ -101,6 +99,37 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución (SCM) : {end_time - start_time:.6f} segundos")
 
+    ###################################################################################################### Obtener clusters equivalentes (Jaccard).  
+    start_time = time.time()
+    df_equivalentes_1 = JV.find_equivalent_clusters_jaccard(SC_matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes J) : {end_time - start_time:.6f} segundos")
+    AC.save_dataframe(df_equivalentes_1, directory + "/Results/File_1/jacc_Equivalentes.csv")
+
+    ###################################################################################################### Obtener clusters equivalentes (RI).  
+    start_time = time.time()
+    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes RI) : {end_time - start_time:.6f} segundos")
+    AC.save_dataframe(df_equivalentes, directory + "/Results/File_1/Rand_Equivalentes.csv")
+
+    ###################################################################################################### Obtener clusters equivalentes (ARI).  
+    start_time = time.time()
+    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix, metric="adjusted_rand")
+    end_time = time.time()
+    print(f"Tiempo de ejecución (grupos equivalentes ARI) : {end_time - start_time:.6f} segundos")
+    AC.save_dataframe(df_equivalentes, directory + "/Results/File_1/A_Rand_Equivalentes.csv")
+
+    ###################################################################################################### Threshold.
+    options_GMM = ST.GMMThresholdOptions(n_components = 4)
+    threshold = ST.estimate_similarity_threshold(
+        df_equivalentes_1,
+        column="Jaccard Similarity",
+        options= options_GMM,
+        plot=True,
+        save_html_to=directory + "/Results/File_1/gmm_threshold.html"
+    )
+    print(threshold)
 
     ###################################################################################################### Essembling Clustering.
     
@@ -119,28 +148,6 @@ if __name__ == "__main__":
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
     
-
-
-    ###################################################################################################### Obtener clusters equivalentes (Jaccard).  
-    start_time = time.time()
-    df_equivalentes_1 = JV.find_equivalent_clusters_jaccard(SC_matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes J) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes_1, directory + "/Results/File_1/jacc_Equivalentes.csv")
-
-    ###################################################################################################### Obtener clusters equivalentes (RI).  
-    start_time = time.time()
-    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes RI) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/Rand_Equivalentes.csv")
-
-    ###################################################################################################### Obtener clusters equivalentes (ARI).  
-    start_time = time.time()
-    df_equivalentes = RV.find_equivalent_clusters_rand(SC_matrix, metric="adjusted_rand")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (grupos equivalentes ARI) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_equivalentes, directory + "/Results/File_1/A_Rand_Equivalentes.csv")
 
     ###################################################################################################### Obtener simbolos canonicos.
     start_time = time.time()

@@ -1,21 +1,41 @@
 """
-SimilarityThreshold.py
+similarity_threshold.py
 
-Utilities for estimating similarity thresholds using Gaussian Mixture Models.
+Gaussian Mixture Model (GMM)-based threshold estimation for similarity data.
 
-Features
---------
-- Fit Gaussian Mixture Models to similarity distributions.
-- Compute thresholds using Gaussian intersections.
-- Support for multiple Gaussian components.
-- Combine two similarity metrics.
-- Interactive HTML visualization (Plotly).
-- Deterministic behavior with random_state.
+Description
+-----------
+This module estimates thresholds in similarity distributions using Gaussian
+Mixture Models (GMM). It is designed to identify separation points between
+different similarity regimes (e.g., low vs high similarity).
 
-Author: ParetoInsight
+Core idea:
+----------
+A similarity distribution is modeled as a mixture of Gaussian components.
+Thresholds are obtained as intersection points between adjacent Gaussians.
+
+This approach is commonly used to:
+• separate signal vs noise
+• identify similarity cutoffs
+• detect natural clusters in similarity space
+
+Functionality
+-------------
+1. Validate similarity input values.
+2. Fit a Gaussian Mixture Model (GMM).
+3. Extract Gaussian parameters (means, variances, weights).
+4. Compute intersections between Gaussian components.
+5. Optionally combine multiple similarity metrics.
+6. Provide interactive HTML visualization.
+
+Functions
+---------
+1. combine_similarity_metrics
+2. compute_gmm_threshold
+3. estimate_similarity_threshold
+4. estimate_similarity_threshold_combined
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +61,29 @@ PathLike = Union[str, Path]
 
 @dataclass(frozen=True)
 class GMMThresholdOptions:
+    """
+    Configuration for GMM-based threshold estimation.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of Gaussian components to fit.
+
+    random_state : int
+        Random seed for reproducibility.
+
+    bins : int
+        Number of bins for histogram visualization.
+
+    combination_method : str
+        Method used to combine two similarity metrics.
+
+    weight_1, weight_2 : float
+        Weights used for weighted combinations.
+
+    verbose : bool
+        If True, print progress messages.
+    """
 
     n_components: int = 2
     random_state: int = 0
@@ -58,6 +101,17 @@ class GMMThresholdOptions:
 # ─────────────────────────────────────────────
 
 def _log(msg: str, verbose: bool):
+    """
+    Internal logging helper.
+
+    Parameters
+    ----------
+    msg : str
+        Message to log.
+
+    verbose : bool
+        If True, also prints message to console.
+    """
 
     logger.info(msg)
 
@@ -70,6 +124,24 @@ def _log(msg: str, verbose: bool):
 # ─────────────────────────────────────────────
 
 def _validate_values(values: np.ndarray):
+    """
+    Validate similarity values before GMM fitting.
+
+    Requirements:
+    • Must be 1D
+    • Must contain enough samples
+    • Must not contain NaN or Inf
+
+    Parameters
+    ----------
+    values : np.ndarray
+        Similarity values.
+
+    Raises
+    ------
+    ValueError
+        If validation fails.
+    """
 
     if values.ndim != 1:
         raise ValueError("values must be 1D")
@@ -86,6 +158,25 @@ def _validate_values(values: np.ndarray):
 # ─────────────────────────────────────────────
 
 def combine_similarity_metrics(values1, values2, options):
+    """
+    Combine two similarity arrays into a single metric.
+
+    Different strategies can be used depending on the desired behavior.
+
+    Parameters
+    ----------
+    values1 : np.ndarray
+    values2 : np.ndarray
+        Arrays of similarity values.
+
+    options : GMMThresholdOptions
+        Combination configuration.
+
+    Returns
+    -------
+    np.ndarray
+        Combined similarity values.
+    """
 
     if values1.shape != values2.shape:
         raise ValueError("Distance arrays must have same length.")
@@ -96,10 +187,7 @@ def combine_similarity_metrics(values1, values2, options):
         return (values1 + values2) / 2
 
     if method == "weighted_mean":
-
-        w1 = options.weight_1
-        w2 = options.weight_2
-
+        w1, w2 = options.weight_1, options.weight_2
         return (w1 * values1 + w2 * values2) / (w1 + w2)
 
     if method == "product":
@@ -119,6 +207,15 @@ def combine_similarity_metrics(values1, values2, options):
 # ─────────────────────────────────────────────
 
 def _extract_gmm_parameters(gmm):
+    """
+    Extract ordered Gaussian parameters from fitted GMM.
+
+    Returns
+    -------
+    means : np.ndarray
+    stds : np.ndarray
+    weights : np.ndarray
+    """
 
     means = gmm.means_.flatten()
     stds = np.sqrt(gmm.covariances_).flatten()
@@ -126,28 +223,32 @@ def _extract_gmm_parameters(gmm):
 
     order = np.argsort(means)
 
-    means = means[order]
-    stds = stds[order]
-    weights = weights[order]
-
-    return means, stds, weights
+    return means[order], stds[order], weights[order]
 
 
 def _compute_gaussian_intersections(means, stds, weights):
+    """
+    Compute intersection points between adjacent Gaussian components.
+
+    Each intersection represents a potential threshold separating
+    two regions of the distribution.
+
+    Returns
+    -------
+    list[float]
+        Sorted list of threshold values.
+    """
 
     intersections = []
 
     for i in range(len(means) - 1):
 
         def f(x):
-
             g1 = weights[i] * norm.pdf(x, means[i], stds[i])
             g2 = weights[i+1] * norm.pdf(x, means[i+1], stds[i+1])
-
             return g1 - g2
 
         try:
-
             x = brentq(f, means[i], means[i+1])
             intersections.append(x)
 
@@ -162,6 +263,24 @@ def _compute_gaussian_intersections(means, stds, weights):
 # ─────────────────────────────────────────────
 
 def compute_gmm_threshold(values, options):
+    """
+    Fit a Gaussian Mixture Model and compute thresholds.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        Similarity values.
+
+    options : GMMThresholdOptions
+
+    Returns
+    -------
+    thresholds : list[float]
+        Intersection points between Gaussian components.
+
+    gmm : GaussianMixture
+        Fitted model.
+    """
 
     _validate_values(values)
 
@@ -193,6 +312,15 @@ def compute_gmm_threshold(values, options):
 # ─────────────────────────────────────────────
 
 def _plot_gmm_html(values, thresholds, gmm, options, title):
+    """
+    Generate interactive Plotly visualization of GMM fit.
+
+    Includes:
+    • histogram of data
+    • individual Gaussian components
+    • mixture distribution
+    • threshold lines
+    """
 
     means, stds, weights = _extract_gmm_parameters(gmm)
 
@@ -202,48 +330,36 @@ def _plot_gmm_html(values, thresholds, gmm, options, title):
 
     fig = go.Figure()
 
-    fig.add_trace(
-        go.Histogram(
-            x=values,
-            nbinsx=options.bins,
-            histnorm="probability density",
-            opacity=0.4,
-            name="data"
-        )
-    )
+    fig.add_trace(go.Histogram(
+        x=values,
+        nbinsx=options.bins,
+        histnorm="probability density",
+        opacity=0.4,
+        name="data"
+    ))
 
     for i in range(len(means)):
 
         g = weights[i] * norm.pdf(x, means[i], stds[i])
-
         mixture += g
 
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=g,
-                mode="lines",
-                name=f"G{i+1}"
-            )
-        )
-
-    fig.add_trace(
-        go.Scatter(
+        fig.add_trace(go.Scatter(
             x=x,
-            y=mixture,
+            y=g,
             mode="lines",
-            line=dict(width=3, dash="dash"),
-            name="mixture"
-        )
-    )
+            name=f"G{i+1}"
+        ))
+
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=mixture,
+        mode="lines",
+        line=dict(width=3, dash="dash"),
+        name="mixture"
+    ))
 
     for t in thresholds:
-
-        fig.add_vline(
-            x=t,
-            line_dash="dot",
-            line_color="black"
-        )
+        fig.add_vline(x=t, line_dash="dot", line_color="black")
 
     fig.update_layout(
         title=title,
@@ -267,6 +383,20 @@ def estimate_similarity_threshold(
     plot: bool = False,
     save_html_to: Optional[PathLike] = None
 ):
+    """
+    Estimate threshold from a single similarity column.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+    column : str
+        Column containing similarity values.
+
+    Returns
+    -------
+    list[float]
+        Estimated thresholds.
+    """
 
     if column not in dataframe.columns:
         raise ValueError(f"{column} not found")
@@ -278,22 +408,16 @@ def estimate_similarity_threshold(
     if plot:
 
         fig = _plot_gmm_html(
-            values,
-            thresholds,
-            gmm,
-            options,
+            values, thresholds, gmm, options,
             title=f"GMM Thresholds — {column}"
         )
 
         if save_html_to:
 
             p = Path(save_html_to)
-
-            if p.parent and not p.parent.exists():
-                p.parent.mkdir(parents=True)
+            p.parent.mkdir(parents=True, exist_ok=True)
 
             fig.write_html(str(p))
-
             _log(f"[GMM] HTML saved at: {p}", options.verbose)
 
     return thresholds
@@ -307,6 +431,17 @@ def estimate_similarity_threshold_combined(
     plot: bool = False,
     save_html_to: Optional[PathLike] = None
 ):
+    """
+    Estimate threshold from combined similarity metrics.
+
+    Combines two columns into a single similarity measure before
+    applying GMM threshold estimation.
+
+    Returns
+    -------
+    list[float]
+        Estimated thresholds.
+    """
 
     col1, col2 = columns
 
@@ -327,22 +462,16 @@ def estimate_similarity_threshold_combined(
     if plot:
 
         fig = _plot_gmm_html(
-            combined,
-            thresholds,
-            gmm,
-            options,
+            combined, thresholds, gmm, options,
             title=f"GMM Thresholds — combined ({col1},{col2})"
         )
 
         if save_html_to:
 
             p = Path(save_html_to)
-
-            if p.parent and not p.parent.exists():
-                p.parent.mkdir(parents=True)
+            p.parent.mkdir(parents=True, exist_ok=True)
 
             fig.write_html(str(p))
-
             _log(f"[GMM] HTML saved at: {p}", options.verbose)
 
     return thresholds
