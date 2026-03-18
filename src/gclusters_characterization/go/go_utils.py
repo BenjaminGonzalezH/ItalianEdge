@@ -286,7 +286,7 @@ def ensure_gene_info_file(
     species_key: str,
     *,
     out_dir: PathLike = ".",
-    download_if_missing: bool = False,
+    download_if_missing: bool = True,
     download_opts: DownloadOptions = DownloadOptions(),
 ) -> Path:
     """

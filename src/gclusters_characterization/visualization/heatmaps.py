@@ -142,10 +142,9 @@ def _choose_heatmap_trace(
     scale_opts: HeatmapScaleOptions,
     showscale: bool = True,
     colorbar: Optional[dict] = None,
+    **kwargs,
 ) -> go.Heatmap:
-    """
-    Select Heatmap vs Heatmapgl based on size.
-    """
+
     heatmap_cls = go.Heatmap
 
     cb = colorbar if colorbar is not None else dict(title=z_label)
@@ -155,6 +154,7 @@ def _choose_heatmap_trace(
         colorscale=colorscale,
         showscale=showscale,
         colorbar=cb,
+        **kwargs
     )
 
     if hovertemplate is not None:
@@ -273,14 +273,6 @@ def plot_dual_heatmap_two_colors(
     return_fig: bool = False,
     return_html: bool = False,
 ):
-    """
-    Dual heatmap: upper triangle uses one colorscale, lower triangle another.
-    Includes symmetric highlighting using JS, without re-reading the saved file.
-
-    Large-scale behavior:
-    - Optional downsampling (pooling) to keep plot responsive.
-    - Avoids building n×n hovertext matrices (RAM heavy).
-    """
     _validate_matrix_2d(matrix_upper, "matrix_upper")
     _validate_matrix_2d(matrix_lower, "matrix_lower")
 
@@ -289,61 +281,75 @@ def plot_dual_heatmap_two_colors(
     if matrix_upper.shape[0] != matrix_upper.shape[1]:
         raise ValueError("Dual triangular heatmap requires square matrices.")
 
-    # Downsample both consistently
+    # Downsampling
     z_u, pool_h, pool_w = _pool_downsample(matrix_upper, scale.max_dim, scale.downsample_mode)
     z_l, pool_h2, pool_w2 = _pool_downsample(matrix_lower, scale.max_dim, scale.downsample_mode)
+
     if (pool_h, pool_w) != (pool_h2, pool_w2):
-        # This should never happen with same shape, but keep it explicit.
         raise RuntimeError("Internal error: inconsistent downsampling factors.")
 
     if pool_h > 1 or pool_w > 1:
         _log_or_print(
-            f"[dual_heatmap] Downsampled from {matrix_upper.shape} to {z_u.shape} "
-            f"(pool_h={pool_h}, pool_w={pool_w}, mode={scale.downsample_mode}).",
+            f"[dual_heatmap] Downsampled from {matrix_upper.shape} to {z_u.shape}",
             export.verbose,
         )
 
     n = z_u.shape[0]
-    # Masks (vectorized, no Python nested loops)
+
     upper_mask = np.triu(np.ones((n, n), dtype=bool), k=1)
     lower_mask = np.tril(np.ones((n, n), dtype=bool), k=-1)
 
-    # Put NaN where not used so Plotly doesn't draw those cells
-    z_upper = np.where(upper_mask, z_u, np.nan)
-    z_lower = np.where(lower_mask, z_l, np.nan)
+    # 🔥 CLAVE: usar None en vez de NaN
+    z_upper = np.where(upper_mask, z_u, None)
+    z_lower = np.where(lower_mask, z_l, None)
+
+    # 🔥 CLAVE: customdata con ambas matrices
+    customdata = np.stack([z_u, z_l], axis=-1)
 
     fig = go.Figure()
 
-    # Hover: keep it light. Avoid customdata hover matrices.
-    # We show coords + value; plotly already provides %{x}, %{y}, %{z}.
-    hover_upper = "i: %{y}<br>j: %{x}<br>Jaccard: %{z:.4g}<extra></extra>"
-    hover_lower = "i: %{y}<br>j: %{x}<br>Wang: %{z:.4g}<extra></extra>"
+    # 🔥 Hover combinado
+    hover_template = (
+        "i: %{y}<br>"
+        "j: %{x}<br>"
+        "Jaccard: %{customdata[0]:.4g}<br>"
+        "Wang: %{customdata[1]:.4g}"
+        "<extra></extra>"
+    )
 
+    # Upper (Jaccard)
     fig.add_trace(
         _choose_heatmap_trace(
             z=z_upper,
             colorscale=colorscale_upper,
             z_label="Jaccard",
-            hovertemplate=hover_upper,
+            hovertemplate=hover_template,
             scale_opts=scale,
             showscale=True,
             colorbar=dict(title="Jaccard", x=1.0, y=0.75, len=0.4),
+            zmin=0,
+            zmax=1,
+            customdata=customdata,
         )
     )
 
+    # Lower (Wang)
     fig.add_trace(
         _choose_heatmap_trace(
             z=z_lower,
             colorscale=colorscale_lower,
             z_label="Wang",
-            hovertemplate=hover_lower,
+            hovertemplate=hover_template,
             scale_opts=scale,
             showscale=True,
             colorbar=dict(title="Wang", x=1.0, y=0.25, len=0.4),
+            zmin=0,
+            zmax=1,
+            customdata=customdata,
         )
     )
 
-    # Highlight traces: scatter squares
+    # Highlight traces
     for _ in range(2):
         fig.add_trace(go.Scatter(
             x=[None],
@@ -359,38 +365,25 @@ def plot_dual_heatmap_two_colors(
             showlegend=False,
         ))
 
-    subtitle = ""
-    if pool_h > 1 or pool_w > 1:
-        subtitle = f" (downsampled: {matrix_upper.shape} → {z_u.shape})"
-
     fig.update_layout(
-        title=title + subtitle,
+        title=title,
         xaxis_title=x_label,
         yaxis_title=y_label,
         xaxis=dict(scaleanchor="y", constrain="domain"),
         yaxis=dict(constrain="domain"),
         hovermode="closest",
-        annotations=[
-            dict(
-                text="Pasa el cursor sobre una celda para ver su coordenada simétrica",
-                showarrow=False,
-                xref="paper", yref="paper",
-                x=0.5, y=-0.15
-            )
-        ],
     )
 
-    # Build HTML once, inject JS directly (no read/modify/write cycle)
-    html: Optional[str] = None
+    # HTML export
+    html = None
     if save_filepath is not None or return_html:
         base_html = _to_html(fig, export)
 
-        # We need the plot div id. Plotly emits one in the HTML.
-        # Use a robust pattern: first occurrence of <div id="...">
         import re
         m = re.search(r'<div id="([^"]+)"', base_html)
         if not m:
-            raise RuntimeError("Could not locate Plotly div id in generated HTML.")
+            raise RuntimeError("Could not locate Plotly div id.")
+
         div_id = m.group(1)
 
         js_code = f"""
@@ -400,16 +393,9 @@ document.addEventListener('DOMContentLoaded', function() {{
   if (!myPlot) return;
 
   myPlot.on('plotly_hover', function(data) {{
-    if (!data || !data.points || data.points.length === 0) return;
     var p = data.points[0];
-    var xCoord = p.x;
-    var yCoord = p.y;
-
-    // Highlight hovered cell (trace index 2)
-    Plotly.restyle(myPlot, {{ x: [[xCoord]], y: [[yCoord]] }}, [2]);
-
-    // Highlight symmetric cell (trace index 3)
-    Plotly.restyle(myPlot, {{ x: [[yCoord]], y: [[xCoord]] }}, [3]);
+    Plotly.restyle(myPlot, {{ x: [[p.x]], y: [[p.y]] }}, [2]);
+    Plotly.restyle(myPlot, {{ x: [[p.y]], y: [[p.x]] }}, [3]);
   }});
 
   myPlot.on('plotly_unhover', function() {{
@@ -419,15 +405,10 @@ document.addEventListener('DOMContentLoaded', function() {{
 </script>
 """
 
-        # Inject before </body> if present; else append.
-        if "</body>" in base_html:
-            html = base_html.replace("</body>", js_code + "\n</body>")
-        else:
-            html = base_html + "\n" + js_code
+        html = base_html.replace("</body>", js_code + "\n</body>")
 
-        if save_filepath is not None:
-            out = _write_text(save_filepath, html)
-            _log_or_print(f"[dual_heatmap] HTML saved at: {out}", export.verbose)
+        if save_filepath:
+            _write_text(save_filepath, html)
 
     if return_fig and return_html:
         return fig, html

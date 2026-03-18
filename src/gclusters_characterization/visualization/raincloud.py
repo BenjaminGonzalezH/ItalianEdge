@@ -1,21 +1,24 @@
 """
-RaincloudSimilarity.py
+raincloud.py
 
-Interactive RainCloud style visualization for similarity distributions.
+This module provides RainCloud-style visualization for similarity distributions.
 
-Features
---------
-- Separation of distribution / boxplot / dotplot
-- Interactive Plotly visualization
-- HTML export
-- Deterministic jitter
+Functions:
+1. plot_similarity_raincloud_html:
+   Generates an interactive RainCloud visualization from numeric data.
+
+2. _build_raincloud_figure:
+   Constructs the Plotly figure with distribution, boxplot, and dotplot.
+
+3. _validate_input:
+   Validates numeric input data.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -34,6 +37,22 @@ PathLike = Union[str, Path]
 
 @dataclass(frozen=True)
 class RaincloudOptions:
+    """
+    Configuration options for RainCloud visualization.
+
+    Attributes
+    ----------
+    jitter_strength : float
+        Horizontal spread of points.
+    point_size : int
+        Size of scatter points.
+    violin_width : float
+        Width of violin plot.
+    random_state : int
+        Seed for reproducibility.
+    verbose : bool
+        Enable logging.
+    """
 
     jitter_strength: float = 0.15
     point_size: int = 6
@@ -47,14 +66,26 @@ class RaincloudOptions:
 # ─────────────────────────────────────────────
 
 def _log(msg: str, verbose: bool):
-
-    logger.info(msg)
+    """
+    Log message if verbose is enabled.
+    """
     if verbose:
-        print(msg)
+        logger.info(msg)
 
 
 def _validate_input(values: np.ndarray):
+    """
+    Validate numeric input array.
 
+    Parameters
+    ----------
+    values : np.ndarray
+        Input numeric array.
+
+    Raises
+    ------
+    TypeError, ValueError
+    """
     if not isinstance(values, np.ndarray):
         raise TypeError("values must be numpy.ndarray")
 
@@ -64,7 +95,7 @@ def _validate_input(values: np.ndarray):
     if len(values) == 0:
         raise ValueError("values cannot be empty")
 
-    if not np.all(np.isfinite(values)):
+    if not np.isfinite(values).all():
         raise ValueError("values contain NaN or Inf")
 
 
@@ -77,10 +108,25 @@ def _build_raincloud_figure(
     label: str,
     options: RaincloudOptions
 ):
+    """
+    Build RainCloud Plotly figure.
 
-    np.random.seed(options.random_state)
+    Parameters
+    ----------
+    values : np.ndarray
+        Numeric values to visualize.
+    label : str
+        Label for plot.
+    options : RaincloudOptions
+        Visualization options.
 
-    jitter = np.random.uniform(
+    Returns
+    -------
+    plotly.graph_objects.Figure
+    """
+    rng = np.random.default_rng(options.random_state)
+
+    jitter = rng.uniform(
         -options.jitter_strength,
         options.jitter_strength,
         size=len(values)
@@ -90,17 +136,10 @@ def _build_raincloud_figure(
         rows=1,
         cols=3,
         column_widths=[0.4, 0.3, 0.3],
-        subplot_titles=[
-            "Distribution",
-            "Box statistics",
-            "Observations"
-        ]
+        subplot_titles=["Distribution", "Box statistics", "Observations"]
     )
 
-    # ─────────────────────────────
-    # Violin / distribution
-    # ─────────────────────────────
-
+    # Distribution (violin)
     fig.add_trace(
         go.Violin(
             y=values,
@@ -108,43 +147,29 @@ def _build_raincloud_figure(
             box_visible=False,
             meanline_visible=True,
             width=options.violin_width,
-            line_color="royalblue",
-            fillcolor="lightblue",
-            opacity=0.7,
         ),
         row=1,
         col=1
     )
 
-    # ─────────────────────────────
     # Boxplot
-    # ─────────────────────────────
-
     fig.add_trace(
         go.Box(
             y=values,
             name=label,
-            marker_color="darkorange",
             boxmean=True
         ),
         row=1,
         col=2
     )
 
-    # ─────────────────────────────
-    # Dot plot
-    # ─────────────────────────────
-
+    # Dotplot
     fig.add_trace(
         go.Scatter(
             x=jitter,
             y=values,
             mode="markers",
-            marker=dict(
-                size=options.point_size,
-                color="black",
-                opacity=0.6
-            ),
+            marker=dict(size=options.point_size),
             name="points"
         ),
         row=1,
@@ -152,7 +177,7 @@ def _build_raincloud_figure(
     )
 
     fig.update_layout(
-        title=f"Similarity RainCloud Visualization ({label})",
+        title=f"RainCloud Distribution: {label}",
         showlegend=False,
         template="plotly_white"
     )
@@ -174,11 +199,47 @@ def plot_similarity_raincloud_html(
     return_fig: bool = False,
     return_html: bool = False
 ):
+    """
+    Generate a RainCloud visualization from a dataframe column.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        Input data containing similarity values.
+    column : str
+        Column to visualize.
+    label : str, optional
+        Label used in the plot.
+    options : RaincloudOptions
+        Visualization configuration.
+    save_html_to : PathLike, optional
+        Path to save HTML output.
+    return_fig : bool
+        Whether to return Plotly figure.
+    return_html : bool
+        Whether to return HTML string.
+
+    Returns
+    -------
+    Optional[Union[Figure, str, Tuple]]
+    """
+
+    if not isinstance(dataframe, pd.DataFrame):
+        raise TypeError("dataframe must be a pandas.DataFrame")
 
     if column not in dataframe.columns:
         raise ValueError(f"Column {column} not found")
 
-    values = dataframe[column].dropna().to_numpy()
+    series = dataframe[column]
+
+    # Convert to numeric safely
+    numeric_values = pd.to_numeric(series, errors="coerce")
+
+    if numeric_values.isna().all():
+        raise ValueError("No valid numeric values after conversion")
+
+
+    values = numeric_values.dropna().to_numpy(dtype=float)
 
     _validate_input(values)
 
@@ -190,29 +251,21 @@ def plot_similarity_raincloud_html(
     html = None
 
     if save_html_to or return_html:
-
-        html = fig.to_html(
-            include_plotlyjs="cdn",
-            full_html=True
-        )
+        html = fig.to_html(include_plotlyjs="cdn", full_html=True)
 
         if save_html_to:
-
             p = Path(save_html_to)
 
             if p.parent and not p.parent.exists():
                 p.parent.mkdir(parents=True, exist_ok=True)
 
             p.write_text(html, encoding="utf-8")
-
             _log(f"[RainCloud] HTML saved at: {p}", options.verbose)
 
     if return_fig and return_html:
         return fig, html
-
     if return_fig:
         return fig
-
     if return_html:
         return html
 

@@ -19,18 +19,15 @@ if __name__ == "__main__":
     
     import gclusters_characterization.go.mapping_entrez  as ME
     import gclusters_characterization.go.go_enrishment   as GOeP
+    import gclusters_characterization.go.go_utils        as Gutils
     import gclusters_characterization.go.gene_similarity as GS
 
-    import gclusters_characterization.visualization.heatmaps as Heat
-
-
-#    import gclusters_characterization.utils.Actions as Ac
-#    import gclusters_characterization.clustering.SimilarityThreshold as ST
-#    import gclusters_characterization.visualization.Go_Plots as Gplot
-#    import gclusters_characterization.visualization.GoNetwork as Gnet
-#    import gclusters_characterization.visualization.Go_heiracialNetwork as GHnet
-#    import gclusters_characterization.visualization.Raincloud as RC
-#    import gclusters_characterization.visualization.CirGO as GCD
+    import gclusters_characterization.visualization.heatmaps            as Heat
+    import gclusters_characterization.visualization.go_plots            as Gplot
+    import gclusters_characterization.visualization.go_network          as Gnet
+    import gclusters_characterization.visualization.go_heiracialNetwork as GHnet
+    import gclusters_characterization.visualization.raincloud           as RC
+    import gclusters_characterization.visualization.cir_go              as GCD
 
     # Obtain actual directory.
     directory = os.path.dirname(__file__)
@@ -137,14 +134,30 @@ if __name__ == "__main__":
     print(f"Tiempo de ejecución (Enriquecimiento biologico con entrezID Python) : {end_time - start_time:.6f} segundos")
 
     ###################################################################################################### Distancia de Wang entre los genes.
-    symbols = GS.entr(entrez_ids=EntrezID, gene_info_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\Homo_sapiens.gene_info")
+    start_time = time.time()
+    out_gaf = Gutils.ensure_gaf_file("goa_human")
+    out_gene = Gutils.ensure_gene_info_file("goa_human",download_if_missing = True)
+    symbols = Gutils.entrez_to_symbol_ncbi(entrez_ids=EntrezID, gene_info_path=out_gene)
     symbols[symbols.index("MALAT1")] = "URS000001C914_9606"
     symbols[symbols.index("C1orf56")] = "MENT"
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Cambio de simbolos - Manual) : {end_time - start_time:.6f} segundos")
 
     start_time = time.time()
-    order, Wang_Index = GS.compute_gene_similarity_matrix_go3(symbols, "goa_human")
+    import go3
+    go3.load_go_terms(r"C:\Users\benja\Desktop\workspace\ItalianEdge\examples\go-basic.obo")
+    annots = go3.load_gaf(r"C:\Users\benja\Desktop\workspace\ItalianEdge\examples\goa_human.gaf")
+    counter = go3.build_term_counter(annots)
+    ordered_symbols, Wang_Index = GS.compute_gene_similarity_matrix_go3(symbols, species_key= "goa_human")
     end_time = time.time()
     print(f"Tiempo de ejecución (Indice de Wang) : {end_time - start_time:.6f} segundos")
+
+    ###################################################################################################### Dual Heatmap.
+    start_time = time.time()
+    wang_s, df_mod = GS.solution_go_similarity_from_dataframe(symbols, Wang_Index, "Wang" , df_equivalentes_1, SC_matrix, normalize_matrix=False)
+    end_time = time.time()
+    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
+    AC.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
 
     ###################################################################################################### Threshold.
     options_GMM = ST.GMMThresholdOptions(n_components = 4)
@@ -157,10 +170,31 @@ if __name__ == "__main__":
     )
     print(threshold)
 
-
+    ###################################################################################################### Go Graph.
+    EntrezID_P = ME.convert_to_entrez_id(list(SC_matrix[0][1]))
+    GO_DF_P = GOeP.go_enrichment(EntrezID_P)
+    GtoT = GOeP.annotation_from_entrez_ids(EntrezID_P)
+    term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
+    Gplot.plot_gene_ratio(GO_DF_P, save_path = directory + "/Results/File_1/GR.html")
+    Gplot.plot_qscore(GO_DF_P, save_path = directory + "/Results/File_1/QS.html")
+    options_net = Gnet.GoNetworkOptions(min_genes_per_term=10)
+    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, 
+                                          gaf_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\examples\goa_human.gaf",
+                                          obo_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\examples\go-basic.obo",
+                                          options= options_net,
+                                          save_html_to = directory + "/Results/File_1/Net.html")
+    net_options = GHnet.GoHierarchyOptions(ontology="BP", min_genes_per_term=10, obo_path=r"go-basic.obo")
+    GHnet.plot_go_hierarchy_html(GtoT, 
+                                 term_pvalues,
+                                 options=net_options,
+                                 save_html_to = directory + "/Results/File_1/Tree.html")
+    GCD.plot_cirgo(
+    GtoT,
+    save_html_to="go_circle.html"
+    )
 
     ###################################################################################################### Essembling Clustering.
-    
+
     Heat.plot_html_heatmap(Prop_m,  
                            directory + "/Results/File_1/Prop_matrix.html",
                             x_label="Gen",
@@ -176,54 +210,15 @@ if __name__ == "__main__":
                         z_label="Jaccard",
                         tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Jaccard: %{z:.2f}")
     
-
-    ###################################################################################################### Enterz ID to Term.
-    start_time = time.time()
-    En_to_Ant = GOeP.AnnotationFromEntrezIDs(EntrezID,organism='hsapiens')
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Entrez a Term) : {end_time - start_time:.6f} segundos")
-
-    ###################################################################################################### Distancia de Wang entre los genes.
-    symbols = WI.entrez_to_symbol_ncbi(entrez_ids=EntrezID, gene_info_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\Homo_sapiens.gene_info")
-    symbols[symbols.index("MALAT1")] = "URS000001C914_9606"
-    symbols[symbols.index("C1orf56")] = "MENT"
-
-    start_time = time.time()
-    order, Wang_Index = WI.compute_gene_similarity_matrix_go3(symbols, "goa_human")
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Indice de Wang) : {end_time - start_time:.6f} segundos")
+    Heat.plot_html_heatmap(Wang_Index, save_filepath= directory + "/Results/File_1/Wang.html",
+                        x_label='Solution',
+                        y_label='Solution',
+                        title='Similitud de Wang entre genes',
+                        z_label="Wang",
+                        tooltip_format="Solution_ID_1: %{x}<br>Solution_ID_2: %{y}<br>Wang: %{z:.2f}")
     
-    ###################################################################################################### Dual Heatmap.
-    start_time = time.time()
-    wang_s, df_mod = WI.solution_wang_similarity_from_dataframe(genes, Wang_Index, df_equivalentes_1, SC_matrix)
-    end_time = time.time()
-    print(f"Tiempo de ejecución (Matriz dual) : {end_time - start_time:.6f} segundos")
-    Ac.save_dataframe(df_mod, directory + "/Results/File_1/Equivalentes_con_wang.csv")
     Heat.plot_dual_heatmap_two_colors(Jaccard, wang_s, directory + "/Results/File_1/Dual.html")
-
-    ###################################################################################################### Go Graph.
-    EntrezID_P = ME.Convert_To_Entrez_ID(list(SC_matrix[0][1]),organism_gp='hsapiens', taxID=9606)
-    GO_DF_P = GOeP.GoEnrichment(EntrezID_P)
-    GtoT = GOeP.AnnotationFromEntrezIDs(EntrezID_P, Ontology=['GO:BP'], organism='hsapiens')
-    term_pvalues = GO_DF_P.set_index("native")["p_value"].to_dict()
-    Gplot.plot_gene_ratio(GO_DF_P, directory + "/Results/File_1/GR.html")
-    Gplot.plot_qscore(GO_DF_P, directory + "/Results/File_1/QS.html")
-    options_net = Gnet.GoNetworkOptions(min_genes_per_term=10)
-    Gnet.plot_go_interaction_network_html(GtoT, term_pvalues, 
-                                          gaf_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\goa_human",
-                                          obo_path=r"C:\Users\benja\Desktop\workspace\ItalianEdge\go-basic.obo",
-                                          options= options_net,
-                                          save_html_to = directory + "/Results/File_1/Net.html")
-    net_options = GHnet.GoHierarchyOptions(ontology="BP", min_genes_per_term=10, obo_path=r"go-basic.obo")
-    GHnet.plot_go_hierarchy_html(GtoT, 
-                                 term_pvalues,
-                                 options=net_options,
-                                 save_html_to = directory + "/Results/File_1/Tree.html")
-    GCD.plot_cirgo(
-    GtoT,
-    save_html_to="go_circle.html"
-    )
-
+    
 
     ###################################################################################################### Threshold.
     options_GMM = ST.GMMThresholdOptions(n_components = 4)

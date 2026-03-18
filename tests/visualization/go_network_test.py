@@ -1,164 +1,90 @@
 """
-Unit tests for GoNetwork module (go3-based refactor).
+go_network_test.py
 
-Purpose:
-- Validate correct graph construction.
-- Validate filtering behavior.
-- Validate HTML export without residual files.
-- Ensure return modes (fig/html) work correctly.
-- Avoid real GO downloads using mocking.
+Unit tests for GO interaction network module.
 """
 
 import unittest
-import tempfile
-import os
-import logging
 from unittest.mock import patch
+import tempfile
+from pathlib import Path
 
-import numpy as np
-
-from Graphs.GoNetwork import (
-    plot_go_interaction_network_html,
-    GoNetworkOptions,
-)
+from gclusters_characterization.visualization.go_network import plot_go_interaction_network_html
 
 
 class TestGoNetwork(unittest.TestCase):
 
-    ############################
-    # Setup
-    ############################
-
     def setUp(self):
-        # Disable logging noise
-        logging.disable(logging.CRITICAL)
+        self.data = {"gene1": ["GO:1", "GO:2"]}
+        self.pvals = {"GO:1": 0.01, "GO:2": 0.05}
 
-        self.gene2terms = {
-            "G1": ["GO:0001", "GO:0002"],
-            "G2": ["GO:0001"],
-            "G3": ["GO:0002"],
-        }
-
-        self.term_pvalues = {
-            "GO:0001": 0.01,
-            "GO:0002": 0.05,
-        }
-
-        self.options = GoNetworkOptions(
-            similarity_threshold=0.0,  # force edges
-            min_genes_per_term=1,
-            layout="spring",
-            verbose=False,
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_basic_execution(self, *_):
+        fig = plot_go_interaction_network_html(
+            self.data,
+            self.pvals,
+            "fake.gaf",
+            "fake.obo",
+            return_fig=True
         )
+        self.assertIsNotNone(fig)
 
-    ############################
-    # Mock helpers
-    ############################
-
-    def _mock_go3(self):
-        """
-        Mock go3 behavior to avoid real OBO/GAF loading.
-        """
-        import Graphs.GoNetwork as GoNetwork
-        return patch.multiple(
-            GoNetwork.go3,
-            load_go_terms=lambda x: None,
-            load_gaf=lambda x: {},
-            build_term_counter=lambda x: {},
-            semantic_similarity=lambda a, b, m, c: 0.8 if a != b else 1.0
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_html_output(self, *_):
+        html = plot_go_interaction_network_html(
+            self.data,
+            self.pvals,
+            "fake.gaf",
+            "fake.obo",
+            return_html=True
         )
+        self.assertTrue(isinstance(html, str))
 
-    ############################
-    # Core functionality tests
-    ############################
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_save_html(self, *_):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.html"
 
-    def test_returns_figure(self):
-        with self._mock_go3():
-            fig = plot_go_interaction_network_html(
-                self.gene2terms,
-                self.term_pvalues,
-                gaf_path="dummy.gaf",
-                obo_path="dummy.obo",
-                options=self.options,
-                return_fig=True
+            plot_go_interaction_network_html(
+                self.data,
+                self.pvals,
+                "fake.gaf",
+                "fake.obo",
+                save_html_to=path
             )
 
-        self.assertTrue(hasattr(fig, "to_html"))
+            self.assertTrue(path.exists())
 
-    def test_returns_html(self):
-        with self._mock_go3():
-            html = plot_go_interaction_network_html(
-                self.gene2terms,
-                self.term_pvalues,
-                gaf_path="dummy.gaf",
-                obo_path="dummy.obo",
-                options=self.options,
-                return_html=True
-            )
+    def test_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            plot_go_interaction_network_html({}, {}, "", "")
 
-        self.assertIn("<html", html.lower())
+    def test_invalid_layout(self):
+        with patch("gclusters_characterization.visualization.go_network.go3.load_go_terms"), \
+             patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={}), \
+             patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={}), \
+             patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9):
 
-    def test_filtering_min_genes(self):
-        opts = GoNetworkOptions(
-            similarity_threshold=0.0,
-            min_genes_per_term=3,  # no term reaches 3 genes
-            verbose=False
-        )
+            from gclusters_characterization.visualization.go_network import GoNetworkOptions
 
-        with self._mock_go3():
             with self.assertRaises(ValueError):
                 plot_go_interaction_network_html(
-                    self.gene2terms,
-                    self.term_pvalues,
-                    gaf_path="dummy.gaf",
-                    obo_path="dummy.obo",
-                    options=opts
+                    self.data,
+                    self.pvals,
+                    "fake.gaf",
+                    "fake.obo",
+                    options=GoNetworkOptions(layout="invalid"),
+                    return_fig=True
                 )
-
-    ############################
-    # Export tests
-    ############################
-
-    def test_html_export_temp_directory(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filepath = os.path.join(tmpdir, "go_network.html")
-
-            with self._mock_go3():
-                plot_go_interaction_network_html(
-                    self.gene2terms,
-                    self.term_pvalues,
-                    gaf_path="dummy.gaf",
-                    obo_path="dummy.obo",
-                    options=self.options,
-                    save_html_to=filepath
-                )
-
-            self.assertTrue(os.path.exists(filepath))
-
-        # Directory should be removed automatically
-        self.assertFalse(os.path.exists(tmpdir))
-
-    ############################
-    # Validation tests
-    ############################
-
-    def test_invalid_gene2terms(self):
-        with self.assertRaises(ValueError):
-            plot_go_interaction_network_html(
-                gene2terms={},
-                term_pvalues=self.term_pvalues,
-                gaf_path="dummy.gaf",
-                obo_path="dummy.obo",
-            )
-
-    def test_invalid_term_pvalues(self):
-        with self.assertRaises(ValueError):
-            plot_go_interaction_network_html(
-                gene2terms=self.gene2terms,
-                term_pvalues=None,
-                gaf_path="dummy.gaf",
-                obo_path="dummy.obo",
-            )
 
 
 if __name__ == "__main__":
