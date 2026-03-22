@@ -1,10 +1,7 @@
 cff-version: 1.2.0
 
-title: GClusters_Characterization
-
-message: >
-  If you use this software, please cite it using the metadata below.
-
+title: "GClusters Characterization"
+message: "If you use this software, please cite it as follows:"
 type: software
 
 authors:
@@ -18,8 +15,8 @@ authors:
     affiliation: Universidad de Santiago de Chile
     email: benjamin.gonzalez.h@usach.cl
 
-  - family-names: Castro
-    given-names: Sofia Paz Lourdes
+  - family-names: Lourdes Castro
+    given-names: Sofia Paz
     affiliation: Universidad de Santiago de Chile
     email: sofia.castro@usach.cl
 

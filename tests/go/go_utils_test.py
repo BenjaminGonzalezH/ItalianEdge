@@ -25,8 +25,6 @@ from gclusters_characterization.go.go_utils import (
     gunzip_file,
     ensure_gaf_file,
     ensure_gene_info_file,
-    build_gaf_gene_mappings,
-    map_genes_using_gaf,
     load_gene_info,
     entrez_to_symbol_ncbi,
     DownloadOptions,
@@ -174,51 +172,6 @@ class TestEnsureFiles(unittest.TestCase):
             )
 
             self.assertTrue(result.exists())
-
-
-class TestGAFMapping(unittest.TestCase):
-
-    def test_build_gaf_mappings(self):
-        """Mappings should be created correctly."""
-
-        with tempfile.TemporaryDirectory() as tmp:
-            gaf = os.path.join(tmp, "test.gaf")
-            create_dummy_gaf(gaf)
-
-            id2sym, sym2id = build_gaf_gene_mappings(gaf)
-
-            self.assertEqual(id2sym["GENE1"], "SYMBOL1")
-            self.assertEqual(sym2id["SYMBOL2"], "GENE2")
-
-    def test_map_genes_symbol(self):
-        """Mapping to symbols should work."""
-
-        with tempfile.TemporaryDirectory() as tmp:
-            gaf = os.path.join(tmp, "test.gaf")
-            create_dummy_gaf(gaf)
-
-            result = map_genes_using_gaf(
-                ["GENE1", "UNKNOWN"],
-                gaf,
-                to="symbol"
-            )
-
-            self.assertEqual(result, ["SYMBOL1", "UNKNOWN"])
-
-    def test_map_genes_id(self):
-        """Mapping to IDs should work."""
-
-        with tempfile.TemporaryDirectory() as tmp:
-            gaf = os.path.join(tmp, "test.gaf")
-            create_dummy_gaf(gaf)
-
-            result = map_genes_using_gaf(
-                ["SYMBOL1"],
-                gaf,
-                to="id"
-            )
-
-            self.assertEqual(result, ["GENE1"])
 
 
 class TestGeneInfo(unittest.TestCase):

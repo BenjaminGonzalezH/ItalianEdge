@@ -2,88 +2,74 @@
 RandValues
 ----------
 
-Utilities for computing similarity between clustering solutions
-using the Rand Index (RI) and Adjusted Rand Index (ARI).
+High-performance utilities for computing similarity between clustering
+solutions using the Rand Index (RI) and Adjusted Rand Index (ARI).
 
-These metrics quantify how similar two clustering partitions are
-by evaluating agreement in pairwise element assignments.
+This refactored version preserves the public API of the original module
+while improving performance, especially for cluster-level comparisons.
 
-Two comparison levels are supported:
+Main improvements
+-----------------
+1. Cluster-vs-cluster similarity no longer builds binary vectors for each pair.
+   Instead, clusters are encoded once into sparse membership matrices and
+   similarities are computed from contingency counts.
 
-1. Solution-level comparison
-   Measures similarity between entire clustering solutions
-   (cluster assignments for all elements).
+2. Solution-vs-solution similarity supports optional parallel execution.
 
-2. Cluster-level comparison
-   Measures similarity between individual clusters using
-   binary membership vectors defined over the union of elements.
+3. Internal helpers reduce Python-level loops and repeated set operations.
 
-Additional utilities are included for:
-
-• matching clusters between two clustering solutions
-• identifying equivalent clusters across multiple solutions
-
-Functions
----------
+Public API
+----------
 1. rand_index_solutions
-   Compute a similarity matrix of Rand Index values between solutions.
-
 2. adjusted_rand_index_solutions
-   Compute a similarity matrix of Adjusted Rand Index values.
-
 3. rand_index_clusters
-   Compute Rand similarity between clusters of two solutions.
-
 4. adjusted_rand_index_clusters
-   Compute Adjusted Rand similarity between clusters.
-
 5. compare_solutions_pair
-   Perform greedy cluster matching between two solutions.
-
 6. find_equivalent_clusters_rand
-   Generate a summary table describing cluster correspondences.
 """
 
-# ──────────────────────────────────────────────────────────────
-# Libraries
-# ──────────────────────────────────────────────────────────────
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Set, Tuple, Literal, Sequence, Any, Optional
+
 import numpy as np
 import pandas as pd
-from typing import List, Set, Tuple, Literal
+from scipy import sparse
 from sklearn.metrics import rand_score, adjusted_rand_score
+
+try:
+    from joblib import Parallel, delayed
+    _JOBLIB_AVAILABLE = True
+except Exception:
+    Parallel = None
+    delayed = None
+    _JOBLIB_AVAILABLE = False
+
 
 Metric = Literal["rand", "adjusted_rand"]
 
 
 # ──────────────────────────────────────────────────────────────
-# Internal helpers
+# Validation helpers
 # ──────────────────────────────────────────────────────────────
 
 def _validate_solution_matrix(matrix: np.ndarray) -> None:
     """
-    Validate the structure of a clustering solution matrix.
-
-    The matrix represents clustering assignments where:
-
-        rows    -> clustering solutions
-        columns -> genes (or items)
+    Validate a matrix of clustering labels.
 
     Parameters
     ----------
     matrix : numpy.ndarray
-        Matrix of cluster labels.
+        Matrix with shape (n_solutions, n_elements).
 
     Raises
     ------
     TypeError
-        If the input is not a NumPy array.
-
+        If matrix is not a NumPy array.
     ValueError
-        If the matrix is not two-dimensional or contains
-        invalid dimensions.
+        If matrix is not valid for pairwise comparison.
     """
-
     if not isinstance(matrix, np.ndarray):
         raise TypeError("Solutions_Matrix must be numpy.ndarray.")
 
@@ -94,26 +80,12 @@ def _validate_solution_matrix(matrix: np.ndarray) -> None:
         raise ValueError("Empty solutions matrix.")
 
     if matrix.shape[1] < 2:
-        raise ValueError("Matrix must contain at least 2 genes.")
+        raise ValueError("Matrix must contain at least 2 elements.")
 
 
-def _validate_cluster_solutions(solutions: List[List[Set]]) -> None:
+def _validate_cluster_solutions(solutions: List[List[Set[Any]]]) -> None:
     """
-    Validate the structure of cluster-based solutions.
-
-    Each clustering solution must be represented as:
-
-        list[ set ]
-
-    where each set corresponds to a cluster containing
-    the indices of its elements.
-
-    Example
-    -------
-    [
-        [{0,1}, {2,3}],
-        [{0,2}, {1,3}]
-    ]
+    Validate cluster-based solutions.
 
     Parameters
     ----------
@@ -123,173 +95,405 @@ def _validate_cluster_solutions(solutions: List[List[Set]]) -> None:
     Raises
     ------
     TypeError
-        If the structure does not follow list-of-lists-of-sets.
-
+        If the structure is invalid.
     ValueError
-        If any clustering solution contains zero clusters.
+        If any solution is empty.
     """
-    if not isinstance(solutions, list) or not all(isinstance(sol, list) for sol in solutions):
-        raise TypeError("Each solution must be a list of sets.")
+    if not isinstance(solutions, list):
+        raise TypeError("solutions must be a list of solutions.")
 
     for sol in solutions:
-
-        if not all(isinstance(c, set) for c in sol):
-            raise TypeError("Each cluster must be a set.")
+        if not isinstance(sol, list):
+            raise TypeError("Each solution must be a list of sets.")
 
         if len(sol) == 0:
             raise ValueError("Each solution must contain at least one cluster.")
 
+        for cluster in sol:
+            if not isinstance(cluster, set):
+                raise TypeError("Each cluster must be a set.")
 
-def _binary_labels_for_cluster_pair(
-    cluster_a: Set,
-    cluster_b: Set,
-) -> Tuple[np.ndarray, np.ndarray]:
+
+def _validate_two_solutions(solution1: List[Set[Any]], solution2: List[Set[Any]]) -> None:
     """
-    Construct binary membership vectors for two clusters.
-
-    The vectors are defined over the union of elements from
-    both clusters:
-
-        U = cluster_a ∪ cluster_b
-
-    Each vector indicates whether an element belongs to
-    the corresponding cluster.
-
-    Binary encoding
-    ---------------
-        1 → element belongs to the cluster
-        0 → element does not belong to the cluster
-
-    Example
-    -------
-    cluster_a = {1,2}
-    cluster_b = {2,3}
-
-    universe = [1,2,3]
-
-    a = [1,1,0]
-    b = [0,1,1]
-
-    These vectors can then be compared using similarity
-    metrics such as Rand Index or Adjusted Rand Index.
+    Validate two clustering solutions represented as list[set].
 
     Parameters
     ----------
-    cluster_a : set
-        Elements belonging to cluster A.
+    solution1 : list[set]
+    solution2 : list[set]
 
-    cluster_b : set
-        Elements belonging to cluster B.
+    Raises
+    ------
+    TypeError
+        If inputs are not list[set].
+    ValueError
+        If any input is empty.
+    """
+    if not isinstance(solution1, list) or not all(isinstance(s, set) for s in solution1):
+        raise TypeError("Solution1 must be list of sets.")
+
+    if not isinstance(solution2, list) or not all(isinstance(s, set) for s in solution2):
+        raise TypeError("Solution2 must be list of sets.")
+
+    if not solution1 or not solution2:
+        raise ValueError("Solutions must not be empty.")
+
+
+# ──────────────────────────────────────────────────────────────
+# Cluster encoding helpers
+# ──────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class _EncodedSolution:
+    """
+    Sparse binary membership representation for one solution.
+
+    Attributes
+    ----------
+    membership : scipy.sparse.csr_matrix
+        Sparse matrix of shape (n_clusters, n_items).
+        Entry (i, j) = 1 if item j belongs to cluster i.
+    cluster_sizes : numpy.ndarray
+        Size of each cluster.
+    """
+    membership: sparse.csr_matrix
+    cluster_sizes: np.ndarray
+
+
+def _build_global_index(solution1: List[Set[Any]], solution2: List[Set[Any]]) -> Dict[Any, int]:
+    """
+    Create a stable item-to-column index for two solutions.
+
+    Parameters
+    ----------
+    solution1 : list[set]
+    solution2 : list[set]
 
     Returns
     -------
-    tuple of numpy.ndarray
-        Binary membership vectors representing each cluster.
+    dict
+        Mapping from item to integer column index.
     """
+    universe = set()
+    for cluster in solution1:
+        universe.update(cluster)
+    for cluster in solution2:
+        universe.update(cluster)
 
-    universe = list(cluster_a | cluster_b)
+    return {item: idx for idx, item in enumerate(sorted(universe))}
 
-    universe.sort()
 
-    a = np.fromiter((1 if g in cluster_a else 0 for g in universe), dtype=np.int8)
-    b = np.fromiter((1 if g in cluster_b else 0 for g in universe), dtype=np.int8)
+def _encode_solution(solution: List[Set[Any]], item_to_col: Dict[Any, int]) -> _EncodedSolution:
+    """
+    Encode one solution into a sparse cluster-membership matrix.
 
-    return a, b
+    Parameters
+    ----------
+    solution : list[set]
+        Clustering solution.
+    item_to_col : dict
+        Global item-to-column mapping.
+
+    Returns
+    -------
+    _EncodedSolution
+        Sparse representation of the solution.
+    """
+    rows: List[int] = []
+    cols: List[int] = []
+    data: List[int] = []
+    cluster_sizes = np.empty(len(solution), dtype=np.int64)
+
+    for i, cluster in enumerate(solution):
+        cluster_sizes[i] = len(cluster)
+        for item in cluster:
+            rows.append(i)
+            cols.append(item_to_col[item])
+            data.append(1)
+
+    membership = sparse.csr_matrix(
+        (data, (rows, cols)),
+        shape=(len(solution), len(item_to_col)),
+        dtype=np.int8,
+    )
+
+    return _EncodedSolution(membership=membership, cluster_sizes=cluster_sizes)
+
+
+def _pairwise_overlap_counts(
+    encoded1: _EncodedSolution,
+    encoded2: _EncodedSolution,
+) -> np.ndarray:
+    """
+    Compute pairwise intersection sizes between clusters.
+
+    Parameters
+    ----------
+    encoded1 : _EncodedSolution
+    encoded2 : _EncodedSolution
+
+    Returns
+    -------
+    numpy.ndarray
+        Dense matrix where entry (i, j) is |cluster_i ∩ cluster_j|.
+    """
+    overlaps = (encoded1.membership @ encoded2.membership.T).toarray()
+    return overlaps.astype(np.int64, copy=False)
+
+
+# ──────────────────────────────────────────────────────────────
+# Rand / ARI from contingency counts
+# ──────────────────────────────────────────────────────────────
+
+def _comb2(x: np.ndarray) -> np.ndarray:
+    """
+    Compute x choose 2 elementwise.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+
+    Returns
+    -------
+    numpy.ndarray
+    """
+    x = x.astype(np.float64, copy=False)
+    return x * (x - 1.0) / 2.0
+
+
+def _rand_from_binary_contingency(
+    n11: np.ndarray,
+    n10: np.ndarray,
+    n01: np.ndarray,
+) -> np.ndarray:
+    """
+    Compute Rand Index matrix from binary contingency counts.
+
+    Here the element-level contingency table is:
+
+        [[n00, n01],
+         [n10, n11]]
+
+    For the current use case based on the union of both clusters,
+    n00 is always zero.
+
+    Parameters
+    ----------
+    n11 : numpy.ndarray
+        Count of shared members.
+    n10 : numpy.ndarray
+        Count of elements in A but not in B.
+    n01 : numpy.ndarray
+        Count of elements in B but not in A.
+
+    Returns
+    -------
+    numpy.ndarray
+        Rand Index values.
+    """
+    n = n11 + n10 + n01
+    total_pairs = _comb2(n)
+
+    same_same = _comb2(n11) + _comb2(n10) + _comb2(n01)
+    same_diff = (n11 * n10) + (n11 * n01)
+
+    agreements = same_same + same_diff
+
+    out = np.ones_like(total_pairs, dtype=np.float64)
+    mask = total_pairs > 0
+    out[mask] = agreements[mask] / total_pairs[mask]
+    return out
+
+
+def _ari_from_binary_contingency(
+    n11: np.ndarray,
+    n10: np.ndarray,
+    n01: np.ndarray,
+) -> np.ndarray:
+    """
+    Compute Adjusted Rand Index matrix from binary contingency counts.
+
+    Parameters
+    ----------
+    n11 : numpy.ndarray
+        Count of shared members.
+    n10 : numpy.ndarray
+        Count of elements in A but not in B.
+    n01 : numpy.ndarray
+        Count of elements in B but not in A.
+
+    Returns
+    -------
+    numpy.ndarray
+        Adjusted Rand Index values.
+    """
+    # Contingency matrix:
+    # [[0,   n01],
+    #  [n10, n11]]
+    n = n11 + n10 + n01
+    total_comb = _comb2(n)
+
+    sum_comb_cells = _comb2(n11) + _comb2(n10) + _comb2(n01)
+
+    row1 = n01
+    row2 = n10 + n11
+    col1 = n10
+    col2 = n01 + n11
+
+    sum_comb_rows = _comb2(row1) + _comb2(row2)
+    sum_comb_cols = _comb2(col1) + _comb2(col2)
+
+    out = np.ones_like(total_comb, dtype=np.float64)
+    mask = total_comb > 0
+
+    expected_index = np.zeros_like(total_comb, dtype=np.float64)
+    expected_index[mask] = (sum_comb_rows[mask] * sum_comb_cols[mask]) / total_comb[mask]
+
+    max_index = 0.5 * (sum_comb_rows + sum_comb_cols)
+    denominator = max_index - expected_index
+    numerator = sum_comb_cells - expected_index
+
+    stable_mask = mask & (np.abs(denominator) > 1e-15)
+    out[stable_mask] = numerator[stable_mask] / denominator[stable_mask]
+
+    degenerate_mask = mask & ~stable_mask
+    out[degenerate_mask] = 1.0
+
+    return out
+
+
+def _cluster_similarity_matrix_fast(
+    solution1: List[Set[Any]],
+    solution2: List[Set[Any]],
+    metric: Metric,
+) -> np.ndarray:
+    """
+    Fast cluster-vs-cluster similarity using sparse membership matrices.
+
+    Parameters
+    ----------
+    solution1 : list[set]
+    solution2 : list[set]
+    metric : {"rand", "adjusted_rand"}
+
+    Returns
+    -------
+    numpy.ndarray
+        Similarity matrix.
+    """
+    item_to_col = _build_global_index(solution1, solution2)
+    encoded1 = _encode_solution(solution1, item_to_col)
+    encoded2 = _encode_solution(solution2, item_to_col)
+
+    n11 = _pairwise_overlap_counts(encoded1, encoded2)
+    size1 = encoded1.cluster_sizes[:, None]
+    size2 = encoded2.cluster_sizes[None, :]
+
+    n10 = size1 - n11
+    n01 = size2 - n11
+
+    if metric == "rand":
+        return _rand_from_binary_contingency(n11, n10, n01)
+
+    if metric == "adjusted_rand":
+        return _ari_from_binary_contingency(n11, n10, n01)
+
+    raise ValueError("metric must be 'rand' or 'adjusted_rand'.")
 
 
 # ──────────────────────────────────────────────────────────────
 # Public API: solutions-level
 # ──────────────────────────────────────────────────────────────
 
-def rand_index_solutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
+def _pair_score_rand(i: int, j: int, matrix: np.ndarray) -> Tuple[int, int, float]:
+    """Compute one Rand score for a pair of solutions."""
+    return i, j, float(rand_score(matrix[i], matrix[j]))
+
+
+def _pair_score_ari(i: int, j: int, matrix: np.ndarray) -> Tuple[int, int, float]:
+    """Compute one Adjusted Rand score for a pair of solutions."""
+    return i, j, float(adjusted_rand_score(matrix[i], matrix[j]))
+
+
+def rand_index_solutions(
+    Solutions_Matrix: np.ndarray,
+    *,
+    n_jobs: int = 1,
+) -> np.ndarray:
     """
     Compute pairwise Rand Index between clustering solutions.
-
-    The Rand Index measures agreement between two clustering
-    assignments by evaluating whether pairs of elements are
-    grouped together or separated in both solutions.
-
-    This implementation relies on the sklearn implementation
-    of the Rand Index, which internally uses contingency tables
-    rather than explicit pairwise comparisons.
 
     Parameters
     ----------
     Solutions_Matrix : numpy.ndarray
-        Matrix containing cluster labels.
-
-        Shape:
-            (n_solutions, n_elements)
+        Matrix of cluster labels with shape (n_solutions, n_elements).
+    n_jobs : int, default=1
+        Number of parallel jobs. Use -1 to use all available cores.
 
     Returns
     -------
     numpy.ndarray
-        Symmetric similarity matrix containing Rand Index values.
-
-        Shape:
-            (n_solutions × n_solutions)
+        Symmetric similarity matrix.
     """
-
     _validate_solution_matrix(Solutions_Matrix)
 
     n_solutions = Solutions_Matrix.shape[0]
+    R = np.eye(n_solutions, dtype=np.float64)
 
-    R = np.eye(n_solutions)
+    pairs = [(i, j) for i in range(n_solutions) for j in range(i + 1, n_solutions)]
 
-    for i in range(n_solutions):
-        for j in range(i + 1, n_solutions):
+    if n_jobs != 1 and _JOBLIB_AVAILABLE and len(pairs) > 0:
+        results = Parallel(n_jobs=n_jobs, prefer="processes")(
+            delayed(_pair_score_rand)(i, j, Solutions_Matrix) for i, j in pairs
+        )
+    else:
+        results = [_pair_score_rand(i, j, Solutions_Matrix) for i, j in pairs]
 
-            score = rand_score(
-                Solutions_Matrix[i],
-                Solutions_Matrix[j],
-            )
-
-            R[i, j] = R[j, i] = score
+    for i, j, score in results:
+        R[i, j] = score
+        R[j, i] = score
 
     return R
 
 
-def adjusted_rand_index_solutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
+def adjusted_rand_index_solutions(
+    Solutions_Matrix: np.ndarray,
+    *,
+    n_jobs: int = 1,
+) -> np.ndarray:
     """
-    Compute pairwise Adjusted Rand Index (ARI) between clustering solutions.
-
-    The Adjusted Rand Index corrects the Rand Index by accounting
-    for the similarity expected due to random cluster assignments.
-
-    ARI values range between:
-
-        -1 → completely different partitions
-         0 → random similarity
-         1 → identical partitions
-
-    This implementation uses sklearn.metrics.adjusted_rand_score.
+    Compute pairwise Adjusted Rand Index between clustering solutions.
 
     Parameters
     ----------
     Solutions_Matrix : numpy.ndarray
-        Matrix of clustering labels.
+        Matrix of cluster labels with shape (n_solutions, n_elements).
+    n_jobs : int, default=1
+        Number of parallel jobs. Use -1 to use all available cores.
 
     Returns
     -------
     numpy.ndarray
-        Symmetric similarity matrix containing ARI values.
+        Symmetric similarity matrix.
     """
-
     _validate_solution_matrix(Solutions_Matrix)
 
     n_solutions = Solutions_Matrix.shape[0]
+    A = np.eye(n_solutions, dtype=np.float64)
 
-    A = np.eye(n_solutions)
+    pairs = [(i, j) for i in range(n_solutions) for j in range(i + 1, n_solutions)]
 
-    for i in range(n_solutions):
-        for j in range(i + 1, n_solutions):
+    if n_jobs != 1 and _JOBLIB_AVAILABLE and len(pairs) > 0:
+        results = Parallel(n_jobs=n_jobs, prefer="processes")(
+            delayed(_pair_score_ari)(i, j, Solutions_Matrix) for i, j in pairs
+        )
+    else:
+        results = [_pair_score_ari(i, j, Solutions_Matrix) for i, j in pairs]
 
-            score = adjusted_rand_score(
-                Solutions_Matrix[i],
-                Solutions_Matrix[j],
-            )
-
-            A[i, j] = A[j, i] = score
+    for i, j, score in results:
+        A[i, j] = score
+        A[j, i] = score
 
     return A
 
@@ -298,139 +502,76 @@ def adjusted_rand_index_solutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
 # Public API: clusters-level
 # ──────────────────────────────────────────────────────────────
 
-def rand_index_clusters(Solution1: List[Set], Solution2: List[Set]) -> np.ndarray:
+def rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[Any]]) -> np.ndarray:
     """
     Compute Rand Index similarity between clusters of two solutions.
 
-    Each cluster pair is converted into binary membership vectors
-    over the union of elements:
-
-        U = cluster_1 ∪ cluster_2
-
-    These vectors are then compared using the sklearn Rand Index.
-
     Parameters
     ----------
     Solution1 : list[set]
-        Clusters belonging to the first solution.
-
+        Clusters from the first solution.
     Solution2 : list[set]
-        Clusters belonging to the second solution.
+        Clusters from the second solution.
 
     Returns
     -------
     numpy.ndarray
-        Similarity matrix with shape:
-
-            (n_clusters_solution1 × n_clusters_solution2)
+        Similarity matrix with shape (n_clusters_solution1, n_clusters_solution2).
     """
-
-    if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
-        raise TypeError("Solution1 must be list of sets.")
-
-    if not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
-        raise TypeError("Solution2 must be list of sets.")
-
-    if not Solution1 or not Solution2:
-        raise ValueError("Solutions must not be empty.")
-
-    n1, n2 = len(Solution1), len(Solution2)
-
-    M = np.zeros((n1, n2))
-
-    for i, c1 in enumerate(Solution1):
-        for j, c2 in enumerate(Solution2):
-
-            a, b = _binary_labels_for_cluster_pair(c1, c2)
-
-            M[i, j] = rand_score(a, b)
-
-    return M
+    _validate_two_solutions(Solution1, Solution2)
+    return _cluster_similarity_matrix_fast(Solution1, Solution2, metric="rand")
 
 
-def adjusted_rand_index_clusters(Solution1: List[Set], Solution2: List[Set]) -> np.ndarray:
+def adjusted_rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[Any]]) -> np.ndarray:
     """
-    Compute Adjusted Rand Index similarity between clusters.
-
-    Cluster membership vectors are constructed over the union
-    of cluster elements and compared using sklearn ARI.
+    Compute Adjusted Rand Index similarity between clusters of two solutions.
 
     Parameters
     ----------
     Solution1 : list[set]
-        Clusters belonging to the first solution.
-
+        Clusters from the first solution.
     Solution2 : list[set]
-        Clusters belonging to the second solution.
+        Clusters from the second solution.
 
     Returns
     -------
     numpy.ndarray
-        Matrix containing Adjusted Rand similarity values.
+        Similarity matrix with shape (n_clusters_solution1, n_clusters_solution2).
     """
+    _validate_two_solutions(Solution1, Solution2)
+    return _cluster_similarity_matrix_fast(Solution1, Solution2, metric="adjusted_rand")
 
-    if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
-        raise TypeError("Solution1 must be list of sets.")
 
-    if not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
-        raise TypeError("Solution2 must be list of sets.")
-
-    if not Solution1 or not Solution2:
-        raise ValueError("Solutions must not be empty.")
-
-    n1, n2 = len(Solution1), len(Solution2)
-
-    M = np.zeros((n1, n2))
-
-    for i, c1 in enumerate(Solution1):
-        for j, c2 in enumerate(Solution2):
-
-            a, b = _binary_labels_for_cluster_pair(c1, c2)
-
-            M[i, j] = adjusted_rand_score(a, b)
-
-    return M
-
+# ──────────────────────────────────────────────────────────────
+# Matching utilities
+# ──────────────────────────────────────────────────────────────
 
 def compare_solutions_pair(
     idx1: int,
     idx2: int,
-    solutions: List[List[Set]],
+    solutions: List[List[Set[Any]]],
     metric: Metric = "rand",
 ) -> List[Tuple[int, int, float]]:
     """
-    Identify the best matching clusters between two clustering solutions.
-
-    A similarity matrix is computed between clusters of both solutions.
-    The matrix is then flattened and sorted in descending similarity.
-
-    A greedy matching procedure is applied to select cluster pairs
-    without reuse of clusters.
+    Greedily match the most similar clusters between two solutions.
 
     Parameters
     ----------
     idx1 : int
-        Index of the first clustering solution.
-
+        Index of the first solution.
     idx2 : int
-        Index of the second clustering solution.
-
+        Index of the second solution.
     solutions : list[list[set]]
         Collection of clustering solutions.
-
-    metric : {"rand", "adjusted_rand"}
-        Similarity metric used for cluster comparison.
+    metric : {"rand", "adjusted_rand"}, default="rand"
+        Similarity metric.
 
     Returns
     -------
-    list[tuple]
-        List of matched cluster pairs:
-
-            (cluster_index_solution1,
-             cluster_index_solution2,
-             similarity_score)
+    list[tuple[int, int, float]]
+        Matched cluster pairs as:
+        (cluster_index_solution1, cluster_index_solution2, similarity_score)
     """
-
     _validate_cluster_solutions(solutions)
 
     if not (0 <= idx1 < len(solutions)) or not (0 <= idx2 < len(solutions)):
@@ -447,82 +588,63 @@ def compare_solutions_pair(
         raise ValueError("metric must be 'rand' or 'adjusted_rand'.")
 
     n1, n2 = M.shape
+    used1: Set[int] = set()
+    used2: Set[int] = set()
+    matches: List[Tuple[int, int, float]] = []
 
-    used1 = set()
-    used2 = set()
+    flat_order = np.argsort(M, axis=None)[::-1]
 
-    matches = []
+    for k in flat_order:
+        i, j = np.unravel_index(k, M.shape)
 
-    flat = np.argsort(M.ravel())[::-1]
+        if i in used1 or j in used2:
+            continue
 
-    for k in flat:
+        score = float(M[i, j])
+        matches.append((int(i), int(j), score))
+        used1.add(int(i))
+        used2.add(int(j))
 
-        i = int(k // n2)
-        j = int(k % n2)
-
-        if i not in used1 and j not in used2:
-
-            matches.append((i, j, float(M[i, j])))
-
-            used1.add(i)
-            used2.add(j)
-
-            if len(used1) == n1 or len(used2) == n2:
-                break
+        if len(used1) == n1 or len(used2) == n2:
+            break
 
     return matches
 
 
-# ──────────────────────────────────────────────────────────────
-# Summary utilities
-# ──────────────────────────────────────────────────────────────
-
 def find_equivalent_clusters_rand(
-    solutions: List[List[Set]],
+    solutions: List[List[Set[Any]]],
     metric: Metric = "rand",
 ) -> pd.DataFrame:
     """
-    Generate a summary table describing cluster correspondences
-    across multiple clustering solutions.
-
-    Each pair of solutions is compared and clusters are matched
-    using the specified similarity metric.
+    Summarize cluster correspondences across multiple solutions.
 
     Parameters
     ----------
     solutions : list[list[set]]
         Collection of clustering solutions.
-
-    metric : {"rand", "adjusted_rand"}
-        Similarity metric used for cluster comparison.
+    metric : {"rand", "adjusted_rand"}, default="rand"
+        Similarity metric used for matching.
 
     Returns
     -------
     pandas.DataFrame
-        Table summarizing cluster equivalences.
-
-        Columns
-        -------
-        Solution 1
-        Solution 2
-        Cluster 1
-        Cluster 2
-        Similarity
-        Metric
+        Summary table with columns:
+        - Solution 1
+        - Solution 2
+        - Cluster 1
+        - Cluster 2
+        - Similarity
+        - Metric
     """
-
     _validate_cluster_solutions(solutions)
 
-    rows = []
+    rows: List[Dict[str, Any]] = []
 
     for idx1 in range(len(solutions)):
-
         for idx2 in range(idx1 + 1, len(solutions)):
-
             pairs = compare_solutions_pair(idx1, idx2, solutions, metric=metric)
 
             for c1, c2, sim in pairs:
-
                 rows.append(
                     {
                         "Solution 1": idx1,

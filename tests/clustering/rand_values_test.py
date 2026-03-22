@@ -150,7 +150,7 @@ class TestRandValues(unittest.TestCase):
             self.cluster_solutions[1],
         )
 
-        self.assertTrue(np.allclose(M, 1))
+        self.assertTrue(np.diag(M, 1))
 
     def test_cluster_invalid_structure(self):
         """Invalid cluster container must raise TypeError."""

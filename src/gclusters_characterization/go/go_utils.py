@@ -321,54 +321,6 @@ def ensure_gene_info_file(
 # Gene mapping
 # ---------------------------------------------------------------------
 
-def build_gaf_gene_mappings(gaf_path: PathLike) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """
-    Build ID ↔ Symbol mappings from GAF file.
-    """
-    p = _as_path(gaf_path)
-
-    id_to_symbol = {}
-    symbol_to_id = {}
-
-    with open(p, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("!"):
-                continue
-
-            parts = line.strip().split("\t")
-            if len(parts) < 3:
-                continue
-
-            gene_id = parts[1]
-            gene_symbol = parts[2]
-
-            id_to_symbol[gene_id] = gene_symbol
-            symbol_to_id[gene_symbol] = gene_id
-
-    return id_to_symbol, symbol_to_id
-
-
-def map_genes_using_gaf(
-    genes: Sequence[str],
-    gaf_path: PathLike,
-    *,
-    to: Literal["symbol", "id"] = "symbol",
-) -> List[str]:
-    """
-    Map gene identifiers using GAF file.
-    """
-    id_to_symbol, symbol_to_id = build_gaf_gene_mappings(gaf_path)
-
-    out = []
-    for g in genes:
-        if to == "symbol":
-            out.append(id_to_symbol.get(g, g))
-        else:
-            out.append(symbol_to_id.get(g, g))
-
-    return out
-
-
 def load_gene_info(gene_info_path: PathLike) -> pd.DataFrame:
     """
     Load gene_info file (NCBI).

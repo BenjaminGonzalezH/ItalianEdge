@@ -60,7 +60,7 @@ class MappingOptions:
 
     organism_gp: str = "hsapiens"
     tax_id: int = 9606
-    scopes_mg: Sequence[str] = ("symbol", "alias", "tair", "accession", "refseq")
+    scopes_mg: Sequence[str] = ("symbol", "alias", "tair", "accession", "refseq", "ensembl.gene")
     na_value: str = "NA"
 
     n_threads: int = 4

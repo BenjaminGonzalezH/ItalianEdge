@@ -55,7 +55,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
-Results/
+resources/
 *.obo
 *.gaf
 *goa_human

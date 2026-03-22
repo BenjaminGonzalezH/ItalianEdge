@@ -46,6 +46,8 @@ class TestPluralityVoting(unittest.TestCase):
             [2,2,1,1]
         ])
 
+        self.genes = ["AASD", "ASDSD", "QWEX", "DFS"]
+
     ############################
     # Validation
     ############################
@@ -116,6 +118,7 @@ class TestPluralityVoting(unittest.TestCase):
 
         fig = plot_consensus_confidence(
             confidence,
+            self.genes,
             return_fig=True
         )
 
@@ -127,6 +130,7 @@ class TestPluralityVoting(unittest.TestCase):
 
         html = plot_consensus_confidence(
             confidence,
+            self.genes,
             return_html=True
         )
 
@@ -142,6 +146,7 @@ class TestPluralityVoting(unittest.TestCase):
 
             plot_consensus_confidence(
                 confidence,
+                self.genes,
                 save_html_to=str(path)
             )
 
@@ -153,14 +158,14 @@ class TestPluralityVoting(unittest.TestCase):
 
     def test_plurality_voting_basic(self):
         """Plurality voting should return consensus and confidence."""
-        consensus, confidence = plurality_voting(self.solutions)
+        consensus, confidence = plurality_voting(self.solutions, self.genes)
 
         self.assertEqual(consensus.shape[0], 4)
         self.assertEqual(confidence.shape[0], 4)
 
     def test_plurality_voting_confidence_range(self):
         """Confidence must always be between 0 and 1."""
-        _, confidence = plurality_voting(self.solutions)
+        _, confidence = plurality_voting(self.solutions, self.genes)
 
         self.assertTrue(np.all(confidence >= 0))
         self.assertTrue(np.all(confidence <= 1))
@@ -173,6 +178,7 @@ class TestPluralityVoting(unittest.TestCase):
 
             plurality_voting(
                 self.solutions,
+                self.genes,
                 plot_confidence=True,
                 save_plot_to=str(path)
             )

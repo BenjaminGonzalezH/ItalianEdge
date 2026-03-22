@@ -25,11 +25,13 @@ Functions
 
 import numpy as np
 import plotly.graph_objects as go
-
+from pathlib import Path
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 from scipy.optimize import linear_sum_assignment
+
+PathLike = Union[str, Path]
 
 
 # ─────────────────────────────────────────────
@@ -207,9 +209,12 @@ def _plurality_vote(matrix):
 # ─────────────────────────────────────────────
 # Visualization
 # ─────────────────────────────────────────────
+def _as_path(p: PathLike) -> Path:
+    return p if isinstance(p, Path) else Path(p)
 
 def plot_consensus_confidence(
     confidence: np.ndarray,
+    genes: list[str],
     *,
     save_html_to: Optional[str] = None,
     return_html: bool = False,
@@ -240,12 +245,10 @@ def plot_consensus_confidence(
     Optional[Plotly Figure or HTML string]
     """
 
-    indices = list(range(len(confidence)))
-
     fig = go.Figure()
 
     fig.add_bar(
-        x=indices,
+        x=genes,
         y=confidence,
         marker_color="steelblue",
         hovertemplate="Element %{x}<br>Confidence %{y:.2f}<extra></extra>"
@@ -265,6 +268,10 @@ def plot_consensus_confidence(
         html = fig.to_html(include_plotlyjs="cdn", full_html=True)
 
         if save_html_to:
+            p = _as_path(save_html_to)
+            if p.parent and not p.parent.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+
             with open(save_html_to, "w", encoding="utf-8") as f:
                 f.write(html)
 
@@ -284,6 +291,7 @@ def plot_consensus_confidence(
 
 def plurality_voting(
     solutions_matrix: np.ndarray,
+    genes: list[str],
     *,
     plot_confidence: bool = False,
     save_plot_to: Optional[str] = None
@@ -347,6 +355,7 @@ def plurality_voting(
 
         plot_consensus_confidence(
             confidence,
+            genes,
             save_html_to=save_plot_to
         )
 
