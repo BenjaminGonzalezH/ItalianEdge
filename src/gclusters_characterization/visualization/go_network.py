@@ -15,11 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
 import logging
-import os
-import re
 from itertools import combinations
+import math
 
-import numpy as np
 import networkx as nx
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
@@ -122,6 +120,11 @@ def _build_plotly_figure(
     norm = mcolors.Normalize(vmin=min(pvalues), vmax=max(pvalues))
 
     def get_color(term):
+        p = term_pvalues.get(term, None)
+
+        if p is None or (isinstance(p, float) and math.isnan(p)):
+            return "#808080"  # color para missing
+  
         return mcolors.to_hex(cmap(norm(term_pvalues.get(term, 0.05))))
 
     # Edges

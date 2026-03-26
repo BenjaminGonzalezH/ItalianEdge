@@ -182,7 +182,7 @@ def plot_go_metric(
             x="gene_ratio",
             y="name",
             size="intersection_size",
-            color="neg_log10_p",
+            color="p_value",
             color_continuous_scale=options.colorscale,
         )
     else:

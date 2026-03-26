@@ -651,8 +651,7 @@ def find_equivalent_clusters_rand(
                         "Solution 2": idx2,
                         "Cluster 1": c1,
                         "Cluster 2": c2,
-                        "Similarity": sim,
-                        "Metric": metric,
+                        f"{metric} Similarity": sim,
                     }
                 )
 

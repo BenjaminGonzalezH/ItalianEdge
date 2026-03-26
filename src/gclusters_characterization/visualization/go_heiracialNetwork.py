@@ -429,6 +429,7 @@ def _build_figure(
             f"<b>{name}</b>"
             f"<br>GO: {n}"
             f"<br>p-value: {pval:.2e}"
+            f"<br>q-score: {-np.log10(pval):.2e}"
             f"<br>Genes: {n_genes}"
             f"<br><i>Click: highlight ancestors/descendants</i>"
         )
