@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import  List, Optional, Sequence, Tuple, Union, Literal
 import logging
+import sys
 import numpy as np
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster, cophenet
 from scipy.spatial.distance import squareform
@@ -65,7 +66,7 @@ class ClusteringOptions:
     method: LinkageMethod = "single"
     validate_distance: bool = True
     sym_tol: float = 1e-12
-    verbose = True
+    verbose: bool = True
 
 
 @dataclass(frozen=True)
@@ -264,14 +265,22 @@ def _build_dendrogram_figure(
     # Compute cutoff height used for coloring
     cutoff_height = _compute_cutoff_height(Z, num_groups)
 
-    # Compute dendrogram structure
-    ddata = dendrogram(
-        Z,
-        labels=labels,
-        color_threshold=cutoff_height,
-        above_threshold_color=opts.line_color,
-        no_plot=True
-    )
+    # Compute dendrogram structure.
+    # scipy.cluster.hierarchy.dendrogram is recursive; large linkage trees
+    # can exceed Python's default limit (~1000 frames). We raise the limit
+    # temporarily and restore it afterwards.
+    _prev_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(_prev_limit, len(Z) * 3 + 1000))
+    try:
+        ddata = dendrogram(
+            Z,
+            labels=labels,
+            color_threshold=cutoff_height,
+            above_threshold_color=opts.line_color,
+            no_plot=True
+        )
+    finally:
+        sys.setrecursionlimit(_prev_limit)
 
     fig = go.Figure()
 

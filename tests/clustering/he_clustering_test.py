@@ -216,6 +216,22 @@ class TestHeClustering(unittest.TestCase):
 
             self.assertEqual(len(labels), 4)
 
+    ########################## Dataclass field tests ##########################
+
+    def test_verbose_field_is_overridable(self):
+        """
+        ClusteringOptions.verbose must be a proper dataclass field so that
+        callers can suppress output via ClusteringOptions(verbose=False).
+
+        This would raise TypeError if verbose were a bare class variable
+        instead of an annotated field.
+        """
+        opts_silent = ClusteringOptions(verbose=False)
+        self.assertFalse(opts_silent.verbose)
+
+        opts_default = ClusteringOptions()
+        self.assertTrue(opts_default.verbose)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,12 +8,12 @@ version = "1.0.0"
 description = "Toolkit for gene clustering characterization"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 
 authors = [
   {name = "Mario Inostroza Ponta", email = "mario.inostroza@usach.cl"},
-  {name = "Benjamín González Hurtado", email = "benjamin.gonzalez.h@usach.cl"},
-  {name = "Sofía Paz Lourdes Castro", email = "sofia.castro@usach.cl"}
+  {name = "Benjamín González Hurtado", email = "benjamin.gonzalez.h@usach.cl"}
 ]
 
 keywords = [
@@ -26,7 +26,7 @@ keywords = [
 ]
 
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
   "Programming Language :: Python :: 3",
@@ -56,8 +56,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/BenjaminGonzalezH/ItalianEdge"
 Repository = "https://github.com/BenjaminGonzalezH/ItalianEdge"
-Issues = "https://github.com/BenjaminGonzalezH/ItalianEdge"
-Documentation = "https://github.com/BenjaminGonzalezH/ItalianEdge"
+Issues = "https://github.com/BenjaminGonzalezH/ItalianEdge/issues"
+Documentation = "PLACEHOLDER — insert documentation URL (e.g. ReadTheDocs) once published"
 
 [tool.setuptools.packages.find]
 where = ["src"]

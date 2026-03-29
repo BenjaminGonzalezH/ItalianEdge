@@ -429,13 +429,30 @@ def estimate_similarity_threshold_combined(
     *,
     options: GMMThresholdOptions = GMMThresholdOptions(),
     plot: bool = False,
-    save_html_to: Optional[PathLike] = None
+    save_html_to: Optional[PathLike] = None,
+    add_combined_column: bool = False,
 ):
     """
     Estimate threshold from combined similarity metrics.
 
     Combines two columns into a single similarity measure before
     applying GMM threshold estimation.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+    columns : tuple[str, str]
+        Names of the two similarity columns to combine.
+    options : GMMThresholdOptions
+    plot : bool
+        If True, generate an interactive GMM visualization.
+    save_html_to : str or Path, optional
+        File path where the HTML visualization will be saved.
+    add_combined_column : bool, default False
+        If True, write the combined metric back into *dataframe* under
+        the column name ``"combined_similarity"``.  Set this explicitly
+        to opt in to the side-effect; by default the caller's DataFrame
+        is not modified.
 
     Returns
     -------
@@ -455,7 +472,8 @@ def estimate_similarity_threshold_combined(
 
     combined = combine_similarity_metrics(values1, values2, options)
 
-    dataframe["combined_similarity"] = combined
+    if add_combined_column:
+        dataframe["combined_similarity"] = combined
 
     thresholds, gmm = compute_gmm_threshold(combined, options)
 

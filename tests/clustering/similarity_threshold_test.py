@@ -294,7 +294,7 @@ class TestSimilarityThreshold(unittest.TestCase):
     # --------------------------------------------------
 
     def test_estimate_similarity_threshold_combined_basic(self):
-        """Combined-column API should return thresholds and add combined_similarity."""
+        """Combined-column API must return thresholds; column added when opt-in."""
         df_copy = self.df.copy()
 
         thresholds = estimate_similarity_threshold_combined(
@@ -302,11 +302,27 @@ class TestSimilarityThreshold(unittest.TestCase):
             ("similarity_1", "similarity_2"),
             options=self.options,
             plot=False,
+            add_combined_column=True,
         )
 
         self.assertTrue(isinstance(thresholds, list))
         self.assertTrue(len(thresholds) >= 1)
         self.assertIn("combined_similarity", df_copy.columns)
+
+    def test_estimate_no_combined_column_by_default(self):
+        """Combined-column API must NOT mutate the caller's DataFrame by default."""
+        df_copy = self.df.copy()
+        original_columns = set(df_copy.columns)
+
+        estimate_similarity_threshold_combined(
+            df_copy,
+            ("similarity_1", "similarity_2"),
+            options=self.options,
+            plot=False,
+        )
+
+        self.assertEqual(set(df_copy.columns), original_columns,
+                         "'combined_similarity' column was added without opt-in")
 
     def test_estimate_similarity_threshold_combined_missing_columns(self):
         """Missing combined columns must raise ValueError."""

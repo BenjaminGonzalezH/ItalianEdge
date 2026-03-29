@@ -69,23 +69,23 @@ import gclusters_characterization.clustering.he_clustering as HC
 import gclusters_characterization.clustering.jaccard_values as JV
 import gclusters_characterization.clustering.rand_values as RV
 import gclusters_characterization.clustering.cspa_method as CSPA
-import gclusters_characterization.clustering.plurarity_voting as PV
+import gclusters_characterization.clustering.plurality_voting as PV
 import gclusters_characterization.clustering.solutioncluster_matrix as SCM
 import gclusters_characterization.clustering.similarity_threshold as ST
 
 import gclusters_characterization.go.mapping_entrez as ME
-import gclusters_characterization.go.go_enrishment as GOeP
+import gclusters_characterization.go.go_enrichment as GOeP
 import gclusters_characterization.go.go_utils as Gutils
 import gclusters_characterization.go.gene_similarity as GS
 
 import gclusters_characterization.visualization.heatmaps as Heat
 import gclusters_characterization.visualization.go_plots as Gplot
 import gclusters_characterization.visualization.go_network as Gnet
-import gclusters_characterization.visualization.go_heiracialNetwork as GHnet
+import gclusters_characterization.visualization.go_hierarchical_network as GHnet
 import gclusters_characterization.visualization.raincloud as RC
 import gclusters_characterization.visualization.cir_go as GCD
 
-import gclusters_characterization.summary.differences_sumary as DS
+import gclusters_characterization.summary.differences_summary as DS
 
 LOGGER = logging.getLogger("gclusters_example")
 

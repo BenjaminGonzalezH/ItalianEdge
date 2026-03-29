@@ -19,7 +19,7 @@ from pathlib import Path
 
 import plotly.graph_objects as go
 
-from gclusters_characterization.clustering.plurarity_voting import (
+from gclusters_characterization.clustering.plurality_voting import (
     PVOptions,
     _validate_solutions_matrix,
     _align_partition,

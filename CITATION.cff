@@ -4,23 +4,29 @@ title: "GClusters Characterization"
 message: "If you use this software, please cite it as follows:"
 type: software
 
+abstract: >
+  GClusters Characterization is a Python toolkit for the quantitative and
+  qualitative characterization of Pareto-optimal gene clustering solutions.
+  It provides ensemble clustering, consensus matrix computation, Jaccard and
+  Rand-based similarity metrics, Gene Ontology enrichment integration, and
+  interactive visualization utilities for downstream biological interpretation.
+
 authors:
   - family-names: Inostroza Ponta
     given-names: Mario
     affiliation: Universidad de Santiago de Chile
     email: mario.inostroza@usach.cl
+    orcid: "0000-0003-1295-8972"
 
   - family-names: Gonzalez Hurtado
     given-names: Benjamin
     affiliation: Universidad de Santiago de Chile
     email: benjamin.gonzalez.h@usach.cl
-
-  - family-names: Lourdes Castro
-    given-names: Sofia Paz
-    affiliation: Universidad de Santiago de Chile
-    email: sofia.castro@usach.cl
+    orcid: "0009-0005-9796-7799
 
 repository-code: https://github.com/BenjaminGonzalezH/ItalianEdge
+
+doi: "PLACEHOLDER — requires Zenodo release record (see https://zenodo.org)"
 
 version: 1.0.0
 
@@ -34,3 +40,17 @@ keywords:
   - clustering
   - semantic similarity
   - GO visualization
+
+preferred-citation:
+  type: article
+  title: "PLACEHOLDER — insert JOSS paper title after submission"
+  authors:
+    - family-names: Inostroza Ponta
+      given-names: Mario
+      affiliation: Universidad de Santiago de Chile
+    - family-names: Gonzalez Hurtado
+      given-names: Benjamin
+      affiliation: Universidad de Santiago de Chile
+  journal: "Working on"
+  doi: "PLACEHOLDER — requires JOSS submission and acceptance"
+  year: 2028

@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
-from gclusters_characterization.go.go_enrishment import (
+from gclusters_characterization.go.go_enrichment import (
     go_enrichment,
     annotation_from_entrez_ids,
     GoEnrichmentOptions,
@@ -53,7 +53,7 @@ class TestGoEnrichment(unittest.TestCase):
     def setUp(self):
         self.genes = ["1", "2", "3", "3", None, ""]
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_basic_enrichment(self, mock_gp):
         """Basic enrichment returns sorted results with qscore."""
         mock_instance = MagicMock()
@@ -71,7 +71,7 @@ class TestGoEnrichment(unittest.TestCase):
         # sorted ascending
         self.assertTrue(df["p_value"].is_monotonic_increasing)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_precision_column(self, mock_gp):
         """Should still work without 'precision' column."""
         df_mock = fake_enrichment_df().drop(columns=["precision"])
@@ -84,7 +84,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_pvalue_column(self, mock_gp):
         """No qscore if p_value missing."""
         df_mock = fake_enrichment_df().drop(columns=["p_value"])
@@ -97,7 +97,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertNotIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_empty_response(self, mock_gp):
         """Empty API response returns empty DataFrame."""
         mock_instance = MagicMock()
@@ -127,7 +127,7 @@ class TestGoEnrichment(unittest.TestCase):
         with self.assertRaises(ValueError):
             go_enrichment(["1"], options=opts)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_retry_logic(self, mock_gp):
         """Ensure retry mechanism is triggered on failure."""
         mock_instance = MagicMock()
@@ -158,7 +158,7 @@ class TestAnnotation(unittest.TestCase):
     def setUp(self):
         self.genes = ["A", "B", "C", "D"]
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_basic_annotation(self, mock_gp):
         """Annotation returns gene→terms mapping."""
         mock_instance = MagicMock()
@@ -178,7 +178,7 @@ class TestAnnotation(unittest.TestCase):
             self.assertIsInstance(k, str)
             self.assertIsInstance(v, list)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_chunking(self, mock_gp):
         """Chunking splits requests correctly."""
         mock_instance = MagicMock()
@@ -198,7 +198,7 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertEqual(len(calls), 2)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_thread_failure_handling(self, mock_gp):
         """Failures in threads should not crash execution."""
         mock_instance = MagicMock()
@@ -215,7 +215,31 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertIsInstance(result, dict)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.logger")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    def test_thread_failure_emits_warning(self, mock_gp, mock_logger):
+        """Every failed annotation chunk must emit a logger WARNING."""
+        mock_instance = MagicMock()
+        mock_instance.profile.side_effect = RuntimeError("network error")
+        mock_gp.return_value = mock_instance
+
+        # Use minimal retry/backoff and small chunks to keep the test fast.
+        opts = AnnotationOptions(
+            request_retries=1,
+            backoff_base_seconds=0.0,
+            chunk_size=2,
+            n_threads=1,
+        )
+
+        result = annotation_from_entrez_ids(self.genes, options=opts)
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(
+            mock_logger.warning.called,
+            "logger.warning must be called when annotation chunks fail",
+        )
+
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_columns(self, mock_gp):
         """Missing expected columns returns empty dict."""
         mock_instance = MagicMock()

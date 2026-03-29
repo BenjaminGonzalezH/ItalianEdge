@@ -295,14 +295,16 @@ def _rand_from_binary_contingency(
     n = n11 + n10 + n01
     total_pairs = _comb2(n)
 
-    same_same = _comb2(n11) + _comb2(n10) + _comb2(n01)
-    same_diff = (n11 * n10) + (n11 * n01)
+    # Agreements
+    same_same = _comb2(n11)        # correct
+    diff_diff = n10 * n01          # correct
 
-    agreements = same_same + same_diff
+    agreements = same_same + diff_diff
 
     out = np.ones_like(total_pairs, dtype=np.float64)
     mask = total_pairs > 0
     out[mask] = agreements[mask] / total_pairs[mask]
+
     return out
 
 

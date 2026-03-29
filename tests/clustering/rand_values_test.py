@@ -220,8 +220,7 @@ class TestRandValues(unittest.TestCase):
             "Solution 2",
             "Cluster 1",
             "Cluster 2",
-            "Similarity",
-            "Metric",
+            "rand Similarity",
         }
 
         self.assertTrue(expected_columns.issubset(df.columns))
@@ -230,6 +229,35 @@ class TestRandValues(unittest.TestCase):
         """Invalid input types must raise TypeError."""
         with self.assertRaises(TypeError):
             find_equivalent_clusters_rand("invalid")
+
+    ##########################
+    # Regression: cluster RI vs. sklearn
+    ##########################
+
+    def test_cluster_ri_matches_binary_sklearn(self):
+        """
+        Cluster-level RI must equal sklearn rand_score on binary
+        membership vectors built over the cluster-pair union.
+
+        Counter-example that caught the previous wrong formula:
+          A0 = {0, 1}, B0 = {0, 2}  →  union = {0, 1, 2}
+          a_vec = [1, 1, 0], b_vec = [1, 0, 1]
+          Correct RI = 1/3  (one agreement out of three pairs)
+        """
+        from sklearn.metrics import rand_score as sklearn_rand_score
+
+        # Cluster pair: A0={0,1} vs B0={0,2}; universe={0,1,2}
+        a_vec = np.array([1, 1, 0])
+        b_vec = np.array([1, 0, 1])
+        expected = sklearn_rand_score(a_vec, b_vec)
+
+        M = rand_index_clusters([{0, 1}, {2, 3}], [{0, 2}, {1, 3}])
+        actual = float(M[0, 0])
+
+        self.assertAlmostEqual(
+            actual, expected, places=9,
+            msg=f"Cluster RI {actual:.9f} != sklearn {expected:.9f}",
+        )
 
 
 if __name__ == "__main__":

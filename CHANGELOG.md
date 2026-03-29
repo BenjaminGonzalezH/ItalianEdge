@@ -2,20 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on Keep a Changelog
-and this project adheres to Semantic Versioning.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
-
-## [Unreleased]
-
-### Added
-- GPU support for clustering computations.
-
-### Changed
-- Improved GO network layout performance.
-
----
 
 ## [1.0.0] - 2026-03-14
 
@@ -33,16 +22,9 @@ and this project adheres to Semantic Versioning.
 - GO chord diagram visualization.
 - Heatmap visualization utilities.
 - Raincloud plot visualization.
+- Core dependencies: numpy, pandas, networkx, plotly, matplotlib, scikit-learn, scipy, goatools, gprofiler-official, mygene, go3.
 
-### Dependencies
-- numpy
-- pandas
-- networkx
-- plotly
-- matplotlib
-- scikit-learn
-- scipy
-- goatools
-- gprofiler-official
-- mygene
-- go3
+---
+
+[Unreleased]: https://github.com/BenjaminGonzalezH/ItalianEdge/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/BenjaminGonzalezH/ItalianEdge/releases/tag/v1.0.0
