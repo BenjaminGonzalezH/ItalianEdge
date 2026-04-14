@@ -69,7 +69,6 @@ import gclusters_characterization.clustering.he_clustering as HC
 import gclusters_characterization.clustering.jaccard_values as JV
 import gclusters_characterization.clustering.rand_values as RV
 import gclusters_characterization.clustering.cspa_method as CSPA
-import gclusters_characterization.clustering.plurality_voting as PV
 import gclusters_characterization.clustering.solutioncluster_matrix as SCM
 import gclusters_characterization.clustering.similarity_threshold as ST
 
@@ -494,16 +493,6 @@ def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: P
             save_html_to=str(paths.output_file_dir / "enbedding" / f"Embedding_CSPA_{key}.html"),
         )
         consensus_arrays.append(cspa_solution)
-
-    plurality_solution, _ = timed_step(
-        "Plurality voting consensus",
-        PV.plurality_voting,
-        state.matrix,
-        genes,
-        plot_confidence=True,
-        save_plot_to=str(paths.output_file_dir / "Plurarity Voting" / "Embedding_PV.html"),
-    )
-    consensus_arrays.append(plurality_solution)
 
     # Preserve prior behavior: append one consensus solution to the original matrix.
     state.matrix = np.vstack([state.matrix, consensus_arrays[0]])
@@ -1028,7 +1017,7 @@ def run_summary_go_analysis(paths: PipelinePaths, cfg: PipelineConfig, state: Pi
 
     LOGGER.info("Summary group SCM: %s", solutions_disjointive)
 
-    target_group = list(solutions_disjointive[1][1])
+    target_group = list(solutions_disjointive[1][0])
 
     go_df_cluster = timed_step(
         "GO enrichment for summary target group",

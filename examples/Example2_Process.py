@@ -24,7 +24,6 @@ import numpy as np
 import gclusters_characterization.clustering.consensus_matrix as CM
 import gclusters_characterization.clustering.jaccard_values as JV
 import gclusters_characterization.clustering.rand_values as RV
-import gclusters_characterization.clustering.plurality_voting as PV
 
 
 # ─────────────────────────────────────────────────────────────
@@ -316,52 +315,3 @@ expected_ARI_clust = np.array([
 
 _section("Output  [2x2 cluster ARI matrix]")
 _result(ARI_clust, expected_ARI_clust)
-
-
-# ======================================================
-# 6. _align_partition
-# ======================================================
-
-_header("_align_partition")
-
-_section("Theory")
-print("  Clustering algorithms may assign arbitrary numeric labels to")
-print("  clusters, so two identical partitions can look different.")
-print("  _align_partition finds the optimal label permutation that")
-print("  maximises element overlap between a target and a reference.")
-print()
-print("  Step 1: For each (ref_label r, tgt_label t) pair, count")
-print("          the elements that belong to r in the reference AND")
-print("          to t in the target  ->  overlap(r, t).")
-print("  Step 2: Build cost matrix  C[r, t] = -overlap(r, t).")
-print("          (Negated because linear_sum_assignment minimises cost.)")
-print("  Step 3: Apply the Hungarian algorithm to C to find the")
-print("          assignment of target labels to reference labels that")
-print("          maximises total overlap.")
-print("  Step 4: Remap every element in the target using the mapping.")
-
-_section("Input")
-print("  4 genes (indices 0-3), two partitions with swapped labels.")
-print()
-print("  reference : [0, 0, 1, 1]  ->  cluster 0: {0,1}   cluster 1: {2,3}")
-print("  target    : [1, 1, 0, 0]  ->  cluster 1: {0,1}   cluster 0: {2,3}")
-print()
-print("  Cost matrix  (rows = ref labels 0,1 ; cols = tgt labels 0,1):")
-print("               tgt_0   tgt_1")
-print("    ref_0  [    0,     -2  ]   ref_0 & tgt_0 share 0 elements")
-print("    ref_1  [   -2,      0  ]   ref_1 & tgt_0 share 2 elements")
-print()
-print("  Hungarian solution: ref_0 -> tgt_1,  ref_1 -> tgt_0")
-print("  Mapping applied to target: 1 -> 0,  0 -> 1")
-print()
-print("  Aligned target: [0, 0, 1, 1]  (identical to reference)")
-
-reference = np.array([0, 0, 1, 1])
-target    = np.array([1, 1, 0, 0])
-
-aligned = PV._align_partition(reference, target)
-
-expected_aligned = np.array([0, 0, 1, 1])
-
-_section("Output  [remapped target partition]")
-_result(aligned, expected_aligned)
