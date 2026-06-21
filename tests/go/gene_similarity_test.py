@@ -1,7 +1,8 @@
 """
-go_enrishment_test.py
+gene_similarity_test.py
 
-This module contains unit tests for GO enrichment and annotation utilities.
+This module contains unit tests for GO enrichment, annotation utilities,
+and gene similarity computation.
 
 Functions tested:
 1. go_enrichment:
@@ -12,6 +13,9 @@ Functions tested:
 
 3. _safe_neglog10:
    Validates numerical stability for logarithmic transformation.
+
+4. compute_gene_similarity_matrix_by_batch:
+   Validates batch-mode gene similarity matrix construction via GO3.
 """
 
 import unittest
@@ -25,6 +29,10 @@ from gclusters_characterization.go.go_enrishment import (
     GoEnrichmentOptions,
     AnnotationOptions,
     _safe_neglog10,
+)
+from gclusters_characterization.go.gene_similarity import (
+    compute_gene_similarity_matrix_by_batch,
+    GeneSimilarityOptions,
 )
 
 
@@ -263,6 +271,157 @@ class TestUtilities(unittest.TestCase):
         """Invalid inputs should return NaN."""
         val = _safe_neglog10("bad")
         self.assertTrue(np.isnan(val))
+
+
+# --------------------------------------------------
+# Gene similarity by batch tests
+# --------------------------------------------------
+
+class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
+
+    def setUp(self):
+        self.genes = ["GeneA", "GeneB", "GeneC"]
+        self.obo_path = "/fake/go.obo"
+        self.gaf_path = "/fake/annotations.gaf"
+
+    def _configure_mock(self, mock_go3, scores):
+        mock_go3.load_gaf.return_value = MagicMock()
+        mock_go3.build_term_counter.return_value = MagicMock()
+        mock_go3.compare_gene_pairs_batch.return_value = scores
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_return_types(self, mock_go3):
+        """Function should return a list and an ndarray."""
+        self._configure_mock(mock_go3, [0.8, 0.6, 0.7])
+
+        genes_out, sim = compute_gene_similarity_matrix_by_batch(
+            self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        self.assertIsInstance(genes_out, list)
+        self.assertIsInstance(sim, np.ndarray)
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_matrix_shape_and_gene_order(self, mock_go3):
+        """Similarity matrix must be n×n and genes list must match input order."""
+        n = len(self.genes)
+        self._configure_mock(mock_go3, [0.5] * (n * (n - 1) // 2))
+
+        genes_out, sim = compute_gene_similarity_matrix_by_batch(
+            self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        self.assertEqual(sim.shape, (n, n))
+        self.assertEqual(genes_out, self.genes)
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_diagonal_is_one(self, mock_go3):
+        """Diagonal entries must be 1.0 (self-similarity)."""
+        self._configure_mock(mock_go3, [0.4, 0.5, 0.6])
+
+        _, sim = compute_gene_similarity_matrix_by_batch(
+            self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        np.testing.assert_array_equal(np.diag(sim), np.ones(len(self.genes)))
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_matrix_symmetric(self, mock_go3):
+        """Similarity matrix must be symmetric (sim[i,j] == sim[j,i])."""
+        self._configure_mock(mock_go3, [0.3, 0.7, 0.9])
+
+        _, sim = compute_gene_similarity_matrix_by_batch(
+            self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        np.testing.assert_array_equal(sim, sim.T)
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_scores_correctly_placed(self, mock_go3):
+        """Batch scores must map to the correct (i,j) and (j,i) positions.
+
+        pairs from combinations(["GeneA","GeneB","GeneC"], 2):
+          (A,B) -> (0,1), (A,C) -> (0,2), (B,C) -> (1,2)
+        """
+        self._configure_mock(mock_go3, [0.1, 0.2, 0.3])
+
+        _, sim = compute_gene_similarity_matrix_by_batch(
+            self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        self.assertAlmostEqual(sim[0, 1], 0.1)
+        self.assertAlmostEqual(sim[1, 0], 0.1)
+        self.assertAlmostEqual(sim[0, 2], 0.2)
+        self.assertAlmostEqual(sim[2, 0], 0.2)
+        self.assertAlmostEqual(sim[1, 2], 0.3)
+        self.assertAlmostEqual(sim[2, 1], 0.3)
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_single_gene_returns_identity(self, mock_go3):
+        """A single gene must yield a 1×1 matrix with value 1.0 and no pairs."""
+        self._configure_mock(mock_go3, [])
+
+        genes_out, sim = compute_gene_similarity_matrix_by_batch(
+            ["GeneA"], obo_path=self.obo_path, gaf_path=self.gaf_path
+        )
+
+        self.assertEqual(genes_out, ["GeneA"])
+        self.assertEqual(sim.shape, (1, 1))
+        self.assertAlmostEqual(sim[0, 0], 1.0)
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_load_go_terms_called_when_enabled(self, mock_go3):
+        """go3.load_go_terms must be called with obo_path when load_go_terms=True."""
+        self._configure_mock(mock_go3, [0.5])
+
+        opts = GeneSimilarityOptions(load_go_terms=True)
+        compute_gene_similarity_matrix_by_batch(
+            ["G1", "G2"], obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+        )
+
+        mock_go3.load_go_terms.assert_called_once_with(str(self.obo_path))
+
+    @patch("gclusters_characterization.go.gene_similarity.go3")
+    def test_load_go_terms_skipped_when_disabled(self, mock_go3):
+        """go3.load_go_terms must NOT be called when load_go_terms=False."""
+        self._configure_mock(mock_go3, [0.5])
+
+        opts = GeneSimilarityOptions(load_go_terms=False)
+        compute_gene_similarity_matrix_by_batch(
+            ["G1", "G2"], obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+        )
+
+        mock_go3.load_go_terms.assert_not_called()
+
+    def test_invalid_empty_genes_raises(self):
+        """Empty gene list must raise ValueError."""
+        with self.assertRaises(ValueError):
+            compute_gene_similarity_matrix_by_batch(
+                [], obo_path=self.obo_path, gaf_path=self.gaf_path
+            )
+
+    def test_invalid_genes_type_raises(self):
+        """Non-list/tuple input must raise ValueError."""
+        with self.assertRaises(ValueError):
+            compute_gene_similarity_matrix_by_batch(
+                "GeneA", obo_path=self.obo_path, gaf_path=self.gaf_path  # type: ignore[arg-type]
+            )
+
+    def test_invalid_ontology_raises(self):
+        """Unknown ontology value must raise ValueError."""
+        opts = GeneSimilarityOptions(ontology="XX")  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            compute_gene_similarity_matrix_by_batch(
+                self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+            )
+
+    def test_invalid_groupwise_raises(self):
+        """Unknown groupwise value must raise ValueError."""
+        opts = GeneSimilarityOptions(groupwise="bad")  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            compute_gene_similarity_matrix_by_batch(
+                self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+            )
 
 
 if __name__ == "__main__":

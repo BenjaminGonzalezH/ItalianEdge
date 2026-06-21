@@ -616,7 +616,8 @@ def compute_go_similarity_matrices(paths: PipelinePaths, state: PipelineState) -
     for index, option in go_indexes.items():
         ordered_symbols, gene_matrix = timed_step(
             f"Compute GO3 {index} gene similarity matrix",
-            GS.compute_gene_similarity_matrix_go3,
+            GS.compute_gene_similarity_matrix_by_batch,
+            #GS.compute_gene_similarity_matrix_go3,
             state.gene_symbols,
             obo_path=state.obo_path,
             gaf_path=state.gaf_path,

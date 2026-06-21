@@ -19,6 +19,7 @@ Functions:
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Sequence, Set, Tuple, Union, Literal
+from itertools import combinations
 
 import logging
 
@@ -122,6 +123,56 @@ def compute_gene_similarity_matrix_go3(
     sim = 1.0 - np.array(dist, dtype=np.float64)
     return list(ordered), sim
 
+
+def compute_gene_similarity_matrix_by_batch(
+    genes: Sequence[str],
+    *,
+    obo_path: Union[str, Path],
+    gaf_path: Union[str, Path],
+    go3_opts: GeneSimilarityOptions = GeneSimilarityOptions(),
+)-> Tuple[List[str], np.ndarray]:
+    if not isinstance(genes, (list, tuple)) or len(genes) == 0:
+        raise ValueError("genes must be a non-empty list/tuple of strings.")
+
+    if go3_opts.ontology not in ("BP", "MF", "CC"):
+        raise ValueError("ontology must be 'BP', 'MF' or 'CC'.")
+    if go3_opts.groupwise not in ("bma", "max", "avg", "hausdorff", "simgic"):
+        raise ValueError("groupwise must be bma, max,avg, hausdorff, simgic.")
+    
+
+    go3.set_num_threads(int(go3_opts.num_threads_go3))
+
+    # Cargar GO terms si se pide
+    if go3_opts.load_go_terms:
+        go3.load_go_terms(str(obo_path))
+
+    # Cargar anotaciones y computar matriz de distancias con GO3
+    annotations = go3.load_gaf(str(gaf_path))  # go3 espera path/alias de su loader
+    counter = go3.build_term_counter(annotations)
+
+    # Aplicar descarga 
+    pairs = list(combinations(genes, 2))
+    scores = go3.compare_gene_pairs_batch(
+        pairs,
+        ontology=go3_opts.ontology,
+        similarity=go3_opts.measure,
+        groupwise=go3_opts.groupwise,
+        counter=counter,
+    )
+
+    genes_list = list(genes)
+    gene_to_idx = {g: i for i, g in enumerate(genes_list)}
+    n = len(genes_list)
+    sim = np.zeros((n, n), dtype=np.float64)
+    np.fill_diagonal(sim, 1.0)
+
+    for (g1, g2), score in zip(pairs, scores):
+        i = gene_to_idx[g1]
+        j = gene_to_idx[g2]
+        sim[i, j] = float(score)
+        sim[j, i] = float(score)
+
+    return genes_list, sim
 
 # -----------------------------------------------------------------------------
 # Similitud solución-solución usando SOLO info biológica
