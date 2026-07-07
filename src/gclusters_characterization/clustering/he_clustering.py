@@ -12,12 +12,14 @@ The module supports:
 
 Functions
 1. compute_hierarchical_clustering – Perform hierarchical clustering and compute cluster labels.
-2. he_clustering – High-level interface for clustering, visualization, and export.
-3. _validate_distance_matrix – Validate structural properties of a distance matrix.
-4. _validate_genes – Validate gene labels associated with the distance matrix.
-5. _build_dendrogram_figure – Construct an interactive dendrogram figure.
-6. _figure_to_html – Convert a Plotly figure into HTML.
-7. _write_text – Write HTML output to disk.
+2. compute_dynamic_clustering      – Automatically detect the number of clusters from the linkage matrix.
+3. he_clustering – High-level interface for clustering, visualization, and export.
+4. _validate_distance_matrix – Validate structural properties of a distance matrix.
+5. _validate_genes – Validate gene labels associated with the distance matrix.
+6. _build_dendrogram_figure – Construct an interactive dendrogram figure.
+7. _figure_to_html – Convert a Plotly figure into HTML.
+8. _write_text – Write HTML output to disk.
+9. _detect_gap_cut – Detect the optimal cut point from the largest height gap in Z.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -64,6 +66,46 @@ class ClusteringOptions:
     """
     num_groups: int = 4
     method: LinkageMethod = "single"
+    validate_distance: bool = True
+    sym_tol: float = 1e-12
+    verbose: bool = True
+
+
+@dataclass(frozen=True)
+class DynamicClusteringOptions:
+    """
+    Options for automatic (gap-based) hierarchical clustering.
+
+    Instead of requiring the user to specify ``num_groups``, this approach
+    analyses the linkage matrix ``Z`` to find the merge step with the largest
+    jump in fusion height (the *largest gap*).  Cutting just below that jump
+    yields the most natural number of clusters for the data.
+
+    Attributes:
+        method : LinkageMethod
+            Linkage algorithm passed to ``scipy.cluster.hierarchy.linkage``.
+        n_gaps : int
+            Number of top gaps to consider as candidate cut points.
+            When ``n_gaps=1`` (default) the single largest gap is used.
+            Increasing it lets you inspect a ranked list of alternatives
+            via the ``gap_report`` returned by ``compute_dynamic_clustering``.
+        min_clusters : int
+            Lower bound on the number of clusters accepted.  Any gap that
+            would produce fewer clusters than this is skipped.  Default 2.
+        max_clusters : int or None
+            Upper bound on the number of clusters.  Any gap that would
+            produce more clusters than this is skipped.  ``None`` = no limit.
+        validate_distance : bool
+            Enable strict distance-matrix structural checks.
+        sym_tol : float
+            Numerical tolerance used in symmetry and diagonal checks.
+        verbose : bool
+            If ``True``, prints status messages (always logs regardless).
+    """
+    method: LinkageMethod = "average"
+    n_gaps: int = 1
+    min_clusters: int = 2
+    max_clusters: Optional[int] = None
     validate_distance: bool = True
     sym_tol: float = 1e-12
     verbose: bool = True
@@ -410,6 +452,90 @@ def _write_text(filepath: PathLike, content: str) -> Path:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Dynamic clustering helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _detect_gap_cut(
+    Z: np.ndarray,
+    n_gaps: int,
+    min_clusters: int,
+    max_clusters: Optional[int],
+) -> List[Tuple[int, float, float]]:
+    """
+    Identify candidate cut points in a linkage matrix by largest height gap.
+
+    The linkage matrix ``Z`` contains one row per merge step; column 2 stores
+    the fusion height at each step.  The difference between consecutive heights
+    (*gaps*) reveals how dissimilar the elements being merged are.  A large gap
+    means the algorithm was forced to join two relatively distant groups —
+    exactly where a natural cluster boundary lies.
+
+    Parameters
+    ----------
+    Z : numpy.ndarray
+        Linkage matrix (n-1 × 4) from ``scipy.cluster.hierarchy.linkage``.
+    n_gaps : int
+        How many top-gap candidates to return (ranked by gap size, descending).
+    min_clusters : int
+        Minimum number of clusters a candidate must yield to be included.
+    max_clusters : int or None
+        Maximum number of clusters allowed. ``None`` = no upper limit.
+
+    Returns
+    -------
+    List[Tuple[int, float, float]]
+        Each entry is ``(k, gap_size, cut_height)`` where:
+
+        - ``k``           — number of clusters obtained by cutting here.
+        - ``gap_size``    — magnitude of the height jump (larger = more natural).
+        - ``cut_height``  — height threshold at which the tree is cut
+                            (midpoint of the gap, safe for ``fcluster``).
+
+    Notes
+    -----
+    Cutting at the *midpoint* of the gap avoids numerical edge cases where
+    cutting exactly at the lower bound would include the merge itself.
+    """
+    heights = Z[:, 2]
+
+    # gaps[i] = height[i+1] - height[i]  (positive because Z is sorted)
+    gaps = np.diff(heights)
+
+    # Number of clusters when cutting between step i and i+1 is (n - i - 1)
+    # because steps 0..i have already been merged into (n-i-1) groups.
+    n_steps = len(heights)          # == n - 1
+    n_leaves = n_steps + 1          # original number of elements
+
+    # Build candidate list: (gap_index_in_gaps, k_clusters, gap_size)
+    candidates = []
+    for i in range(len(gaps)):
+        k = n_leaves - (i + 1)     # clusters *after* merges 0..i
+        if k < min_clusters:
+            continue
+        if max_clusters is not None and k > max_clusters:
+            continue
+        candidates.append((i, k, float(gaps[i])))
+
+    if not candidates:
+        raise ValueError(
+            f"No valid cut point found with min_clusters={min_clusters} "
+            f"and max_clusters={max_clusters}.  Try relaxing these bounds."
+        )
+
+    # Sort by gap size descending, take top n_gaps
+    candidates.sort(key=lambda x: x[2], reverse=True)
+    top = candidates[:n_gaps]
+
+    result = []
+    for gap_idx, k, gap_size in top:
+        # Midpoint of the gap for a safe fcluster threshold
+        cut_height = float((heights[gap_idx] + heights[gap_idx + 1]) / 2.0)
+        result.append((k, gap_size, cut_height))
+
+    return result
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Main Functions
 # ──────────────────────────────────────────────────────────────────────────────
 def compute_hierarchical_clustering(
@@ -485,6 +611,147 @@ def compute_hierarchical_clustering(
     return Z, labels, cophenetic_corr
 
 
+
+
+def compute_dynamic_clustering(
+    distance_matrix: np.ndarray,
+    genes: "Sequence[str]",
+    options: "DynamicClusteringOptions" = None,
+) -> "Tuple[np.ndarray, np.ndarray, float, List[dict]]":
+    """
+    Perform hierarchical clustering with automatic cluster-count detection.
+
+    Unlike ``compute_hierarchical_clustering``, this function does **not**
+    require the user to specify ``num_groups``. Instead it examines the
+    linkage matrix to find the merge step with the largest jump in fusion
+    height -- the *gap heuristic* -- and cuts the tree there.
+
+    Parameters
+    ----------
+    distance_matrix : numpy.ndarray
+        Square pairwise distance matrix (n x n), values in [0, inf).
+        The diagonal must be zero and the matrix must be symmetric.
+    genes : Sequence[str]
+        Gene identifiers corresponding to matrix rows/columns.
+    options : DynamicClusteringOptions
+        Configuration for clustering method, gap search, and constraints.
+
+    Returns
+    -------
+    Z : numpy.ndarray
+        Linkage matrix (n-1 x 4) from scipy.cluster.hierarchy.linkage.
+    labels : numpy.ndarray of int, shape (n,)
+        Cluster label (1-based) assigned to each gene.
+    cophenetic_corr : float
+        Cophenetic correlation coefficient -- how faithfully the dendrogram
+        preserves the original distances. Values > 0.75 indicate a strong
+        clustering structure.
+    gap_report : List[dict]
+        Ranked list of the top-n_gaps candidate cut points, each with:
+
+        - 'rank'        -- 1 = best (largest gap).
+        - 'k'           -- number of clusters at this cut.
+        - 'gap_size'    -- height jump magnitude.
+        - 'cut_height'  -- distance threshold used for fcluster.
+        - 'selected'    -- True only for the chosen cut (rank 1).
+
+    Raises
+    ------
+    ValueError
+        If the distance matrix is invalid, gene list length is wrong, or no
+        valid cut point exists within the min/max_clusters constraints.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from he_clustering import compute_dynamic_clustering, DynamicClusteringOptions
+    >>>
+    >>> dist = np.array([[0,   0.2, 0.9, 0.8],
+    ...                  [0.2, 0,   0.85,0.75],
+    ...                  [0.9, 0.85,0,   0.15],
+    ...                  [0.8, 0.75,0.15,0   ]])
+    >>> genes = ["GeneA", "GeneB", "GeneC", "GeneD"]
+    >>>
+    >>> Z, labels, coph, report = compute_dynamic_clustering(dist, genes)
+    >>> print(labels)        # e.g. [1 1 2 2]
+    >>> print(report[0])     # best cut details
+    """
+    if options is None:
+        options = DynamicClusteringOptions()
+
+    if options.validate_distance:
+        _validate_distance_matrix(distance_matrix, tol=options.sym_tol)
+
+    n = distance_matrix.shape[0]
+    genes_validated = _validate_genes(genes, n)
+
+    if n < 3:
+        raise ValueError(
+            "Dynamic clustering requires at least 3 elements to compute gaps."
+        )
+
+    # Build linkage
+    condensed = squareform(distance_matrix, checks=False)
+    Z = linkage(condensed, method=options.method)
+
+    # Cophenetic correlation
+    cophenetic_corr, _ = cophenet(Z, condensed)
+
+    interpretation = (
+        "strong" if cophenetic_corr > 0.75
+        else "moderate" if cophenetic_corr > 0.5
+        else "weak"
+    )
+    _log_or_print(
+        f"[dynamic] Cophenetic correlation: {cophenetic_corr:.4f} ({interpretation})",
+        options.verbose,
+    )
+
+    # Detect gap-based cut points
+    candidates = _detect_gap_cut(
+        Z,
+        n_gaps=options.n_gaps,
+        min_clusters=options.min_clusters,
+        max_clusters=options.max_clusters,
+    )
+
+    # Best cut is the first (largest gap)
+    best_k, best_gap, best_cut_height = candidates[0]
+
+    _log_or_print(
+        f"[dynamic] Largest gap: {best_gap:.6f} -- cutting at height "
+        f"{best_cut_height:.6f} -> {best_k} clusters.",
+        options.verbose,
+    )
+
+    # Assign flat clusters using the detected height threshold
+    labels = fcluster(Z, t=best_cut_height, criterion="distance")
+
+    # Build gap report
+    gap_report = []
+    for rank, (k, gap_size, cut_height) in enumerate(candidates, start=1):
+        gap_report.append({
+            "rank":       rank,
+            "k":          k,
+            "gap_size":   gap_size,
+            "cut_height": cut_height,
+            "selected":   rank == 1,
+        })
+
+    if options.verbose and len(gap_report) > 1:
+        _log_or_print(
+            "[dynamic] Alternative cut points (ranked by gap size):",
+            options.verbose,
+        )
+        for entry in gap_report[1:]:
+            _log_or_print(
+                f"  rank={entry['rank']}  k={entry['k']}  "
+                f"gap={entry['gap_size']:.6f}  height={entry['cut_height']:.6f}",
+                options.verbose,
+            )
+
+    return Z, labels, cophenetic_corr, gap_report
+
 def he_clustering(
     distance_matrix: np.ndarray,
     genes: Sequence[str],
@@ -558,8 +825,10 @@ def he_clustering(
 
 __all__ = [
     "ClusteringOptions",
+    "DynamicClusteringOptions",
     "DendrogramOptions",
     "ExportOptions",
     "compute_hierarchical_clustering",
+    "compute_dynamic_clustering",
     "he_clustering",
 ]

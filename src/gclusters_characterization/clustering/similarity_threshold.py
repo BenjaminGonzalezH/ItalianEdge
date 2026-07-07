@@ -493,3 +493,177 @@ def estimate_similarity_threshold_combined(
             _log(f"[GMM] HTML saved at: {p}", options.verbose)
 
     return thresholds
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Helper
+# ──────────────────────────────────────────────────────────────────────────────
+ 
+def _upper_triangle_values(matrix: np.ndarray) -> np.ndarray:
+    """
+    Extract the strict upper-triangle values of a square matrix (k=1).
+ 
+    These are the n*(n-1)/2 unique pairwise values, excluding the
+    diagonal (self-similarity = 1) and the redundant lower triangle.
+ 
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Square 2-D similarity matrix.
+ 
+    Returns
+    -------
+    np.ndarray
+        1-D array of upper-triangle values.
+    """
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("matrix must be a 2-D square array.")
+    if matrix.shape[0] < 2:
+        raise ValueError("matrix must be at least 2×2.")
+ 
+    idx = np.triu_indices(matrix.shape[0], k=1)
+    return matrix[idx].astype(np.float64)
+ 
+ 
+# ──────────────────────────────────────────────────────────────────────────────
+# Single-matrix API
+# ──────────────────────────────────────────────────────────────────────────────
+ 
+def estimate_similarity_threshold_from_matrix(
+    matrix: np.ndarray,
+    *,
+    options: GMMThresholdOptions = GMMThresholdOptions(),
+    metric_name: str = "Similarity",
+    plot: bool = False,
+    save_html_to: Optional[PathLike] = None,
+) -> list:
+    """
+    Estimate GMM threshold from a single square similarity matrix.
+ 
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Square 2-D similarity matrix (e.g. Jaccard or Wang).
+    options : GMMThresholdOptions
+        GMM configuration (n_components, combination_method, etc.).
+    metric_name : str
+        Label used in plot title and log messages.
+    plot : bool
+        If True, generate an interactive Plotly visualization.
+    save_html_to : str or Path, optional
+        Path where the HTML plot will be saved.
+ 
+    Returns
+    -------
+    list[float]
+        Estimated threshold(s).
+    """
+    values = _upper_triangle_values(matrix)
+ 
+    thresholds, gmm = compute_gmm_threshold(values, options)
+ 
+    if plot:
+        fig = _plot_gmm_html(
+            values, thresholds, gmm, options,
+            title=f"GMM Thresholds — {metric_name}",
+        )
+        if save_html_to:
+            p = Path(save_html_to)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            fig.write_html(str(p))
+            _log(f"[GMM] HTML saved at: {p}", options.verbose)
+ 
+    return thresholds
+ 
+ 
+# ──────────────────────────────────────────────────────────────────────────────
+# Dual-matrix API
+# ──────────────────────────────────────────────────────────────────────────────
+ 
+def estimate_similarity_threshold_combined_matrices(
+    matrix_upper: np.ndarray,
+    matrix_lower: np.ndarray,
+    *,
+    options: GMMThresholdOptions = GMMThresholdOptions(),
+    metric_names: Tuple[str, str] = ("Jaccard", "Wang"),
+    plot: bool = False,
+    save_html_to: Optional[PathLike] = None,
+) -> list:
+    """
+    Estimate GMM threshold from two square similarity matrices combined.
+ 
+    Extracts the strict upper-triangle values from both matrices,
+    combines them with ``combine_similarity_metrics`` (controlled by
+    ``options.combination_method``), and fits a GMM on the result.
+ 
+    Both matrices must be the same shape and square.  The upper-triangle
+    extraction ensures each pair (i, j) with i < j is counted once,
+    matching the dual-heatmap convention where matrix_upper fills the
+    upper triangle and matrix_lower fills the lower triangle.
+ 
+    Parameters
+    ----------
+    matrix_upper : np.ndarray
+        Square similarity matrix for the first metric (e.g. Jaccard).
+    matrix_lower : np.ndarray
+        Square similarity matrix for the second metric (e.g. Wang).
+    options : GMMThresholdOptions
+        GMM + combination configuration.
+        Key field: ``combination_method`` — one of:
+        "mean", "weighted_mean", "product", "geometric", "harmonic".
+    metric_names : tuple[str, str]
+        Labels for each metric, used in plot title and log messages.
+    plot : bool
+        If True, generate an interactive Plotly visualization.
+    save_html_to : str or Path, optional
+        Path where the HTML plot will be saved.
+ 
+    Returns
+    -------
+    list[float]
+        Estimated threshold(s) on the combined similarity scale.
+ 
+    Examples
+    --------
+    >>> thresholds = estimate_similarity_threshold_combined_matrices(
+    ...     jaccard_matrix,
+    ...     wang_matrix,
+    ...     options=GMMThresholdOptions(
+    ...         n_components=2,
+    ...         combination_method="mean",
+    ...     ),
+    ...     plot=True,
+    ...     save_html_to="gmm_dual.html",
+    ... )
+    """
+    if matrix_upper.shape != matrix_lower.shape:
+        raise ValueError("matrix_upper and matrix_lower must have the same shape.")
+ 
+    values1 = _upper_triangle_values(matrix_upper)
+    values2 = _upper_triangle_values(matrix_lower)
+ 
+    _log(
+        f"[GMM] Extracted {len(values1)} pairwise values per matrix "
+        f"({metric_names[0]}, {metric_names[1]}).",
+        options.verbose,
+    )
+ 
+    combined = combine_similarity_metrics(values1, values2, options)
+ 
+    thresholds, gmm = compute_gmm_threshold(combined, options)
+ 
+    if plot:
+        label1, label2 = metric_names
+        fig = _plot_gmm_html(
+            combined, thresholds, gmm, options,
+            title=(
+                f"GMM Thresholds — combined {label1} + {label2} "
+                f"({options.combination_method})"
+            ),
+        )
+        if save_html_to:
+            p = Path(save_html_to)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            fig.write_html(str(p))
+            _log(f"[GMM] HTML saved at: {p}", options.verbose)
+ 
+    return thresholds

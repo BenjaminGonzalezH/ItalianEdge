@@ -31,7 +31,7 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 import numpy as np
 import pandas as pd
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -261,18 +261,19 @@ def compare_solutions_pair(
     return matches
 
 def find_equivalent_clusters_jaccard(
-    solutions: List[List[Set]]
+    solutions: List[List[Set]],
+    labels: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Identify equivalent clusters across a collection of clustering solutions.
-
-    The function compares all solution pairs and reports clusters
-    that exhibit high Jaccard similarity.
 
     Parameters
     ----------
     solutions : list of clustering solutions
         Each solution is represented as a list of sets.
+    labels : list of str, optional
+        Names for each solution. Must have the same length as ``solutions``.
+        If None, integer indices are used.
 
     Returns
     -------
@@ -288,6 +289,14 @@ def find_equivalent_clusters_jaccard(
     if not isinstance(solutions, list) or not all(isinstance(sol, list) for sol in solutions):
         raise TypeError("Each solution must be a list of sets.")
 
+    if labels is not None and len(labels) != len(solutions):
+        raise ValueError(
+            f"labels length ({len(labels)}) must match solutions length ({len(solutions)})."
+        )
+
+    def _label(idx: int) -> str:
+        return labels[idx] if labels is not None else idx
+
     rows = []
 
     for idx1 in range(len(solutions)):
@@ -296,8 +305,8 @@ def find_equivalent_clusters_jaccard(
 
             for c1, c2, sim in pairs:
                 rows.append({
-                    "Solution 1": idx1,
-                    "Solution 2": idx2,
+                    "Solution 1": _label(idx1),
+                    "Solution 2": _label(idx2),
                     "Cluster 1": c1,
                     "Cluster 2": c2,
                     "Jaccard Similarity": sim

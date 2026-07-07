@@ -54,76 +54,6 @@ class GeneSimilarityOptions:
 # Similitud gen-gen con GO3
 # -----------------------------------------------------------------------------
 
-def compute_gene_similarity_matrix_go3(
-    genes: Sequence[str],
-    *,
-    obo_path: Union[str, Path],
-    gaf_path: Union[str, Path],
-    go3_opts: GeneSimilarityOptions = GeneSimilarityOptions(),
-) -> Tuple[List[str], np.ndarray]:
-    """
-    Compute a gene similarity matrix using GO3 semantic similarity.
-
-    Parameters
-    ----------
-    genes : Sequence[str]
-        List of gene identifiers.
-    species_key : str
-        Key used to retrieve GAF and gene information.
-    go3_opts : GeneSimilarityOptions
-        Configuration for GO3 similarity computation.
-    out_dir : PathLike
-        Directory used to store downloaded files.
-    download_gaf_if_missing : bool
-        Whether to download GAF if not present.
-    transform_genes_with_gaf : bool
-        Whether to map genes using GAF.
-    gene_info_path : PathLike, optional
-        Path to gene_info file.
-    entrez_to_symbol : bool
-        Whether to convert Entrez IDs to symbols.
-    gene_info_opts : GeneInfoOptions
-        Configuration for gene_info handling.
-    download_opts : DownloadOptions
-        Configuration for download behavior.
-
-    Returns
-    -------
-    Tuple[List[str], np.ndarray]
-        Ordered genes and similarity matrix.
-    """
-    if not isinstance(genes, (list, tuple)) or len(genes) == 0:
-        raise ValueError("genes must be a non-empty list/tuple of strings.")
-
-    if go3_opts.ontology not in ("BP", "MF", "CC"):
-        raise ValueError("ontology must be 'BP', 'MF' or 'CC'.")
-    if go3_opts.groupwise not in ("bma", "max", "avg", "hausdorff", "simgic"):
-        raise ValueError("groupwise must be bma, max,avg, hausdorff, simgic.")
-
-    go3.set_num_threads(int(go3_opts.num_threads_go3))
-
-    # Cargar GO terms si se pide
-    if go3_opts.load_go_terms:
-        go3.load_go_terms(str(obo_path))
-
-    # Cargar anotaciones y computar matriz de distancias con GO3
-    annotations = go3.load_gaf(str(gaf_path))  # go3 espera path/alias de su loader
-    counter = go3.build_term_counter(annotations)
-
-    ordered, dist = go3.gene_distance_matrix(
-        genes,
-        ontology=go3_opts.ontology,
-        similarity=go3_opts.measure,
-        groupwise=go3_opts.groupwise,
-        counter=counter,
-        distance_transform=go3_opts.distance_method
-    )
-
-    # dist es distancia: queremos similitud
-    sim = 1.0 - np.array(dist, dtype=np.float64)
-    return list(ordered), sim
-
-
 def compute_gene_similarity_matrix_by_batch(
     genes: Sequence[str],
     *,
@@ -172,12 +102,11 @@ def compute_gene_similarity_matrix_by_batch(
         sim[i, j] = float(score)
         sim[j, i] = float(score)
 
-    return genes_list, sim
+    return sim
 
 # -----------------------------------------------------------------------------
 # Similitud solución-solución usando SOLO info biológica
 # -----------------------------------------------------------------------------
-
 
 def solution_go_similarity_from_dataframe(
     ids: Sequence[str],
@@ -192,27 +121,7 @@ def solution_go_similarity_from_dataframe(
     """
     Compute similarity between clustering solutions using gene-level similarity.
 
-    Parameters
-    ----------
-    ids : Sequence[str]
-        Ordered gene identifiers corresponding to the similarity matrix.
-    gene_similarity_matrix : np.ndarray
-        Precomputed gene similarity matrix.
-    similarity_metric : str
-        Name of the similarity metric (used for labeling output).
-    reference_df : pd.DataFrame
-        DataFrame containing cluster correspondences.
-    solutions : Sequence[Sequence[Set[str]]]
-        List of clustering solutions.
-    na_value : str
-        Gene label to ignore.
-    normalize_matrix : bool
-        Whether to normalize the final similarity matrix.
-
-    Returns
-    -------
-    Tuple[np.ndarray, pd.DataFrame]
-        Solution similarity matrix and updated dataframe.
+    ... (mismo docstring) ...
     """
 
     required_cols = {
@@ -226,6 +135,7 @@ def solution_go_similarity_from_dataframe(
 
     n = len(solutions)
     final_matrix = np.zeros((n, n), dtype=np.float64)
+    pair_counts = np.zeros((n, n), dtype=np.float64)
 
     ids_list = [str(x) for x in ids]
     id_to_idx = {g: i for i, g in enumerate(ids_list)}
@@ -255,13 +165,17 @@ def solution_go_similarity_from_dataframe(
             similarity = 0.0
         else:
             submatrix = gene_similarity_matrix[np.ix_(idx_a, idx_b)]
-            # Average gene-level similarity between both clusters
             similarity = float(np.nanmean(submatrix))
 
         similarity_values.append(similarity)
 
         final_matrix[s1, s2] += similarity
         final_matrix[s2, s1] += similarity
+        pair_counts[s1, s2] += 1
+        pair_counts[s2, s1] += 1
+
+    nonzero = pair_counts > 0
+    final_matrix[nonzero] /= pair_counts[nonzero]
 
     reference_df = reference_df.copy()
     reference_df[f"{similarity_metric} Similarity"] = similarity_values

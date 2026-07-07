@@ -1,44 +1,66 @@
 """
-Heatmaps utilities.
+heatmap_holoviews.py
+
+Single-matrix clustered heatmap built on HoloViews + Bokeh, as a lightweight
+alternative to dash_bio.Clustergram.
+
+Why HoloViews instead of dash_bio
+----------------------------------
+dash_bio.Clustergram pulls in ``parmed`` as a hard, unconditional dependency
+(imported eagerly by ``dash_bio/__init__.py``) even though it is never used
+by the Clustergram component itself. ``parmed`` ships no Windows wheels and
+must be compiled from source, which frequently fails outside a fully
+configured MSVC + Windows SDK toolchain.
+
+HoloViews + Bokeh are pure-Python wheels (no compiled extensions to build),
+and — unlike Plotly's ``matches``/``scaleanchor`` axis properties, which only
+approximate synchronization — HoloViews' Bokeh backend shares the *same*
+underlying Bokeh ``Range`` object between plots that share a dimension when
+composed in a ``Layout``. Zooming/panning the heatmap therefore moves the
+dendrogram leaves in perfect lock-step, because both plots are quite
+literally looking at the same range object, not two ranges kept in sync.
+
+Trade-off: this module renders a *single* similarity matrix with a Bokeh
+grid layout (heatmap + optional row/column dendrograms). It does not cover
+the triangular dual-metric heatmaps from ``heatmaps.py`` — HoloViews has no
+built-in triangular-split heatmap element, so those stay on Plotly.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass                   # Decorator to automatically generate special methods (e.g., __init__).
-from pathlib import Path                            # Object-oriented filesystem path handling.
-from typing import Optional, Literal, Union, Tuple  # Improve type hints and function signatures.
-import numpy as np                                  # Efficient numerical computations.
-import plotly.graph_objects as go                   # Plotting graphs.
-import logging                                      # Advanced logging system for status and error messages.
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Literal, Union, Tuple, List
+import logging
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Configuration
-# ──────────────────────────────────────────────────────────────────────────────
-logger = logging.getLogger(__name__)                # Initialize module-level logger.
+import numpy as np
+from scipy.cluster.hierarchy import linkage, dendrogram, optimal_leaf_ordering, leaves_list
+from scipy.spatial.distance import squareform
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Data Types
-# ──────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
+
 PathLike = Union[str, Path]
 DownsampleMode = Literal["none", "pool_mean", "pool_max"]
+LinkageMethod = Literal["average", "complete", "single", "ward", "weighted", "centroid", "median"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Classes
+# Options
 # ──────────────────────────────────────────────────────────────────────────────
+
 @dataclass(frozen=True)
 class HeatmapExportOptions:
     """
     Export options for saving an HTML plot.
 
     Attributes:
-        include_plotlyjs: "cdn" keeps HTML smaller; "embed" is standalone but heavier.
-        full_html: If True, writes a full HTML document; else a div snippet.
+        resources: "cdn" loads Bokeh's JS from a CDN (small file, needs
+            internet to view); "inline" embeds Bokeh's JS in the file
+            (larger, fully standalone/offline).
         verbose: If True, prints extra status messages (still logs always).
     """
-    include_plotlyjs: Union[Literal["cdn", "embed"], bool] = "cdn"
-    full_html: bool = False
+    resources: Literal["cdn", "inline"] = "cdn"
     verbose: bool = True
 
 
@@ -50,33 +72,58 @@ class HeatmapScaleOptions:
     Attributes:
         max_dim: If matrix is larger than this in any dimension, it will be downsampled.
         downsample_mode: pooling strategy ("pool_mean" recommended).
-        webgl_threshold: If n*m >= threshold, prefer WebGL heatmap (Heatmapgl) when possible.
-        force_webgl: Always use Heatmapgl (can help huge matrices but has feature differences).
     """
     max_dim: int = 1200
     downsample_mode: DownsampleMode = "pool_mean"
 
+
+@dataclass(frozen=True)
+class ClusteringOptions:
+    """
+    Hierarchical clustering options for the clustered heatmap.
+
+    The input matrix is assumed to be a **similarity** matrix (values in
+    [0, 1]), so distance is computed internally as ``1 - matrix``.
+
+    Attributes:
+        cluster_rows: Whether to reorder rows by hierarchical clustering.
+        cluster_cols: Whether to reorder columns by hierarchical clustering.
+        linkage_method: Linkage algorithm passed to scipy.cluster.hierarchy.linkage.
+        optimal_leaf_order: Apply Optimal Leaf Ordering for visually cleaner
+            dendrograms (adds O(n^2) cost).
+        show_row_dendrogram: Render the row dendrogram as a left side panel.
+        show_col_dendrogram: Render the column dendrogram as a top panel.
+        dendrogram_fraction: Fraction (in pixels, via frame size) each
+            dendrogram panel takes relative to the heatmap.
+        dendrogram_line_color: Colour of dendrogram branches.
+        dendrogram_line_width: Stroke width of dendrogram branches (px).
+    """
+    cluster_rows: bool = True
+    cluster_cols: bool = True
+    linkage_method: LinkageMethod = "average"
+    optimal_leaf_order: bool = True
+    show_row_dendrogram: bool = True
+    show_col_dendrogram: bool = True
+    dendrogram_fraction: float = 0.18
+    dendrogram_line_color: str = "#4a4a6a"
+    dendrogram_line_width: float = 1.5
+
+
 # ──────────────────────────────────────────────────────────────────────────────
-# Internal functions
+# Internal helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _log_or_print(msg: str, verbose: bool) -> None:
-    """
-    Library-friendly output handler:
-    - Always logs the message using the module logger.
-    - Optionally prints the message if verbose=True.
-    """
     logger.info(msg)
     if verbose:
         print(msg)
 
 
 def _as_path(p: PathLike) -> Path:
-    """Ensure the input is converted to a Path object."""
     return p if isinstance(p, Path) else Path(p)
 
+
 def _validate_matrix_2d(matrix: np.ndarray, name: str = "matrix") -> None:
-    """Checks the status of the input matrix or matrices"""
     if not isinstance(matrix, np.ndarray):
         raise TypeError(f"{name} must be a numpy.ndarray, got: {type(matrix)}")
     if matrix.ndim != 2:
@@ -86,17 +133,11 @@ def _validate_matrix_2d(matrix: np.ndarray, name: str = "matrix") -> None:
     if not np.issubdtype(matrix.dtype, np.number):
         raise TypeError(f"{name} must be numeric dtype, got: {matrix.dtype}")
 
-def _pool_downsample(
-    matrix: np.ndarray,
-    max_dim: int,
-    mode: DownsampleMode
-) -> Tuple[np.ndarray, int, int]:
-    """
-    Downsample by block pooling to keep plots responsive.
 
-    Returns:
-        downsampled_matrix, pool_h, pool_w
-    """
+def _pool_downsample(
+    matrix: np.ndarray, max_dim: int, mode: DownsampleMode
+) -> Tuple[np.ndarray, int, int]:
+    """Downsample by block pooling to keep plots responsive."""
     if mode == "none":
         return matrix, 1, 1
 
@@ -104,11 +145,9 @@ def _pool_downsample(
     if h <= max_dim and w <= max_dim:
         return matrix, 1, 1
 
-    # Compute pooling factors
     pool_h = int(np.ceil(h / max_dim))
     pool_w = int(np.ceil(w / max_dim))
 
-    # Pad to multiples of pooling sizes (pad with NaN to ignore in pooling)
     pad_h = (pool_h - (h % pool_h)) % pool_h
     pad_w = (pool_w - (w % pool_w)) % pool_w
 
@@ -121,7 +160,6 @@ def _pool_downsample(
 
     new_h = padded.shape[0] // pool_h
     new_w = padded.shape[1] // pool_w
-
     reshaped = padded.reshape(new_h, pool_h, new_w, pool_w)
 
     if mode == "pool_mean":
@@ -134,286 +172,260 @@ def _pool_downsample(
     return reduced, pool_h, pool_w
 
 
-def _choose_heatmap_trace(
-    z: np.ndarray,
-    colorscale: str,
-    z_label: str,
-    hovertemplate: Optional[str],
-    scale_opts: HeatmapScaleOptions,
-    showscale: bool = True,
-    colorbar: Optional[dict] = None,
-    **kwargs,
-) -> go.Heatmap:
+def _similarity_to_linkage(
+    sim_matrix: np.ndarray, method: str, use_olo: bool
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Convert a square similarity matrix to a scipy linkage matrix + leaf order."""
+    dist = np.clip(1.0 - sim_matrix.astype(np.float64), 0.0, 1.0)
+    np.fill_diagonal(dist, 0.0)
+    condensed = squareform(dist, checks=False)
 
-    heatmap_cls = go.Heatmap
+    Z = linkage(condensed, method=method)
+    if use_olo:
+        Z = optimal_leaf_ordering(Z, condensed)
 
-    cb = colorbar if colorbar is not None else dict(title=z_label)
+    order = leaves_list(Z)
+    return Z, order
 
-    trace = heatmap_cls(
-        z=z,
-        colorscale=colorscale,
-        showscale=showscale,
-        colorbar=cb,
-        **kwargs
-    )
 
-    if hovertemplate is not None:
-        trace.update(hovertemplate=hovertemplate)
+def _dendrogram_paths(Z: np.ndarray, orientation: Literal["top", "left"]) -> List[list]:
+    """
+    Build a list of polylines (one per branch) describing a dendrogram, in
+    the same [0, n-1] leaf coordinate system used by the heatmap.
+    """
+    ddata = dendrogram(Z, no_plot=True)
+    icoord = (np.array(ddata["icoord"]) - 5) / 10.0  # -> [0, n-1] leaf axis
+    dcoord = np.array(ddata["dcoord"])                # height axis
 
-    return trace
-
-def _to_html(fig: go.Figure, options: HeatmapExportOptions) -> str:
-    """If it is stablish by user, the plot is completely HTML"""
-    return fig.to_html(include_plotlyjs=options.include_plotlyjs, full_html=options.full_html)
-
-def _write_text(filepath: PathLike, content: str) -> Path:
-    """Write file into a Path"""
-    p = _as_path(filepath)
-    if p.parent and not p.parent.exists():
-        p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content, encoding="utf-8")
-    return p
+    paths = []
+    for xs, ys in zip(icoord, dcoord):
+        if orientation == "top":
+            paths.append(list(zip(xs, ys)))
+        else:  # "left": mirror so the tree opens toward the heatmap
+            paths.append(list(zip([-y for y in ys], xs)))
+    return paths
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Main Functions
+# Public API
 # ──────────────────────────────────────────────────────────────────────────────
 
-def plot_html_heatmap(
+def plot_clustered_heatmap(
     matrix: np.ndarray,
-    save_filepath: Optional[PathLike] = "heatmap.html",
+    labels: Optional[list] = None,
+    save_filepath: Optional[PathLike] = "clustered_heatmap.html",
     x_label: str = "",
     y_label: str = "",
-    title: str = "Heatmap",
-    colorscale: str = "Viridis",
-    z_label: str = "Valor",
-    tooltip_format: Optional[str] = "X: %{x}<br>Y: %{y}<br>Valor: %{z:.4g}<extra></extra>",
+    title: str = "Clustered Heatmap",
+    colorscale: str = "RdYlBu",
+    z_label: str = "Similarity",
     export: HeatmapExportOptions = HeatmapExportOptions(),
     scale: HeatmapScaleOptions = HeatmapScaleOptions(),
+    clustering: ClusteringOptions = ClusteringOptions(),
+    heatmap_size: int = 500,
     return_fig: bool = False,
     return_html: bool = False,
 ):
     """
-    Create an interactive heatmap and optionally save as HTML.
+    Create an interactive clustered heatmap (HoloViews + Bokeh backend) with
+    row/column dendrograms whose zoom/pan is natively linked to the heatmap.
 
-    Large-scale behavior:
-    - If matrix > scale.max_dim, it is downsampled by pooling.
+    The matrix is assumed to be a square, symmetric **similarity** matrix
+    (values in [0, 1], e.g. Jaccard/Wang/cosine similarity). Distance is
+    computed internally as ``1 - similarity`` for clustering.
 
-    Returns:
-        None by default.
-        If return_fig=True -> returns plotly Figure.
-        If return_html=True -> returns HTML string.
-        If both True -> returns (Figure, HTML).
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Square 2-D similarity matrix.
+    labels : list, optional
+        Tick labels for rows/columns (length == matrix.shape[0]).
+        Dropped automatically when downsampling is applied.
+    save_filepath : PathLike or None
+        Destination HTML file (a standalone document). Pass None to skip saving.
+    x_label, y_label : str
+        Axis titles for the heatmap panel.
+    title : str
+        Heatmap panel title.
+    colorscale : str
+        Bokeh/HoloViews colormap name (e.g. "RdYlBu", "Viridis").
+    z_label : str
+        Colorbar label.
+    export : HeatmapExportOptions
+        HTML export settings (CDN vs inline Bokeh JS).
+    scale : HeatmapScaleOptions
+        Downsampling settings for very large matrices.
+    clustering : ClusteringOptions
+        Hierarchical clustering and dendrogram settings.
+    heatmap_size : int
+        Heatmap panel size in pixels (square). Dendrogram panel thickness is
+        derived from ``clustering.dendrogram_fraction``.
+    return_fig : bool
+        If True, return the HoloViews Layout/Element object.
+    return_html : bool
+        If True, return the standalone HTML string.
+
+    Returns
+    -------
+    None | object | str | (object, str)
+        Depends on return_fig / return_html flags.
     """
+    import holoviews as hv
+    from bokeh.models import HoverTool
+
+    hv.extension("bokeh")
+
     _validate_matrix_2d(matrix, "matrix")
+    if matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("plot_clustered_heatmap_hv requires a square matrix.")
 
+    n_orig = matrix.shape[0]
+    if labels is not None and len(labels) != n_orig:
+        raise ValueError(
+            f"labels length ({len(labels)}) must match matrix rows ({n_orig})."
+        )
+    tick_labels = labels if labels is not None else [str(i) for i in range(n_orig)]
+
+    # ── 1. Downsample if needed ──────────────────────────────────────────────
     z, pool_h, pool_w = _pool_downsample(matrix, scale.max_dim, scale.downsample_mode)
-
     if pool_h > 1 or pool_w > 1:
         _log_or_print(
-            f"[heatmap] Downsampled from {matrix.shape} to {z.shape} "
-            f"(pool_h={pool_h}, pool_w={pool_w}, mode={scale.downsample_mode}).",
+            f"[clustered_heatmap_hv] Downsampled {matrix.shape} -> {z.shape} "
+            f"(pool={pool_h}x{pool_w}, mode={scale.downsample_mode}).",
+            export.verbose,
+        )
+        tick_labels = [str(i) for i in range(z.shape[0])]
+        working_matrix = z
+    else:
+        working_matrix = matrix
+
+    n = working_matrix.shape[0]
+    if n < 2:
+        raise ValueError("plot_clustered_heatmap_hv requires at least 2 rows/cols.")
+
+    # ── 2. Clustering (rows and columns can be reordered independently) ─────
+    row_order = np.arange(n)
+    col_order = np.arange(n)
+    row_Z = col_Z = None
+
+    if clustering.cluster_rows:
+        row_Z, row_order = _similarity_to_linkage(
+            working_matrix, clustering.linkage_method, clustering.optimal_leaf_order
+        )
+        _log_or_print(
+            f"[clustered_heatmap_hv] Row clustering done "
+            f"(method={clustering.linkage_method}, OLO={clustering.optimal_leaf_order}).",
+            export.verbose,
+        )
+    if clustering.cluster_cols:
+        col_Z, col_order = _similarity_to_linkage(
+            working_matrix, clustering.linkage_method, clustering.optimal_leaf_order
+        )
+        _log_or_print(
+            f"[clustered_heatmap_hv] Column clustering done "
+            f"(method={clustering.linkage_method}, OLO={clustering.optimal_leaf_order}).",
             export.verbose,
         )
 
-    fig = go.Figure()
+    z_clustered = working_matrix[np.ix_(row_order, col_order)]
+    row_labels = [tick_labels[i] for i in row_order]
+    col_labels = [tick_labels[i] for i in col_order]
 
-    trace = _choose_heatmap_trace(
-        z=z,
-        colorscale=colorscale,
-        z_label=z_label,
-        hovertemplate=tooltip_format,
-        scale_opts=scale,
-        showscale=True,
-        colorbar=dict(title=z_label),
+    has_col_dend = clustering.cluster_cols and clustering.show_col_dendrogram and col_Z is not None
+    has_row_dend = clustering.cluster_rows and clustering.show_row_dendrogram and row_Z is not None
+
+    # ── 3. Heatmap element ───────────────────────────────────────────────────
+    records = []
+    for i in range(n):
+        for j in range(n):
+            records.append((j, i, float(z_clustered[i, j]), row_labels[i], col_labels[j]))
+
+    hover = HoverTool(tooltips=[
+        ("Row", "@row_label"),
+        ("Col", "@col_label"),
+        (z_label, "@similarity{0.000}"),
+    ])
+
+    heat = hv.HeatMap(
+        records, kdims=["leaf_x", "leaf_y"], vdims=["similarity", "row_label", "col_label"]
+    ).opts(
+        cmap=colorscale + "_r" if not colorscale.endswith("_r") else colorscale,
+        colorbar=True,
+        clim=(0.0, 1.0),
+        colorbar_opts={"title": z_label},
+        frame_width=heatmap_size,
+        frame_height=heatmap_size,
+        tools=[hover],
+        xticks=list(enumerate(col_labels)),
+        yticks=list(enumerate(row_labels)),
+        xrotation=45,
+        xlabel=x_label,
+        ylabel=y_label,
+        title=title,
+        line_color=None,
     )
-    fig.add_trace(trace)
 
-    subtitle = ""
-    if pool_h > 1 or pool_w > 1:
-        subtitle = f" (downsampled: {matrix.shape} → {z.shape})"
+    elements = []
+    dend_size = max(60, int(heatmap_size * clustering.dendrogram_fraction))
 
-    fig.update_layout(
-        title=title + subtitle,
-        xaxis_title=x_label,
-        yaxis_title=y_label,
-        autosize=True,
-        xaxis=dict(scaleanchor="y", constrain="domain"),
-        yaxis=dict(constrain="domain"),
-        hovermode="closest",
-    )
+    # ── 4. Dendrogram elements (leaf axis shares the SAME dimension name as
+    #      the heatmap, which is what makes HoloViews link their ranges) ─────
+    col_dend = None
+    if has_col_dend:
+        col_paths = _dendrogram_paths(col_Z, "top")
+        col_dend = hv.Path(col_paths, kdims=["leaf_x", "height_col"]).opts(
+            color=clustering.dendrogram_line_color,
+            line_width=clustering.dendrogram_line_width,
+            frame_width=heatmap_size,
+            frame_height=dend_size,
+            xaxis=None,
+            yaxis=None,
+            title="",
+        )
 
+    row_dend = None
+    if has_row_dend:
+        row_paths = _dendrogram_paths(row_Z, "left")
+        row_dend = hv.Path(row_paths, kdims=["height_row", "leaf_y"]).opts(
+            color=clustering.dendrogram_line_color,
+            line_width=clustering.dendrogram_line_width,
+            frame_width=dend_size,
+            frame_height=heatmap_size,
+            xaxis=None,
+            yaxis=None,
+            title="",
+        )
+
+    # ── 5. Compose grid layout ───────────────────────────────────────────────
+    if col_dend is not None and row_dend is not None:
+        blank = hv.Empty()
+        layout = (blank + col_dend + row_dend + heat).cols(2)
+    elif col_dend is not None:
+        layout = (col_dend + heat).cols(1)
+    elif row_dend is not None:
+        layout = (row_dend + heat).cols(2)
+    else:
+        layout = heat
+
+    layout = layout.opts(hv.opts.Layout(shared_axes=True)) if hasattr(layout, "opts") and not isinstance(layout, hv.HeatMap) else layout
+
+    # ── 6. Export ────────────────────────────────────────────────────────────
     html: Optional[str] = None
     if save_filepath is not None or return_html:
-        html = _to_html(fig, export)
+        renderer = hv.renderer("bokeh")
+        resources = "cdn" if export.resources == "cdn" else "inline"
+        html = renderer.html(layout, resources=resources)
         if save_filepath is not None:
-            out = _write_text(save_filepath, html)
-            _log_or_print(f"[heatmap] HTML saved at: {out}", export.verbose)
+            p = _as_path(save_filepath)
+            if p.parent and not p.parent.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(html, encoding="utf-8")
+            _log_or_print(f"[clustered_heatmap_hv] HTML saved at: {p}", export.verbose)
 
     if return_fig and return_html:
-        return fig, html
+        return layout, html
     if return_fig:
-        return fig
-    if return_html:
-        return html
-    return None
-
-
-def plot_dual_heatmap_two_colors(
-    matrix_upper: np.ndarray,
-    matrix_lower: np.ndarray,
-    save_filepath: Optional[PathLike] = "dual_heatmap.html",
-    x_label: str = "Solutions",
-    y_label: str = "Solutions",
-    title: str = "Jaccard vs Wang",
-    colorscale_upper: str = "Viridis",
-    colorscale_lower: str = "Plasma",
-    export: HeatmapExportOptions = HeatmapExportOptions(),
-    scale: HeatmapScaleOptions = HeatmapScaleOptions(),
-    return_fig: bool = False,
-    return_html: bool = False,
-):
-    _validate_matrix_2d(matrix_upper, "matrix_upper")
-    _validate_matrix_2d(matrix_lower, "matrix_lower")
-
-    if matrix_upper.shape != matrix_lower.shape:
-        raise ValueError("matrix_upper and matrix_lower must have the same shape.")
-    if matrix_upper.shape[0] != matrix_upper.shape[1]:
-        raise ValueError("Dual triangular heatmap requires square matrices.")
-
-    # Downsampling
-    z_u, pool_h, pool_w = _pool_downsample(matrix_upper, scale.max_dim, scale.downsample_mode)
-    z_l, pool_h2, pool_w2 = _pool_downsample(matrix_lower, scale.max_dim, scale.downsample_mode)
-
-    if (pool_h, pool_w) != (pool_h2, pool_w2):
-        raise RuntimeError("Internal error: inconsistent downsampling factors.")
-
-    if pool_h > 1 or pool_w > 1:
-        _log_or_print(
-            f"[dual_heatmap] Downsampled from {matrix_upper.shape} to {z_u.shape}",
-            export.verbose,
-        )
-
-    n = z_u.shape[0]
-
-    upper_mask = np.triu(np.ones((n, n), dtype=bool), k=1)
-    lower_mask = np.tril(np.ones((n, n), dtype=bool), k=-1)
-
-    # 🔥 CLAVE: usar None en vez de NaN
-    z_upper = np.where(upper_mask, z_u, None)
-    z_lower = np.where(lower_mask, z_l, None)
-
-    # 🔥 CLAVE: customdata con ambas matrices
-    customdata = np.stack([z_u, z_l], axis=-1)
-
-    fig = go.Figure()
-
-    # 🔥 Hover combinado
-    hover_template = (
-        "i: %{y}<br>"
-        "j: %{x}<br>"
-        "Jaccard: %{customdata[0]:.4g}<br>"
-        "Wang: %{customdata[1]:.4g}"
-        "<extra></extra>"
-    )
-
-    # Upper (Jaccard)
-    fig.add_trace(
-        _choose_heatmap_trace(
-            z=z_upper,
-            colorscale=colorscale_upper,
-            z_label="Jaccard",
-            hovertemplate=hover_template,
-            scale_opts=scale,
-            showscale=True,
-            colorbar=dict(title="Jaccard", x=1.0, y=0.75, len=0.4),
-            zmin=0,
-            zmax=1,
-            customdata=customdata,
-        )
-    )
-
-    # Lower (Wang)
-    fig.add_trace(
-        _choose_heatmap_trace(
-            z=z_lower,
-            colorscale=colorscale_lower,
-            z_label="Wang",
-            hovertemplate=hover_template,
-            scale_opts=scale,
-            showscale=True,
-            colorbar=dict(title="Wang", x=1.0, y=0.25, len=0.4),
-            zmin=0,
-            zmax=1,
-            customdata=customdata,
-        )
-    )
-
-    # Highlight traces
-    for _ in range(2):
-        fig.add_trace(go.Scatter(
-            x=[None],
-            y=[None],
-            mode="markers",
-            marker=dict(
-                symbol="square",
-                size=20,
-                color="rgba(255, 0, 0, 0.0)",
-                line=dict(color="red", width=2),
-            ),
-            hoverinfo="skip",
-            showlegend=False,
-        ))
-
-    fig.update_layout(
-        title=title,
-        xaxis_title=x_label,
-        yaxis_title=y_label,
-        xaxis=dict(scaleanchor="y", constrain="domain"),
-        yaxis=dict(constrain="domain"),
-        hovermode="closest",
-    )
-
-    # HTML export
-    html = None
-    if save_filepath is not None or return_html:
-        base_html = _to_html(fig, export)
-
-        import re
-        m = re.search(r'<div id="([^"]+)"', base_html)
-        if not m:
-            raise RuntimeError("Could not locate Plotly div id.")
-
-        div_id = m.group(1)
-
-        js_code = f"""
-<script>
-document.addEventListener('DOMContentLoaded', function() {{
-  var myPlot = document.getElementById('{div_id}');
-  if (!myPlot) return;
-
-  myPlot.on('plotly_hover', function(data) {{
-    var p = data.points[0];
-    Plotly.restyle(myPlot, {{ x: [[p.x]], y: [[p.y]] }}, [2]);
-    Plotly.restyle(myPlot, {{ x: [[p.y]], y: [[p.x]] }}, [3]);
-  }});
-
-  myPlot.on('plotly_unhover', function() {{
-    Plotly.restyle(myPlot, {{ x: [[null]], y: [[null]] }}, [2, 3]);
-  }});
-}});
-</script>
-"""
-
-        html = base_html.replace("</body>", js_code + "\n</body>")
-
-        if save_filepath:
-            _write_text(save_filepath, html)
-
-    if return_fig and return_html:
-        return fig, html
-    if return_fig:
-        return fig
+        return layout
     if return_html:
         return html
     return None
