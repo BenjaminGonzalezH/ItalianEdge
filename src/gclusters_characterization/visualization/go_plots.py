@@ -177,22 +177,50 @@ def plot_go_metric(
     df = _prepare_dataframe(df, metric, options)
 
     if metric == "gene_ratio":
+        plot_df = df.sort_values("p_value")
+
+        size_ref = 2.0 * plot_df["intersection_size"].max() / (40 ** 2)
+
+        p_min = plot_df["p_value"].min()
+        p_max = plot_df["p_value"].max()
+
         fig = px.scatter(
-            df.sort_values("p_value"),
+            plot_df,
             x="gene_ratio",
             y="name",
             size="intersection_size",
             color="p_value",
             color_continuous_scale=options.colorscale,
+            range_color=[p_min, p_max],
+            size_max=40,
+            hover_data={
+                "source": True,
+                "intersection_size": True,
+                "p_value": ":.2e",
+                "gene_ratio": ":.3f",
+            },
+        )
+
+        fig.update_traces(
+            marker=dict(
+                sizemode="area",
+                sizeref=size_ref,
+                sizemin=4,
+            )
         )
     else:
-        fig = px.bar(
-            df.sort_values(metric, ascending=False),
-            x="qscore",
-            y="name",
-            color="neg_log10_p",
-            color_continuous_scale=options.colorscale,
-        )
+            fig = px.bar(
+                df.sort_values(metric, ascending=False),
+                x="qscore",
+                y="name",
+                color="neg_log10_p",
+                color_continuous_scale=options.colorscale,
+                hover_data={
+                    "source": True,
+                    "p_value": ":.2e",
+                    "qscore": ":.3f",
+                },
+            )
 
     html = fig.to_html(include_plotlyjs="cdn", full_html=True)
 

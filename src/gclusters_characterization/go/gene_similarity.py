@@ -35,7 +35,6 @@ Ontology = Literal["BP", "MF", "CC"]
 Groupwise = Literal["bma", "max", "avg", "hausdorff", "simgic"]
 SimilarityMeasure = Literal["resnik", "lin", "jc", "simrel", "iccoef", "graphic", "wang", "topoicsim"]
 DistanceTransform = Literal["auto", "one_minus", "max_minus", "reciprocal"]
-ClusterWeighting = Literal["uniform", "size"]
 
 # -----------------------------------------------------------------------------
 # Configuración
