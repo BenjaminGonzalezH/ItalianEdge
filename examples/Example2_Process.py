@@ -11,19 +11,22 @@ expected value computed by hand.
 
 Functions covered
 -----------------
-1. consensus_matrix             (consensus_matrix.py)
-2. jaccard_index_solutions      (jaccard_values.py)
-3. jaccard_index_clusters       (jaccard_values.py)
-4. rand_index_clusters          (rand_values.py -- _rand_from_binary_contingency)
-5. adjusted_rand_index_clusters (rand_values.py -- _ari_from_binary_contingency)
-6. _align_partition             (plurality_voting.py)
+1. consensus_matrix                 (consensus_matrix.py)
+2. jaccard_index_solutions          (jaccard_values.py)
+3. jaccard_index_clusters           (jaccard_values.py)
+4. rand_index_clusters              (rand_values.py -- _rand_from_binary_contingency)
+5. adjusted_rand_index_clusters     (rand_values.py -- _ari_from_binary_contingency)
+6. _align_partition                 (plurality_voting.py)
+7. compute_hierarchical_clustering  (he_clustering.py)
+8. compute_inconsistency_clustering (he_inconsistency_clustering.py)
 """
 
-import numpy as np
-
-import gclusters_characterization.clustering.consensus_matrix as CM
-import gclusters_characterization.clustering.jaccard_values as JV
-import gclusters_characterization.clustering.rand_values as RV
+import numpy                                                             as np
+import gclusters_characterization.clustering.consensus_matrix            as CM
+import gclusters_characterization.clustering.jaccard_values              as JV
+import gclusters_characterization.clustering.rand_values                 as RV
+import gclusters_characterization.clustering.he_clustering               as HC
+import gclusters_characterization.clustering.he_inconsistency_clustering as HIC
 
 
 # ─────────────────────────────────────────────────────────────
@@ -315,3 +318,173 @@ expected_ARI_clust = np.array([
 
 _section("Output  [2x2 cluster ARI matrix]")
 _result(ARI_clust, expected_ARI_clust)
+
+
+# ======================================================
+# 6. compute_hierarchical_clustering
+# ======================================================
+
+_header("compute_hierarchical_clustering  [he_clustering.py]")
+
+_section("Theory")
+print("  Hierarchical clustering repeatedly merges the two closest")
+print("  clusters (single linkage: the distance between two clusters")
+print("  is the MINIMUM distance between any of their members) until")
+print("  a single cluster remains, recording each merge's height.")
+print()
+print("  Step 1: Start with every element as its own cluster.")
+print("  Step 2: Merge the two closest clusters; record the merge")
+print("          height (= their distance) in the linkage matrix Z.")
+print("  Step 3: Repeat step 2, using single-linkage distance between")
+print("          the newly formed cluster and every remaining one,")
+print("          until only one cluster is left (n-1 merges total).")
+print("  Step 4: fcluster(Z, num_groups, criterion='maxclust') cuts")
+print("          the tree to return exactly num_groups flat labels.")
+print("  Step 5: The cophenetic distance between two leaves is the")
+print("          height at which they first end up in the same")
+print("          cluster. The cophenetic correlation coefficient is")
+print("          the Pearson correlation between the original pairwise")
+print("          distances and these cophenetic distances -- it")
+print("          measures how faithfully the dendrogram preserves the")
+print("          original distance matrix (1.0 = perfect preservation).")
+
+_section("Input")
+print("  4 genes (0-3), precomputed distance matrix, single linkage,")
+print("  num_groups=2:")
+print()
+print("    D = [[0, 1, 5, 6],")
+print("         [1, 0, 5, 6],")
+print("         [5, 5, 0, 2],")
+print("         [6, 6, 2, 0]]")
+print()
+print("  Step 2 (1st merge): smallest distance overall is d(G0,G1)=1")
+print("    -> merge {G0,G1} at height 1.")
+print("  Step 2 (2nd merge): smallest remaining distance is d(G2,G3)=2")
+print("    -> merge {G2,G3} at height 2.")
+print("  Step 2 (3rd merge): single-linkage distance between {G0,G1}")
+print("    and {G2,G3} = min(d(G0,G2),d(G0,G3),d(G1,G2),d(G1,G3))")
+print("               = min(5,6,5,6) = 5")
+print("    -> merge {G0,G1,G2,G3} at height 5.")
+print()
+print("  Cutting at num_groups=2 keeps the first two merges intact and")
+print("  undoes only the last one -> labels: G0,G1 -> cluster A;")
+print("  G2,G3 -> cluster B.")
+print()
+print("  Cophenetic distances (height of first shared cluster):")
+print("    coph(G0,G1)=1  coph(G2,G3)=2  all cross pairs (G0/G1 vs")
+print("    G2/G3) = 5 (the final merge height).")
+print()
+print("  orig = [d(0,1), d(0,2), d(0,3), d(1,2), d(1,3), d(2,3)]")
+print("       = [1, 5, 6, 5, 6, 2]           mean = 25/6 ~ 4.1667")
+print("  coph = [1, 5, 5, 5, 5, 2]           mean = 23/6 ~ 3.8333")
+print("  Pearson correlation of (orig, coph) ~ 0.9776")
+
+D = np.array([
+    [0., 1., 5., 6.],
+    [1., 0., 5., 6.],
+    [5., 5., 0., 2.],
+    [6., 6., 2., 0.],
+])
+genes = ["G0", "G1", "G2", "G3"]
+
+hc_options = HC.ClusteringOptions(num_groups=2, method="single", validate_distance=True, verbose=False)
+Z, labels, cophenetic_corr = HC.compute_hierarchical_clustering(D, genes, hc_options)
+
+expected_Z = np.array([
+    [0., 1., 1., 2.],
+    [2., 3., 2., 2.],
+    [4., 5., 5., 4.],
+])
+expected_labels = np.array([1, 1, 2, 2])
+expected_cophenetic_corr = 0.9776352896442044
+
+_section("Output  [linkage matrix Z: (leaf/cluster 1, leaf/cluster 2, height, size)]")
+_result(Z, expected_Z)
+
+_section("Output  [flat cluster labels, num_groups=2]")
+_result(labels, expected_labels)
+
+_section("Output  [cophenetic correlation coefficient]")
+_result(cophenetic_corr, expected_cophenetic_corr)
+
+
+# ======================================================
+# 8. compute_inconsistency_clustering
+# ======================================================
+
+_header("compute_inconsistency_clustering  [he_inconsistency_clustering.py]")
+
+_section("Theory")
+print("  Instead of asking the user for num_groups, this flags the merge")
+print("  whose height is most anomalous RELATIVE TO ITS OWN LOCAL")
+print("  NEIGHBOURHOOD in the dendrogram, then cuts just below it.")
+print()
+print("  Step 1: Build the same linkage matrix Z as compute_hierarchical_")
+print("          clustering (single linkage, see section 7).")
+print("  Step 2: For every merge/link, gather the heights of that link")
+print("          and every link within `depth` levels below it in the")
+print("          tree (depth=2 by default). Compute the sample mean and")
+print("          sample standard deviation (ddof=1) of that height set.")
+print("  Step 3: inconsistency coefficient = (own height - mean) / std")
+print("          (0 when std == 0, e.g. a merge with no sub-links).")
+print("  Step 4: Rank merges by coefficient, descending. The candidate's")
+print("          k = n_leaves - merge_index (clusters if that merge is")
+print("          the one left undone), filtered to min_clusters <= k")
+print("          <= max_clusters. cut_height = midpoint between this")
+print("          merge's height and the previous one (0 for the first).")
+print("  Step 5: fcluster(Z, t=cut_height, criterion='distance') turns")
+print("          the winning cut_height into flat labels.")
+
+_section("Input")
+print("  Same 4 genes and distance matrix D as section 7, single")
+print("  linkage, default options (depth=2, n_candidates=1,")
+print("  min_clusters=2). Reuses the same Z:")
+print()
+print("    Z = [[0, 1, 1, 2],   <- merge0: {G0,G1} at height 1")
+print("         [2, 3, 2, 2],   <- merge1: {G2,G3} at height 2")
+print("         [4, 5, 5, 4]]   <- merge2: {G0,G1,G2,G3} at height 5")
+print()
+print("  merge0 and merge1 only join two leaves -> no sub-links below")
+print("  them -> neighbourhood = {their own height}, std=0")
+print("    -> coefficient(merge0) = 0,  coefficient(merge1) = 0.")
+print()
+print("  merge2's neighbourhood (itself + both children, depth=2):")
+print("    heights = {5 (self), 1 (merge0), 2 (merge1)}")
+print("    mean = (5+1+2)/3 = 8/3 ~ 2.6667")
+print("    sample variance = [(5-2.6667)^2+(1-2.6667)^2+(2-2.6667)^2] / (3-1)")
+print("                     = [5.444+2.778+0.444] / 2 = 8.667/2 = 4.333")
+print("    std = sqrt(4.333) ~ 2.0817")
+print("    coefficient(merge2) = (5 - 2.6667) / 2.0817 = 2.3333/2.0817 ~ 1.1209")
+print()
+print("  merge2 is the clear outlier (coefficient ~1.12 vs 0 for the")
+print("  other two) -> it is flagged as the natural cut point.")
+print()
+print("  Candidate: undo merge2 -> k = n_leaves - 2 = 4 - 2 = 2 clusters.")
+print("  cut_height = midpoint(height[merge1], height[merge2])")
+print("             = (2 + 5) / 2 = 3.5")
+print("  Cutting Z at height 3.5 keeps merge0/merge1 (heights 1, 2) but")
+print("  not merge2 (height 5) -> same 2 clusters as section 7:")
+print("  {G0,G1} and {G2,G3}.")
+
+ic_options = HIC.InconsistencyClusteringOptions(
+    method="single", depth=2, n_candidates=1, min_clusters=2, validate_distance=True, verbose=False
+)
+Z_ic, labels_ic, cophenetic_corr_ic, report, R = HIC.compute_inconsistency_clustering(D, genes, ic_options)
+best = report[0]
+
+expected_R_coefficients = np.array([0.0, 0.0, 1.12089707663561])
+expected_best_k = 2
+expected_best_cut_height = 3.5
+expected_labels_ic = np.array([1, 1, 2, 2])
+
+_section("Output  [inconsistency coefficient per merge, R[:,3]]")
+_result(R[:, 3], expected_R_coefficients)
+
+_section("Output  [best candidate: number of clusters k]")
+_result(best["k"], expected_best_k)
+
+_section("Output  [best candidate: cut height]")
+_result(best["cut_height"], expected_best_cut_height)
+
+_section("Output  [flat cluster labels from the auto-detected cut]")
+_result(labels_ic, expected_labels_ic)

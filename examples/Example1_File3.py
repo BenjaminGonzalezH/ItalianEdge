@@ -68,9 +68,7 @@ import gclusters_characterization.clustering.consensus_matrix as CM
 import gclusters_characterization.clustering.he_clustering as HC
 import gclusters_characterization.clustering.jaccard_values as JV
 import gclusters_characterization.clustering.rand_values as RV
-import gclusters_characterization.clustering.cspa_method as CSPA
 import gclusters_characterization.clustering.solutioncluster_matrix as SCM
-import gclusters_characterization.clustering.similarity_threshold as ST
 
 import gclusters_characterization.go.mapping_entrez as ME
 import gclusters_characterization.go.go_enrichment as GOeP
@@ -81,10 +79,8 @@ import gclusters_characterization.visualization.heatmaps as Heat
 import gclusters_characterization.visualization.go_plots as Gplot
 import gclusters_characterization.visualization.go_network as Gnet
 import gclusters_characterization.visualization.go_hierarchical_network as GHnet
-import gclusters_characterization.visualization.raincloud as RC
-import gclusters_characterization.visualization.cir_go as GCD
 
-import gclusters_characterization.summary.differences_summary as DS
+import gclusters_characterization.summary.gene_overlap as GOL
 
 LOGGER = logging.getLogger("gclusters_example")
 
@@ -129,12 +125,9 @@ class PipelinePaths:
 class PipelineConfig:
     """Execution options for the demo pipeline."""
 
-    cspa_clusters: int = 4
     hierarchical_clusters: int = 4
-    embedding_components: int = 4
     parallel_scm: bool = True
     max_workers: int = 6
-    gmm_components: int = 4
 
     go_species_key: str = "tair"
     go_mapping_organism: str = "athaliana"
@@ -227,8 +220,6 @@ def ensure_directories(paths: PipelinePaths) -> None:
         paths.output_file_dir / "summary",
         paths.output_file_dir / "summary" / "go_group_analysis",
         paths.output_file_dir / "dendograms",
-        paths.output_file_dir / "enbedding",
-        paths.output_file_dir / "Plurarity Voting",
     ]
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
@@ -462,12 +453,6 @@ def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: P
         "ward": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="ward", sym_tol=1e-6),
     }
 
-    options_cspa = {
-        "kmeans": CSPA.CSPAOptions(n_clusters=cfg.cspa_clusters, assign_labels="kmeans"),
-        "discretize": CSPA.CSPAOptions(n_clusters=cfg.cspa_clusters, assign_labels="discretize"),
-        "cluster_qr": CSPA.CSPAOptions(n_clusters=cfg.cspa_clusters, assign_labels="cluster_qr"),
-    }
-
     consensus_arrays: list[np.ndarray] = []
 
     for key, option in options_hierarchical.items():
@@ -480,19 +465,6 @@ def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: P
             save_html_to=str(paths.output_file_dir / "dendograms" / f"Dendogram_{key}.html"),
         )
         consensus_arrays.append(hierarchical_solution)
-
-    embed_options = CSPA.EmbedOptions(n_components=cfg.embedding_components)
-    for key, option in options_cspa.items():
-        cspa_solution, _, _ = timed_step(
-            f"CSPA consensus ({key})",
-            CSPA.cspa_method,
-            state.prop_matrix,
-            genes,
-            cspa=option,
-            embed=embed_options,
-            save_html_to=str(paths.output_file_dir / "enbedding" / f"Embedding_CSPA_{key}.html"),
-        )
-        consensus_arrays.append(cspa_solution)
 
     # Preserve prior behavior: append one consensus solution to the original matrix.
     state.matrix = np.vstack([state.matrix, consensus_arrays[0]])
@@ -617,7 +589,6 @@ def compute_go_similarity_matrices(paths: PipelinePaths, state: PipelineState) -
         ordered_symbols, gene_matrix = timed_step(
             f"Compute GO3 {index} gene similarity matrix",
             GS.compute_gene_similarity_matrix_by_batch,
-            #GS.compute_gene_similarity_matrix_go3,
             state.gene_symbols,
             obo_path=state.obo_path,
             gaf_path=state.gaf_path,
@@ -680,7 +651,6 @@ def compute_go_sections(paths: PipelinePaths, cfg: PipelineConfig, state: Pipeli
     compute_go_similarity_matrices(paths, state)
     compute_solution_go_similarity(paths, state)
     run_go_visualizations(paths, cfg, state)
-    run_threshold_estimation(paths, cfg, state)
 
 
 # ---------------------------------------------------------------------
@@ -767,95 +737,40 @@ def run_go_visualizations(paths: PipelinePaths, cfg: PipelineConfig, state: Pipe
         save_html_to=str(paths.output_file_dir / "Go_plots" / "Tree.html"),
     )
 
-    GCD.plot_cirgo(
-        gene_to_terms,
-        save_html_to=str(paths.output_file_dir / "Go_plots" / "go_circle.html"),
-    )
-
 
 def run_heatmaps(paths: PipelinePaths, state: PipelineState) -> None:
     """Generate general similarity heatmaps."""
     if state.prop_matrix is None or state.jaccard_matrix is None:
         raise RuntimeError("Consensus and Jaccard matrices are required for heatmaps.")
 
-    Heat.plot_html_heatmap(
+    Heat.plot_clustered_heatmap(
         state.prop_matrix,
-        str(paths.output_file_dir / "Visualizations" / "Prop_matrix.html"),
+        labels=state.gene_symbols,
+        save_filepath=str(paths.output_file_dir / "Visualizations" / "Prop_matrix.html"),
         x_label="Gene",
         y_label="Gene",
         title="Gene similarity based on co-assignment proportion",
         z_label="Co-assignment proportion",
-        tooltip_format="Gene_1: %{x}<br>Gene_2: %{y}<br>Proportion: %{z:.2f}",
     )
 
-    Heat.plot_html_heatmap(
+    Heat.plot_clustered_heatmap(
         state.jaccard_matrix,
         save_filepath=str(paths.output_file_dir / "Visualizations" / "JaccardS.html"),
         x_label="Solution",
         y_label="Solution",
         title="Jaccard similarity between solutions",
         z_label="Jaccard",
-        tooltip_format="Solution_1: %{x}<br>Solution_2: %{y}<br>Jaccard: %{z:.2f}",
     )
 
     if state.wang_gene_matrix is not None:
-        Heat.plot_html_heatmap(
+        Heat.plot_clustered_heatmap(
             state.wang_gene_matrix,
+            labels=state.gene_symbols,
             save_filepath=str(paths.output_file_dir / "Visualizations" / "Wang.html"),
             x_label="Gene",
             y_label="Gene",
             title="Wang similarity between genes",
             z_label="Wang",
-            tooltip_format="Gene_1: %{x}<br>Gene_2: %{y}<br>Wang: %{z:.2f}",
-        )
-
-    if state.wang_solution_matrix is not None:
-        Heat.plot_dual_heatmap_two_colors(
-            state.jaccard_matrix,
-            state.wang_solution_matrix,
-            str(paths.output_file_dir / "Visualizations" / "Dual.html"),
-        )
-
-
-def run_threshold_estimation(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
-    """Estimate single and combined thresholds from equivalence tables."""
-    if state.jaccard_equivalents_df is None:
-        raise RuntimeError("Jaccard equivalence dataframe is required for threshold estimation.")
-
-    gmm_options = ST.GMMThresholdOptions(n_components=cfg.gmm_components)
-
-    jaccard_threshold = ST.estimate_similarity_threshold(
-        state.jaccard_equivalents_df,
-        column="Jaccard Similarity",
-        options=gmm_options,
-        plot=True,
-        save_html_to=str(paths.output_file_dir / "Visualizations" / "gmm_threshold_jaccard.html"),
-    )
-    LOGGER.info("Estimated Jaccard threshold: %s", jaccard_threshold)
-
-    if state.wang_enriched_df is not None:
-        wang_threshold = ST.estimate_similarity_threshold(
-            state.wang_enriched_df,
-            column="Wang Similarity",
-            options=gmm_options,
-            plot=True,
-            save_html_to=str(paths.output_file_dir / "Visualizations" / "gmm_threshold_wang.html"),
-        )
-        LOGGER.info("Estimated Wang threshold: %s", wang_threshold)
-
-        combined_thresholds = ST.estimate_similarity_threshold_combined(
-            state.wang_enriched_df,
-            columns=["Jaccard Similarity", "Wang Similarity"],
-            options=gmm_options,
-            plot=True,
-            save_html_to=str(paths.output_file_dir / "Visualizations" / "gmm_threshold_combined.html"),
-        )
-        LOGGER.info("Estimated combined thresholds: %s", combined_thresholds)
-
-        RC.plot_similarity_raincloud_html(
-            state.wang_enriched_df,
-            column="Jaccard Similarity",
-            save_html_to=str(paths.output_file_dir / "Visualizations" / "similarity_raincloud.html"),
         )
 
 
@@ -890,13 +805,19 @@ def compute_summary_inputs(paths: PipelinePaths, cfg: PipelineConfig, state: Pip
     ) / 2.0
     state.wang_enriched_df = summary_df
 
+    # gene_overlap's compute_gene_overlap_dataframe does not filter by a
+    # similarity/threshold column itself (every row of the input is
+    # processed), so the combined-score cutoff is applied here first.
+    filtered_pairs_df = summary_df[
+        summary_df["combined"] >= cfg.summary_combined_threshold
+    ].reset_index(drop=True)
+
     state.disjoint_genes_df = timed_step(
         "Compute disjoint genes dataframe",
-        DS.compute_disjoint_genes_dataframe,
-        summary_df,
-        "combined",
+        GOL.compute_gene_overlap_dataframe,
+        filtered_pairs_df,
         matrix_help,
-        cfg.summary_combined_threshold,
+        mode="disjoint",
     )
 
     AC.save_dataframe(
@@ -904,15 +825,20 @@ def compute_summary_inputs(paths: PipelinePaths, cfg: PipelineConfig, state: Pip
         filepath=paths.output_file_dir / "summary" / "Disjoint_genes.csv",
     )
 
-    freq_df, _, bio_sub_df, cooc_df = timed_step(
+    summary_result = timed_step(
         "Summarize disjoint genes",
-        DS.summarize_disjoint_genes,
+        GOL.summarize_genes,
         state.disjoint_genes_df,
-        "Disjoint Genes",
-        state.gene_symbols,
-        state.wang_gene_matrix,
+        gene_column="Disjoint Genes",
+        gene_ids=state.gene_symbols,
+        gene_similarity_matrix=state.wang_gene_matrix,
         min_gene_frequency=cfg.summary_min_gene_frequency,
+        label="Disjoint Genes",
     )
+
+    freq_df = summary_result.frequency_df
+    bio_sub_df = summary_result.similarity_submatrix
+    cooc_df = summary_result.cooccurrence_df
 
     state.summary_frequency_df = freq_df
     state.summary_bio_sub_df = bio_sub_df
@@ -937,18 +863,15 @@ def run_summary_visualizations(paths: PipelinePaths, state: PipelineState) -> No
     if state.summary_bio_sub_df is None or state.summary_cooc_df is None:
         raise RuntimeError("Summary matrices must be computed before visualization.")
 
-    Heat.plot_html_heatmap(
-        matrix=state.summary_bio_sub_df.to_numpy(),
-        save_filepath=paths.output_file_dir / "summary" / "Biological_matrix.html",
+    Heat.plot_clustered_heatmap(
+        state.summary_bio_sub_df.to_numpy(),
+        labels=state.summary_bio_sub_df.columns.to_list(),
+        save_filepath=str(paths.output_file_dir / "summary" / "Biological_matrix.html"),
     )
-    Heat.plot_html_heatmap(
-        matrix=state.summary_cooc_df.to_numpy(),
-        save_filepath=paths.output_file_dir / "summary" / "Cooccurrence_matrix.html",
-    )
-    Heat.plot_dual_heatmap_two_colors(
-        matrix_upper=state.summary_bio_sub_df.to_numpy(),
-        matrix_lower=state.summary_cooc_df.to_numpy(),
-        save_filepath=paths.output_file_dir / "summary" / "Dual_bio_cooc.html",
+    Heat.plot_clustered_heatmap(
+        state.summary_cooc_df.to_numpy(),
+        labels=state.summary_cooc_df.columns.to_list(),
+        save_filepath=str(paths.output_file_dir / "summary" / "Cooccurrence_matrix.html"),
     )
 
 
@@ -1072,11 +995,6 @@ def run_summary_go_analysis(paths: PipelinePaths, cfg: PipelineConfig, state: Pi
         term_pvalues,
         options=hierarchy_options,
         save_html_to=str(paths.output_file_dir / "summary" / "go_group_analysis" / "Tree.html"),
-    )
-
-    GCD.plot_cirgo(
-        gene_to_terms,
-        save_html_to=str(paths.output_file_dir / "summary" / "go_group_analysis" / "go_circle.html"),
     )
 
 

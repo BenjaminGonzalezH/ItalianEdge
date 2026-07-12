@@ -10,14 +10,15 @@ This project was designed to support the analysis of multiple clustering solutio
 
 ## Statement of need
 
-Multi-objective optimization algorithms applied to gene expression data produce a **Pareto front of clustering solutions** rather than a single partition. Existing bioinformatics tools — such as clusterProfiler, WGCNA, and general-purpose clustering libraries — assume a single best solution and provide no infrastructure for comparing, summarizing, or biologically interpreting an entire solution set. GClusters Characterization fills this gap by offering an integrated Python toolkit that computes structural similarity across partitions (Jaccard, Rand, Adjusted Rand), builds consensus representations from those partitions, identifies equivalent clusters across solutions using the Hungarian algorithm, and provides GO enrichment and GO-network visualizations tuned to the multi-solution context. The primary audience is computational biologists and bioinformaticians who apply multi-objective metaheuristics (e.g., NSGA-II, MOEA/D) to transcriptomic clustering and need reproducible, publication-ready downstream analysis.
+Multi-objective optimization algorithms applied to gene expression data produce a **Pareto front of clustering solutions** rather than a single partition. Existing bioinformatics tools, such as clusterProfiler, WGCNA, and general-purpose clustering libraries, assume a single best solution and provide no infrastructure for comparing, summarizing, or biologically interpreting an entire solution set. GClusters Characterization fills this gap by offering an integrated Python toolkit that computes structural similarity across partitions (Jaccard, Rand, Adjusted Rand), builds consensus representations from those partitions, identifies equivalent clusters across solutions using the Hungarian algorithm, and provides GO enrichment and GO-network visualizations tuned to the multi-solution context. The primary audience is computational biologists and bioinformaticians who apply multi-objective metaheuristics (e.g., NSGA-II, MOEA/D) to transcriptomic clustering and need reproducible, publication-ready downstream analysis.
 
 ## Overview
 
 Multi-objective gene clustering commonly produces a **set of non-dominated solutions** rather than a single best partition. Each solution may capture different trade-offs between expression structure and biological coherence. This package helps analyze that full solution set through:
 
 - **Quantitative comparison** of clustering solutions using metrics such as Jaccard similarity and Rand-based indices.
-- **Consensus analysis** to summarize shared structure across multiple partitions.
+- **Consensus and hierarchical clustering** to summarize shared structure across multiple partitions, with automatic or manual cluster-count selection.
+- **Cross-solution summary analysis** to quantify how much solutions agree, disagree, and which genes drive that (dis)agreement.
 - **Qualitative biological interpretation** using GO enrichment and GO semantic relationships.
 - **Interactive visual outputs** that help inspect similarities, cluster relationships, and enriched biological terms.
 
@@ -34,19 +35,28 @@ Multi-objective gene clustering commonly produces a **set of non-dominated solut
 - Build coincidence / co-association representations.
 - Detect equivalent clusters across solutions.
 
-### Consensus analysis
+### Consensus and hierarchical clustering
 - Consensus-oriented workflows from similarity/coincidence structures.
-- Hierarchical clustering over the consensus matrix.
+- Hierarchical clustering over the consensus matrix with a manually chosen number of groups.
+- Automatic cluster-count detection via the inconsistency coefficient of the linkage matrix, with a two-panel dendrogram + inconsistency-profile view comparing candidate cuts.
+
+### Summary and discrepancy analysis
+- Consensus-distance scoring and outlier-solution detection relative to the consensus.
+- Gene-overlap frequency analysis and frequency-cutoff selection across solutions.
+- Semantic-structural discrepancy analysis and identification of the most discrepant solution pairs.
 
 ### Gene Ontology analysis
 - Entrez identifier mapping support.
+- On-demand download of GO annotation (GAF) and NCBI `gene_info` reference files for several species (see [GO reference data](#go-reference-data)).
 - GO enrichment integration workflows.
 - GO semantic interpretation support.
 - GO interaction network visualization.
 - GO hierarchical tree visualization.
+- GO enrichment summary plots (gene ratio / q-score).
 
 ### Visualization
 - Standard similarity heatmaps.
+- Interactive clustered heatmap with linked, zoomable row/column dendrograms (HoloViews + Bokeh backend).
 - Interactive HTML exports for exploratory analysis.
 - Click-highlight embedding plots for cluster inspection.
 
@@ -79,7 +89,11 @@ Typical dependencies include:
 - gprofiler-official>=1.0,
 - mygene>=3.2,
 - go3>=0.3.0,
-- pyarrow>=14.0
+- pyarrow>=14.0,
+- holoviews>=1.23.1,
+- bokeh (required by `holoviews` for the interactive clustered heatmap backend; not installed by a bare `pip install holoviews`, so make sure it's available — see note below)
+
+> **Nota interna (no publicar sin resolver):** `bokeh` no está declarado explícitamente en `pyproject.toml`. `holoviews` por sí solo no lo instala como dependencia obligatoria, y `heatmaps.plot_clustered_heatmap` hace `from bokeh.models import HoverTool` directamente. Recomiendo agregar `"bokeh"` a `dependencies` en `pyproject.toml` antes de publicar, o esa función fallará en una instalación limpia desde PyPI.
 
 ## Input format
 The package assumes:
@@ -93,6 +107,21 @@ Example:
 |GeneB |     0   |    1    |    2    |
 |GeneC |     1   |    0    |    2    |
 |GeneD |     1   |    0    |    1    |
+
+## GO reference data
+
+GO enrichment and GO-network functions need two reference files per species: a GO annotation file (`.gaf`) and an NCBI `gene_info` file. **These are not bundled with the package or the repository** — they must be obtained locally before running GO-related analyses (via `examples/resources/` or any path of your choice).
+
+The package can download and cache them for you:
+
+```python
+from gclusters_characterization.go.go_utils import ensure_gaf_file, ensure_gene_info_file
+
+gaf_path = ensure_gaf_file("tair", out_dir="examples/resources")
+gene_info_path = ensure_gene_info_file("tair", out_dir="examples/resources")
+```
+
+Supported `species_key` values out of the box: `goa_human` (human), `mgi` (mouse), `fb` (fly), `zfin` (zebrafish), `sgd` (yeast), `tair` (*Arabidopsis thaliana*), `wb` (*C. elegans*). Files are downloaded once and reused on subsequent calls if already present in `out_dir`.
 
 ## Quick Start
 
@@ -119,9 +148,13 @@ coincidence_matrix, consensus = consensus_matrix(solutions)
 # Visualization
 # fig = plot_clustered_heatmap(consensus, genes)
 
-# GO analysis
+# Automatic hierarchical clustering (no fixed number of groups required)
+# from gclusters_characterization.clustering.he_inconsistency_clustering import he_inconsistency_clustering
+# he_inconsistency_clustering(consensus, genes, save_html_to="inconsistency.html")
+
+# GO analysis (requires local .gaf / .obo files, see "GO reference data" above)
 # from gclusters_characterization.visualization.go_network import plot_go_interaction_network_html
-# plot_go_interaction_network_html(...)
+# plot_go_interaction_network_html(gene2terms, term_pvalues, gaf_path, obo_path)
 ```
 
 ## A complete workflow includes:
@@ -136,8 +169,10 @@ coincidence_matrix, consensus = consensus_matrix(solutions)
 8. Visualize GO networks / hierarchies
 9. Export results
 
-Full Example:
-examples/Example1_File3.py
+Full examples (in `examples/`):
+- `Pipeline_documented.ipynb` — recommended starting point: a guided notebook covering the theory background and the full pipeline step by step.
+- `Example1_File3.py` / `Example3_File2.py` — reproducible end-to-end pipeline scripts over two different datasets/species (*Arabidopsis*/TAIR and human, respectively).
+- `Example2_Process.py` — function-level validation walkthrough with hand-derived expected values for the core mathematical functions (Jaccard, Rand/ARI, consensus matrix, hierarchical and inconsistency-based clustering).
 
 ## Repository structure
 
@@ -148,6 +183,7 @@ project_root/
 │   ├── clustering/
 │   │   ├── consensus_matrix.py
 │   │   ├── he_clustering.py
+│   │   ├── he_inconsistency_clustering.py
 │   │   ├── jaccard_values.py
 │   │   ├── rand_values.py
 │   │   └── solutioncluster_matrix.py
