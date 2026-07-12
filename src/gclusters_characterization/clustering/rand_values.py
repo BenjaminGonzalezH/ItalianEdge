@@ -1,42 +1,27 @@
 """
-RandValues
-----------
-
-High-performance utilities for computing similarity between clustering
+rand_values: High-performance utilities for computing similarity between clustering
 solutions using the Rand Index (RI) and Adjusted Rand Index (ARI).
 
-This refactored version preserves the public API of the original module
-while improving performance, especially for cluster-level comparisons.
 
-Main improvements
------------------
-1. Cluster-vs-cluster similarity no longer builds binary vectors for each pair.
-   Instead, clusters are encoded once into sparse membership matrices and
-   similarities are computed from contingency counts.
-
-2. Solution-vs-solution similarity supports optional parallel execution.
-
-3. Internal helpers reduce Python-level loops and repeated set operations.
-
-Public API
-----------
-1. rand_index_solutions
-2. adjusted_rand_index_solutions
-3. rand_index_clusters
-4. adjusted_rand_index_clusters
-5. compare_solutions_pair
-6. find_equivalent_clusters_rand
+Functions
+1. rand_index_solutions          – Compute pairwise Rand Index between clustering solutions.
+2. adjusted_rand_index_solutions – Compute pairwise Adjusted Rand Index between clustering solutions.
+3. rand_index_clusters           – Compute Rand Index similarity between clusters of two solutions.
+4. adjusted_rand_index_clusters  – Compute Adjusted Rand Index similarity between clusters of two solutions.
+5. compare_solutions_pair        – Match clusters between two solutions using Rand-based similarity.
+6. find_equivalent_clusters_rand – Summarize cluster correspondences across multiple solutions.
 """
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Dict, Iterable, List, Set, Tuple, Literal, Sequence, Any, Optional
-
-import numpy as np
-import pandas as pd
-from scipy import sparse
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__      import annotations
+from dataclasses     import dataclass
+from typing          import Dict, List, Set, Tuple, Literal, Any
+from scipy           import sparse
 from sklearn.metrics import rand_score, adjusted_rand_score
+import numpy  as np
+import pandas as pd
 
 try:
     from joblib import Parallel, delayed
@@ -48,6 +33,24 @@ except Exception:
 
 
 Metric = Literal["rand", "adjusted_rand"]
+
+
+@dataclass(frozen=True)
+class _EncodedSolution:
+    """
+    Sparse binary membership representation for one solution.
+
+    Attributes
+    ----------
+    membership : scipy.sparse.csr_matrix
+        Sparse matrix of shape (n_clusters, n_items).
+        Entry (i, j) = 1 if item j belongs to cluster i.
+    cluster_sizes : numpy.ndarray
+        Size of each cluster.
+    """
+    membership: sparse.csr_matrix
+    cluster_sizes: np.ndarray
+
 
 
 # ──────────────────────────────────────────────────────────────
@@ -143,22 +146,6 @@ def _validate_two_solutions(solution1: List[Set[Any]], solution2: List[Set[Any]]
 # ──────────────────────────────────────────────────────────────
 # Cluster encoding helpers
 # ──────────────────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class _EncodedSolution:
-    """
-    Sparse binary membership representation for one solution.
-
-    Attributes
-    ----------
-    membership : scipy.sparse.csr_matrix
-        Sparse matrix of shape (n_clusters, n_items).
-        Entry (i, j) = 1 if item j belongs to cluster i.
-    cluster_sizes : numpy.ndarray
-        Size of each cluster.
-    """
-    membership: sparse.csr_matrix
-    cluster_sizes: np.ndarray
 
 
 def _build_global_index(solution1: List[Set[Any]], solution2: List[Set[Any]]) -> Dict[Any, int]:

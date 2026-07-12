@@ -1,52 +1,27 @@
 """
-consensus_distance_summary.py
-
-Identify clustering solutions that are significantly distant from a single,
-designated consensus solution (e.g. ``consensus_arrays[best_idx]``), based
-on a partition-to-partition distance measure computed elsewhere (typically
-1 - Jaccard between gene co-assignments, via
+consensus_distance_summary: Identify clustering solutions that are significantly distant from a single,
+designated consensus solution (e.g. ``consensus_arrays[best_idx]``), based on a partition-to-partition 
+distance measure computed elsewhere (typically 1 - Jaccard between gene co-assignments, via
 ``jaccard_values.jaccard_index_solutions``).
 
-This is a different question from ``consensus_outlier_summary.py``:
-- consensus_outlier_summary.py flags solutions whose AVERAGE similarity to
-  the REST OF THE SET is unusually low (no single reference solution).
-- consensus_distance_summary.py flags solutions that are far from ONE
-  SPECIFIC reference partition (the chosen consensus solution).
-
-This module intentionally does NOT compute the partition distance itself —
-that still uses your own ``jaccard_values`` utilities. It takes the
-resulting 1-D array of distances and focuses on: (a) determining which
-solutions are significant outliers (via z-score, or a fixed top-K if you
-prefer), and (b) an interactive two-panel visualization (ranked distances +
-distribution with threshold) matching the ranked-bar + histogram layout.
-
 Functions
----------
-1. compute_consensus_distance_scores:
-   Per-solution distance-to-consensus, plus its z-score relative to the
-   distribution of distances across all solutions.
-
-2. identify_outlier_solutions_vs_consensus:
-   Filter to only the solutions flagged as significantly distant from the
-   consensus solution — either via z-score threshold, or a fixed top-K.
-
-3. get_outlier_solution_indices:
-   Unique, sorted list of flagged solution indices.
-
-4. plot_consensus_distance_summary:
-   Two-panel interactive figure: ranked bar chart of distances (outliers
-   highlighted) + histogram of the distance distribution with the cutoff.
+1. compute_consensus_distance_scores       - Per-solution distance-to-consensus, plus its z-score relative to the 
+                                            distribution of distances across all solutions.
+2. identify_outlier_solutions_vs_consensus - Filter to only the solutions flagged as significantly distant from the
+                                            consensus solution — either via z-score threshold, or a fixed top-K.
+3. get_outlier_solution_indices            - Unique, sorted list of flagged solution indices.
+4. plot_consensus_distance_summary         - Two-panel interactive figure: ranked bar chart of distances (outliers
+                                            highlighted) + histogram of the distance distribution with the cutoff.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass
-from typing import List, Optional, Sequence
-
-import numpy as np
-import pandas as pd
+from dataclasses     import dataclass
+from typing          import List, Optional, Sequence
 from plotly.subplots import make_subplots
+import numpy                as np
+import pandas               as pd
 import plotly.graph_objects as go
 
 
@@ -72,7 +47,7 @@ class ConsensusDistanceOptions:
         overriding ``z_threshold`` — matches a fixed "examine the top N
         outliers" workflow instead of a statistical cutoff.
     """
-    z_threshold: float = 1.5
+    z_threshold: float   = 1.5
     top_k: Optional[int] = None
 
 

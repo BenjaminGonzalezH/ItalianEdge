@@ -1,27 +1,31 @@
 """
-GoNetwork.py (refactor completo - go3 only)
+GoNetwork: GO term interaction network based on Wang semantic similarity.
 
 Features:
-- Eliminado pygosemsim
-- Cálculo Wang con go3
-- Layout determinista
-- Export HTML interactivo
-- Arquitectura limpia y validada
+- No pygosemsim dependency
+- Wang similarity computed via go3
+- Deterministic layout
+- Interactive HTML export
+- Clean, validated architecture
+
+Functions
+1. plot_go_interaction_network_html – Build and export a GO term similarity network as an interactive figure/HTML.
 """
 
-from __future__ import annotations
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__  import annotations
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
-import logging
-from itertools import combinations
-import math
-
-import networkx as nx
+from pathlib     import Path
+from typing      import Dict, List, Optional, Sequence, Union
+from itertools   import combinations
+import networkx             as nx
 import plotly.graph_objects as go
-import matplotlib.colors as mcolors
+import matplotlib.colors    as mcolors
 import go3
+import logging
+import math
 
 logger = logging.getLogger(__name__)
 PathLike = Union[str, Path]
@@ -123,7 +127,7 @@ def _build_plotly_figure(
         p = term_pvalues.get(term, None)
 
         if p is None or (isinstance(p, float) and math.isnan(p)):
-            return "#808080"  # color para missing
+            return "#808080"  # color for missing values
   
         return mcolors.to_hex(cmap(norm(term_pvalues.get(term, 0.05))))
 

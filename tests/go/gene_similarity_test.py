@@ -23,7 +23,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
-from gclusters_characterization.go.go_enrishment import (
+from gclusters_characterization.go.go_enrichment import (
     go_enrichment,
     annotation_from_entrez_ids,
     GoEnrichmentOptions,
@@ -67,7 +67,7 @@ class TestGoEnrichment(unittest.TestCase):
         """Prepare a small set of genes including duplicates and invalid values."""
         self.genes = ["1", "2", "3", "3", None, ""]
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_basic_enrichment(self, mock_gp):
         """Ensure enrichment runs and produces expected columns."""
         mock_instance = MagicMock()
@@ -86,7 +86,7 @@ class TestGoEnrichment(unittest.TestCase):
         # Results should be sorted by p-value
         self.assertTrue(df["p_value"].is_monotonic_increasing)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_precision_column(self, mock_gp):
         """Enrichment should still work without 'precision'."""
         df_mock = fake_enrichment_df().drop(columns=["precision"])
@@ -99,7 +99,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_pvalue_column(self, mock_gp):
         """If p_value is missing, qscore should not be computed."""
         df_mock = fake_enrichment_df().drop(columns=["p_value"])
@@ -112,7 +112,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertNotIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_empty_response(self, mock_gp):
         """Empty API response should return an empty DataFrame."""
         mock_instance = MagicMock()
@@ -142,7 +142,7 @@ class TestGoEnrichment(unittest.TestCase):
         with self.assertRaises(ValueError):
             go_enrichment(["1"], options=opts)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_retry_logic(self, mock_gp):
         """Ensure retry mechanism is triggered when API fails."""
         mock_instance = MagicMock()
@@ -174,7 +174,7 @@ class TestAnnotation(unittest.TestCase):
         """Prepare a small gene set for annotation tests."""
         self.genes = ["A", "B", "C", "D"]
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_basic_annotation(self, mock_gp):
         """Annotation should return a gene-to-terms mapping."""
         mock_instance = MagicMock()
@@ -194,7 +194,7 @@ class TestAnnotation(unittest.TestCase):
             self.assertIsInstance(k, str)
             self.assertIsInstance(v, list)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_chunking(self, mock_gp):
         """Annotation should split queries according to chunk size."""
         mock_instance = MagicMock()
@@ -214,7 +214,7 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertEqual(len(calls), 2)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_thread_failure_handling(self, mock_gp):
         """Failures in individual chunks should not crash execution."""
         mock_instance = MagicMock()
@@ -231,7 +231,7 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertIsInstance(result, dict)
 
-    @patch("gclusters_characterization.go.go_enrishment.GProfiler")
+    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
     def test_missing_columns(self, mock_gp):
         """Missing expected columns should return empty result."""
         mock_instance = MagicMock()

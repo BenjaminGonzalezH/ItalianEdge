@@ -1,25 +1,24 @@
-"""ReadSolution
-
-This module provides utilities to load clustering solution matrices from disk.
-It supports multiple file formats and converts them into a standardized
-NumPy matrix along with the list of column names.
+"""
+read_solution: This module provides utilities to load clustering solution matrices from disk.
+It supports multiple file formats and converts them into a standardized NumPy matrix along 
+with the list of column names.
 
 Functions
-1. read_solutions_file – Load a solutions file and return the matrix and gene names.
-2. _clean_dataframe – Validate and normalize a DataFrame before conversion.
-3. _read_csv – Read CSV files with automatic delimiter detection.
-4. _read_fwf – Read fixed-width formatted text files.
-5. _read_pkl – Load a pickled pandas DataFrame.
+1. read_solutions_file – Load a solutions file and return the matrix and gene identificators.
+2. _clean_dataframe    – Validate and normalize a DataFrame before conversion.
+3. _read_csv           – Read CSV files with automatic delimiter detection.
+4. _read_fwf           – Read fixed-width formatted text files.
+5. _read_pkl           – Load a pickled pandas DataFrame.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy as np
+import numpy  as np
 import pandas as pd
 import csv
 from pathlib import Path
-from typing import Tuple
+from typing  import Tuple
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -140,10 +139,9 @@ READERS = {
 
 def read_solutions_file(filepath: str) -> Tuple[np.ndarray, list[str]]:
     """
-    Load a solutions file and convert it to a matrix representation.
-
-    The file format is inferred from its extension. Supported formats
-    include CSV, fixed-width text, and pickled pandas DataFrames.
+    Load a solutions file and convert it to a matrix representation. The file format 
+    is inferred from its extension. Supported formats include CSV, fixed-width text, 
+    and pickled pandas DataFrames.
 
     Parameters
     ----------

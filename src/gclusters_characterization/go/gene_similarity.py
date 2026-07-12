@@ -1,56 +1,48 @@
 """
-gene_similarity.py
-
-This module provides utilities to compute biological similarity between genes
+gene_similarity: This module provides utilities to compute biological similarity between genes
 and clustering solutions using Gene Ontology (GO3-based similarity).
 
 Functions:
-1. compute_gene_similarity_matrix_go3:
-   Computes a pairwise similarity matrix between genes using GO3.
-
-2. solution_go_similarity_from_dataframe:
-   Computes similarity between clustering solutions based on gene similarity.
-
-3. labels_to_clusters:
-   Converts label arrays into cluster representations.
+1. compute_gene_similarity_matrix_by_batch - Computes a pairwise similarity matrix between genes using GO3.
+2. solution_go_similarity_from_dataframe   - Computes similarity between clustering solutions based on gene similarity.
 """
 
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Sequence, Set, Tuple, Union, Literal
-from itertools import combinations
-
+from pathlib     import Path
+from typing      import List, Sequence, Set, Tuple, Union, Literal
+from itertools   import combinations
 import logging
-
-import numpy as np
+import numpy  as np
 import pandas as pd
 import go3
 
 
-logger = logging.getLogger(__name__)
+logger   = logging.getLogger(__name__)
 PathLike = Union[str, Path]
 
-Ontology = Literal["BP", "MF", "CC"]
-Groupwise = Literal["bma", "max", "avg", "hausdorff", "simgic"]
+Ontology          = Literal["BP", "MF", "CC"]
+Groupwise         = Literal["bma", "max", "avg", "hausdorff", "simgic"]
 SimilarityMeasure = Literal["resnik", "lin", "jc", "simrel", "iccoef", "graphic", "wang", "topoicsim"]
 DistanceTransform = Literal["auto", "one_minus", "max_minus", "reciprocal"]
 
 # -----------------------------------------------------------------------------
-# Configuración
+# Configuration
 # -----------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class GeneSimilarityOptions:
-    ontology: Ontology = "BP"
-    measure: SimilarityMeasure = "wang"
-    groupwise: Groupwise = "bma"
+    ontology: Ontology                 = "BP"
+    measure: SimilarityMeasure         = "wang"
+    groupwise: Groupwise               = "bma"
     distance_method: DistanceTransform = "auto"
-    load_go_terms: bool = True
-    num_threads_go3: int = 0  # go3.set_num_threads(0) = auto/por defecto
+    load_go_terms: bool                = True
+    num_threads_go3: int               = 0  # go3.set_num_threads(0) = auto/default
 
 # -----------------------------------------------------------------------------
-# Similitud gen-gen con GO3
+# Gene-by-gene similarity
 # -----------------------------------------------------------------------------
 
 def compute_gene_similarity_matrix_by_batch(
@@ -71,15 +63,15 @@ def compute_gene_similarity_matrix_by_batch(
 
     go3.set_num_threads(int(go3_opts.num_threads_go3))
 
-    # Cargar GO terms si se pide
+    # Load GO terms if requested
     if go3_opts.load_go_terms:
         go3.load_go_terms(str(obo_path))
 
-    # Cargar anotaciones y computar matriz de distancias con GO3
-    annotations = go3.load_gaf(str(gaf_path))  # go3 espera path/alias de su loader
+    # Load annotations and build the term counter used by GO3's similarity functions
+    annotations = go3.load_gaf(str(gaf_path))  # go3 expects a path/alias for its loader
     counter = go3.build_term_counter(annotations)
 
-    # Aplicar descarga 
+    # Compute pairwise similarity scores for all gene combinations
     pairs = list(combinations(genes, 2))
     scores = go3.compare_gene_pairs_batch(
         pairs,
@@ -101,10 +93,10 @@ def compute_gene_similarity_matrix_by_batch(
         sim[i, j] = float(score)
         sim[j, i] = float(score)
 
-    return sim
+    return genes_list, sim
 
 # -----------------------------------------------------------------------------
-# Similitud solución-solución usando SOLO info biológica
+# Solution-to-solution similarity using ONLY biological information
 # -----------------------------------------------------------------------------
 
 def solution_go_similarity_from_dataframe(
@@ -120,7 +112,36 @@ def solution_go_similarity_from_dataframe(
     """
     Compute similarity between clustering solutions using gene-level similarity.
 
-    ... (mismo docstring) ...
+    For every matched cluster pair listed in ``reference_df`` (as produced by
+    e.g. ``find_equivalent_clusters_jaccard``/``find_equivalent_clusters_rand``),
+    this computes the mean pairwise gene similarity between the two clusters
+    using ``gene_similarity_matrix``, then aggregates those pair-level scores
+    into a symmetric solution-to-solution similarity matrix.
+
+    Parameters
+    ----------
+    ids : Sequence[str]
+        Gene identifiers indexing the rows/columns of ``gene_similarity_matrix``.
+    gene_similarity_matrix : numpy.ndarray
+        Precomputed pairwise gene similarity matrix (n_genes x n_genes).
+    similarity_metric : str
+        Name used to label the new similarity column added to ``reference_df``.
+    reference_df : pandas.DataFrame
+        Table of matched clusters with columns "Solution 1", "Solution 2",
+        "Cluster 1", "Cluster 2" (one row per matched cluster pair).
+    solutions : Sequence[Sequence[Set[str]]]
+        Clustering solutions; each solution is a sequence of gene sets.
+    na_value : str, default "NA"
+        Placeholder value to exclude when looking up genes in ``ids``.
+    normalize_matrix : bool, default True
+        If True, scales the resulting matrix so its maximum value is 1.0.
+
+    Returns
+    -------
+    Tuple[numpy.ndarray, pandas.DataFrame]
+        The symmetric solution-to-solution similarity matrix, and a copy of
+        ``reference_df`` with an added ``f"{similarity_metric} Similarity"``
+        column holding the per-pair similarity score.
     """
 
     required_cols = {

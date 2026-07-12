@@ -1,8 +1,5 @@
 """
-MappingEntrez.py (refactor - standardized US English comments)
-
-Purpose:
-- Convert a list of gene identifiers/symbols to Entrez IDs using:
+mapping_entrez: Convert a list of gene identifiers/symbols to Entrez IDs using:
   1) gProfiler (primary)
   2) MyGene.info (fallback for unmapped genes)
 
@@ -12,25 +9,30 @@ Deterministic rule:
 Notes:
 - Outputs are always strings (or na_value if missing).
 - Network robustness handled via retry logic.
+
+Functions
+1. convert_to_entrez_id – Convert gene symbols/identifiers to Entrez IDs (gProfiler primary, MyGene.info fallback).
 """
 
-######### Libraries #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from dataclasses        import dataclass
+from typing             import Dict, Iterator, List, Optional, Sequence, Union
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from gprofiler          import GProfiler
+import pandas  as pd
+import requests
+import mygene
 import logging
 import time
-from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional, Sequence, Union
-
-import pandas as pd
-import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from gprofiler import GProfiler
-import mygene
 
 logger = logging.getLogger(__name__)
 
 
-######### Configuration #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────────────────────────────────────
 @dataclass(frozen=True)
 class MappingOptions:
     """
@@ -58,19 +60,20 @@ class MappingOptions:
         Optional timeout for requests.
     """
 
-    organism_gp: str = "hsapiens"
-    tax_id: int = 9606
-    scopes_mg: Sequence[str] = ("symbol", "alias", "tair", "accession", "refseq", "ensembl.gene")
-    na_value: str = "NA"
-
-    n_threads: int = 4
-    chunk_size: int = 250
-    request_retries: int = 3
-    backoff_base_seconds: float = 0.6
+    organism_gp: str                 = "hsapiens"
+    tax_id: int                      = 9606
+    scopes_mg: Sequence[str]         = ("symbol", "alias", "tair", "accession", "refseq", "ensembl.gene")
+    na_value: str                    = "NA"
+    n_threads: int                   = 4
+    chunk_size: int                  = 250
+    request_retries: int             = 3
+    backoff_base_seconds: float      = 0.6
     timeout_seconds: Optional[float] = None
 
 
-######### Utilities #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Utilities
+# ──────────────────────────────────────────────────────────────────────────────
 def _iter_chunks(seq: Sequence[str], n: int) -> Iterator[List[str]]:
     """
     IterChunks(function): Split a sequence into chunks of size n.
@@ -170,8 +173,9 @@ def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: tupl
 
     raise RuntimeError(f"Request failed after {retries} retries") from last_exc
 
-
-######### gProfiler Mapping #########
+# ──────────────────────────────────────────────────────────────────────────────
+# gProfiler Mapping
+# ──────────────────────────────────────────────────────────────────────────────
 def _map_with_gprofiler(
     genes: Sequence[str],
     options: MappingOptions
@@ -235,8 +239,9 @@ def _map_with_gprofiler(
         for _, row in grouped.iterrows()
     }
 
-
-######### MyGene Mapping #########
+# ──────────────────────────────────────────────────────────────────────────────
+# MyGene Mapping
+# ──────────────────────────────────────────────────────────────────────────────
 def _query_mygene_chunk(
     mg: mygene.MyGeneInfo,
     chunk: Sequence[str],
@@ -348,8 +353,9 @@ def _map_with_mygene(
 
     return mapping
 
-
-######### Main Function #########
+# ──────────────────────────────────────────────────────────────────────────────
+# Main Function
+# ──────────────────────────────────────────────────────────────────────────────
 def convert_to_entrez_id(
     symbol_list: Sequence[str],
     options: MappingOptions = MappingOptions()

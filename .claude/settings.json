@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python \"C:\\\\Users\\\\benja\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-benja-Desktop-workspace-ItalianEdge\\\\fc7f40b6-5799-4bef-91e7-88b35d9ca7a0\\\\scratchpad\\\\fix_notebook.py\")"
+    ]
+  }
+}

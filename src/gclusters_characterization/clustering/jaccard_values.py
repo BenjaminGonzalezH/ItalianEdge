@@ -1,9 +1,7 @@
 """
-JaccardValues
-
-Utilities for computing Jaccard similarity across clustering solutions.
-
-This module provides functions to compare clustering outputs at two levels:
+jaccard_values: Utilities for computing Jaccard similarity across clustering 
+solutions. This module provides functions to compare clustering outputs at 
+two levels:
 
 1. Solution-level comparison
    Computes the Jaccard similarity between clustering solutions
@@ -13,23 +11,20 @@ This module provides functions to compare clustering outputs at two levels:
    Computes the Jaccard similarity between clusters belonging
    to two different clustering solutions.
 
-These utilities are useful for:
-
-- evaluating clustering stability
-- identifying equivalent clusters
-- comparing clustering algorithms
-
 Functions
-1. jaccard_index_solutions – Compute similarity between clustering solutions.
-2. jaccard_index_clusters – Compute similarity between clusters of two solutions.
-3. compare_solutions_pair – Match clusters between two solutions using Jaccard similarity.
+1. jaccard_index_solutions          – Compute similarity between clustering solutions.
+2. jaccard_index_clusters           – Compute similarity between clusters of two solutions.
+3. compare_solutions_pair           – Match clusters between two solutions using Jaccard similarity.
 4. find_equivalent_clusters_jaccard – Identify equivalent clusters across solution sets.
+5. _validate_solution_matrix        – Validate a clustering solution matrix.
+6. _upper_triangle_pairs            – Return indices of the upper triangular part of a matrix.
+7. _solution_to_pair_vector         – Convert a clustering solution into a pairwise membership vector.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy as np
+import numpy  as np
 import pandas as pd
 from typing import List, Set, Tuple, Optional
 
@@ -40,11 +35,9 @@ from typing import List, Set, Tuple, Optional
 
 def _validate_solution_matrix(matrix: np.ndarray) -> None:
     """
-    Validate a clustering solution matrix.
-
-    The matrix must represent multiple clustering solutions
-    where rows correspond to solutions and columns correspond
-    to genes (or items).
+    Validate a clustering solution matrix. The matrix must represent 
+    multiple clustering solutions where rows correspond to solutions 
+    and columns correspond to genes (or items).
 
     Parameters
     ----------
@@ -71,9 +64,8 @@ def _validate_solution_matrix(matrix: np.ndarray) -> None:
 
 def _upper_triangle_pairs(n: int):
     """
-    Return indices of the upper triangular part of a matrix.
-
-    These indices represent all unique pairs of elements.
+    Return indices of the upper triangular part of a matrix. These indices 
+    represent all unique pairs of elements.
 
     Parameters
     ----------
@@ -90,9 +82,8 @@ def _upper_triangle_pairs(n: int):
 
 def _solution_to_pair_vector(solution: np.ndarray, tri_indices):
     """
-    Convert a clustering solution into a pairwise membership vector.
-
-    Each entry indicates whether two genes belong to the same cluster.
+    Convert a clustering solution into a pairwise membership vector. Each entry 
+    indicates whether two genes belong to the same cluster.
 
     Parameters
     ----------
@@ -118,11 +109,9 @@ def jaccard_index_solutions(
     Solutions_Matrix: np.ndarray
 ) -> np.ndarray:
     """
-    Compute the Jaccard similarity between clustering solutions.
-
-    Each clustering solution is converted into a vector representing
-    pairwise gene co-membership. The Jaccard index is then computed
-    between these vectors.
+    Compute the Jaccard similarity between clustering solutions. Each clustering 
+    solution is converted into a vector representing pairwise gene co-membership. 
+    The Jaccard index is then computed between these vectors.
 
     Parameters
     ----------
@@ -166,10 +155,9 @@ def jaccard_index_clusters(
     Solution2: List[Set]
 ) -> np.ndarray:
     """
-    Compute the Jaccard similarity matrix between clusters.
-
-    Each entry (i, j) represents the similarity between cluster i
-    from Solution1 and cluster j from Solution2.
+    Compute the Jaccard similarity matrix between clusters. Each entry (i, j) 
+    represents the similarity between cluster i from Solution1 and cluster j 
+    from Solution2.
 
     The Jaccard similarity is defined as:
 
@@ -212,11 +200,9 @@ def compare_solutions_pair(
     solutions: List[List[Set]]
 ) -> List[Tuple[int, int, float]]:
     """
-    Identify the best matching clusters between two clustering solutions.
-
-    The function computes the Jaccard similarity matrix and greedily
-    matches clusters with the highest similarity while avoiding
-    duplicate matches.
+    Identify the best matching clusters between two clustering solutions. The 
+    function computes the Jaccard similarity matrix and greedily matches clusters 
+    with the highest similarity while avoiding duplicate matches.
 
     Parameters
     ----------

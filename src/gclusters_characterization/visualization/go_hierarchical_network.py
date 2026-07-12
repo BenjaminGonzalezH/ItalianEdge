@@ -1,42 +1,41 @@
 """
-go_hierarchical_network.py
+go_hierarchical_network: Hierarchical GO DAG visualization by ontology level.
 
-Hierarchical GO DAG visualization by ontology level.
+Goal:
+- Build a level-by-level hierarchical visualization (DAG) of GO terms,
+  laid out in boxed layers.
+- Focused on the GO DAG itself (not a similarity network). This is NOT GoNetwork.
 
-Objetivo:
-- Construir una visualización jerárquica por niveles (DAG) de términos GO,
-  similar al estilo de la imagen (cajas por capa).
-- Enfocado a GO DAG (no red de similitud). Esto NO es GoNetwork.
+Features:
+- Separation by ontology: BP / MF / CC (namespace).
+- Robust sub-DAG: option to include ancestors to preserve structure.
+- Deterministic layered layout.
+- Color by -log10(p-value) with a matching colorbar.
+- Hover shows: name, GO id, p-value, # associated genes.
+- Click: highlights ancestors/descendants (hierarchical path). Double-click resets.
+- HTML export without "read-modify-write" (direct JS injection).
 
-Características:
-- Separación por ontología: BP / MF / CC (namespace).
-- SubDAG robusto: opción de incluir ancestros para preservar estructura.
-- Layout determinista por niveles (layered layout).
-- Color por -log10(p-value) con colorbar coherente.
-- Hover muestra: nombre, GO id, p-value, #genes asociados.
-- Click: resalta ancestros/descendientes (camino jerárquico). Doble click resetea.
-- Export HTML sin "read-modify-write" (inyección JS directa).
+Functions
+1. download_go_obo        – Download the go.obo file used by goatools.
+2. plot_go_hierarchy_html – Build and export a level-based hierarchical DAG for a GO ontology (BP/MF/CC).
 """
-
-from __future__ import annotations
-
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union, Literal
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__          import annotations
+from dataclasses         import dataclass
+from pathlib             import Path
+from typing              import Dict, List, Optional, Sequence, Tuple, Union, Literal
+from goatools.obo_parser import GODag
+import networkx             as nx
+import numpy                as np
+import plotly.graph_objects as go
+import matplotlib.colors    as mcolors
 import json
 import logging
-import os
 import urllib.request
 
-import networkx as nx
-import numpy as np
-import plotly.graph_objects as go
-import matplotlib.colors as mcolors
-from goatools.obo_parser import GODag
-
 logger = logging.getLogger(__name__)
-
 PathLike = Union[str, Path]
 Ontology = Literal["BP", "MF", "CC"]
 
@@ -47,31 +46,31 @@ Ontology = Literal["BP", "MF", "CC"]
 
 @dataclass(frozen=True)
 class GoHierarchyOptions:
-    ontology: Ontology = "BP"
-    max_terms: int = 120                       # términos "target" (antes de ancestros)
+    ontology: Ontology      = "BP"
+    max_terms: int          = 120              # "target" terms (before adding ancestors)
     min_genes_per_term: int = 1
-    include_ancestors: bool = True             # clave para estructura tipo imagen
-    max_total_nodes: int = 600                 # límite final (incluyendo ancestros)
+    include_ancestors: bool = True             # key for the layered/boxed structure
+    max_total_nodes: int    = 600              # final cap (including ancestors)
 
     # Layout
-    layer_gap_y: float = 1.0                   # distancia vertical entre niveles
-    node_half_width: float = 0.14              # tamaño visual caja (x)
-    node_half_height: float = 0.07             # tamaño visual caja (y)
-    min_sep_x: float = 0.05                    # separación mínima entre cajas (misma capa)
+    layer_gap_y: float      = 1.0              # vertical distance between levels
+    node_half_width: float  = 0.14             # box visual size (x)
+    node_half_height: float = 0.07             # box visual size (y)
+    min_sep_x: float        = 0.05             # minimum separation between boxes (same layer)
 
-    # Estética
-    title: str = "GO Hierarchical DAG"
-    cmap_colors: Tuple[str, str, str] = ("#ffffff", "#ffa500", "#ff0000")  # blanco→naranjo→rojo
+    # Styling
+    title: str                        = "GO Hierarchical DAG"
+    cmap_colors: Tuple[str, str, str] = ("#ffffff", "#ffa500", "#ff0000")  # white -> orange -> red
 
     # OBO
-    obo_path: PathLike = "go.obo"
+    obo_path: PathLike            = "go.obo"
     download_obo_if_missing: bool = True
-    force_download_obo: bool = False
+    force_download_obo: bool      = False
 
     # HTML
     include_plotlyjs: Union[Literal["cdn", "embed"], bool] = "cdn"
-    full_html: bool = True
-    verbose: bool = True
+    full_html: bool                                        = True
+    verbose: bool                                          = True
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -86,7 +85,7 @@ def _log(msg: str, verbose: bool) -> None:
 
 def download_go_obo(obo_path: PathLike = "go.obo", force_download: bool = False) -> Path:
     """
-    Descarga go.obo para goatools.
+    Download go.obo for use with goatools.
     """
     p = Path(obo_path)
     url = "http://purl.obolibrary.org/obo/go/go.obo"
@@ -113,17 +112,17 @@ def _normalize_gene_terms_input(
     gene2terms_or_term2genes: Dict[str, Sequence[str]]
 ) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
     """
-    Acepta:
+    Accepts:
       A) gene -> [terms]
       B) term -> [genes]
-    Retorna:
+    Returns:
       gene2terms (gene -> terms)
       term2genes (term -> genes)
     """
     if not isinstance(gene2terms_or_term2genes, dict) or not gene2terms_or_term2genes:
         raise ValueError("Input must be a non-empty dict.")
 
-    # Heurística: si la mayoría de keys parecen "GO:xxxxxxx", asumimos term->genes
+    # Heuristic: if most keys look like "GO:xxxxxxx", assume term -> genes
     keys = list(gene2terms_or_term2genes.keys())
     go_like = sum(1 for k in keys if isinstance(k, str) and k.startswith("GO:"))
     assume_term2genes = go_like >= max(1, int(0.6 * len(keys)))
@@ -152,7 +151,7 @@ def _normalize_gene_terms_input(
                 gene2terms[gs].append(ts)
                 term2genes.setdefault(ts, []).append(gs)
 
-    # De-dup conservando orden
+    # De-dup while preserving order
     for g, ts in gene2terms.items():
         gene2terms[g] = list(dict.fromkeys(ts))
     for t, gs in term2genes.items():
@@ -164,11 +163,11 @@ def _normalize_gene_terms_input(
 def _validate_pvalues(term_pvalues: Dict[str, float]) -> None:
     if not isinstance(term_pvalues, dict):
         raise TypeError("term_pvalues must be dict[str, float].")
-    # permitimos términos faltantes: default=1.0
+    # missing terms are allowed: default=1.0
 
 
 def _namespace_match(go_term_obj, ontology: Ontology) -> bool:
-    # goatools: namespace suele ser 'biological_process', 'molecular_function', 'cellular_component'
+    # goatools: namespace is usually 'biological_process', 'molecular_function', 'cellular_component'
     ns = getattr(go_term_obj, "namespace", "") or ""
     if ontology == "BP":
         return ns == "biological_process"
@@ -186,11 +185,11 @@ def _select_target_terms(
     options: GoHierarchyOptions,
 ) -> List[str]:
     """
-    Selecciona términos a graficar (targets) antes de ancestros:
-    - existen en OBO
-    - matchean ontology
-    - cumplen min_genes_per_term
-    - se ordenan por p-value asc
+    Select the terms to plot (targets) before adding ancestors:
+    - exist in the OBO
+    - match the requested ontology
+    - satisfy min_genes_per_term
+    - sorted by p-value ascending
     """
     candidates = []
     for term, genes in term2genes.items():
@@ -216,15 +215,15 @@ def _expand_with_ancestors(
     options: GoHierarchyOptions,
 ) -> List[str]:
     """
-    Incluye ancestros para mantener estructura jerárquica.
-    Limita total a max_total_nodes.
+    Include ancestors to preserve the hierarchical structure.
+    Caps the total at max_total_nodes.
     """
     keep = set(terms)
 
     if not options.include_ancestors:
         return list(keep)
 
-    # Expandimos ancestros; stop si supera max_total_nodes
+    # Expand ancestors; stop once max_total_nodes is exceeded
     stack = list(terms)
     while stack and len(keep) < options.max_total_nodes:
         t = stack.pop()
@@ -234,7 +233,7 @@ def _expand_with_ancestors(
             pid = parent.id
             if pid in keep:
                 continue
-            # Mantener misma ontología para el "panel" (BP/MF/CC)
+            # Keep the same ontology for this "panel" (BP/MF/CC)
             if pid in go_dag and _namespace_match(go_dag[pid], options.ontology):
                 keep.add(pid)
                 stack.append(pid)
@@ -247,7 +246,7 @@ def _expand_with_ancestors(
 
 def _build_hierarchy_digraph(go_dag: GODag, terms_set: Sequence[str]) -> nx.DiGraph:
     """
-    Construye DiGraph padre -> hijo dentro del conjunto.
+    Build a parent -> child DiGraph restricted to the given term set.
     """
     terms = set(terms_set)
     G = nx.DiGraph()
@@ -261,9 +260,9 @@ def _build_hierarchy_digraph(go_dag: GODag, terms_set: Sequence[str]) -> nx.DiGr
             if pid in terms:
                 G.add_edge(pid, child)
 
-    # Es DAG en GO; pero por robustez:
+    # GO is a DAG by construction; guard against edge cases anyway:
     if not nx.is_directed_acyclic_graph(G):
-        # Si se diera algo raro, intentamos seguir igual (layout por BFS puede fallar)
+        # If something unexpected happens, keep going (the BFS-based layout may become unstable)
         logger.warning("[GO] Graph is not a DAG (unexpected). Some layouts may be unstable.")
 
     return G
@@ -271,13 +270,13 @@ def _build_hierarchy_digraph(go_dag: GODag, terms_set: Sequence[str]) -> nx.DiGr
 
 def _compute_levels_from_roots(G: nx.DiGraph) -> Dict[str, int]:
     """
-    Niveles tipo imagen:
-    - raíces: nodos sin padres dentro del subgrafo (in_degree == 0)
-    - nivel = distancia mínima desde cualquier raíz (BFS multi-source)
+    Layered levels:
+    - roots: nodes without parents within the subgraph (in_degree == 0)
+    - level = shortest distance from any root (multi-source BFS)
     """
     roots = [n for n in G.nodes() if G.in_degree(n) == 0]
     if not roots:
-        # fallback: usar "mínimo topológico"
+        # fallback: use an arbitrary "topological minimum" node
         roots = [next(iter(G.nodes()))]
 
     level = {r: 0 for r in roots}
@@ -291,7 +290,7 @@ def _compute_levels_from_roots(G: nx.DiGraph) -> Dict[str, int]:
                 level[v] = cand
                 queue.append(v)
 
-    # Asegurar todos:
+    # Make sure every node has a level:
     for n in G.nodes():
         level.setdefault(n, 0)
 
@@ -308,13 +307,13 @@ def _layered_layout(
     order_key,
 ) -> Dict[str, Tuple[float, float]]:
     """
-    Layout determinista por capas:
+    Deterministic layered layout:
     - y = -level * layer_gap_y
-    - x distribuido uniformemente por capa con separación mínima
+    - x evenly distributed within a layer, with a minimum separation
 
-    order_key: función para ordenar nodos dentro de una capa (determinismo).
+    order_key: function used to order nodes within a layer (determinism).
     """
-    # agrupar por nivel
+    # group by level
     layers: Dict[int, List[str]] = {}
     for n, lv in level.items():
         layers.setdefault(int(lv), []).append(n)
@@ -330,9 +329,9 @@ def _layered_layout(
 
         nodes.sort(key=order_key)
 
-        # separación:
+        # separation:
         step = max(2 * node_half_width + min_sep_x, 0.01)
-        # centrado:
+        # centering:
         total_w = step * (len(nodes) - 1) if len(nodes) > 1 else 0.0
         start_x = -total_w / 2.0
 
@@ -350,10 +349,10 @@ def _color_mapper_from_terms(
     colors: Tuple[str, str, str],
 ) -> Tuple[callable, float, float]:
     """
-    Color por -log10(p).
-    Retorna:
-      get_color(term)->hex
-      vmin, vmax (en espacio -log10)
+    Color by -log10(p).
+    Returns:
+      get_color(term) -> hex
+      vmin, vmax (in -log10 space)
     """
     vals = []
     for t in terms:
@@ -384,11 +383,12 @@ def _build_figure(
     options: GoHierarchyOptions,
 ) -> Tuple[go.Figure, Dict[str, dict]]:
     """
-    Construye la figura Plotly y el graph_data para JS (ancestros/descendientes).
+    Build the Plotly figure and the graph_data used by the injected JS
+    (ancestors/descendants highlighting).
     """
     nodes = list(G.nodes())
 
-    # Precompute paths sets (rápido y simple)
+    # Precompute path sets (fast and simple)
     graph_data: Dict[str, dict] = {}
     for n in nodes:
         graph_data[n] = {
@@ -398,7 +398,7 @@ def _build_figure(
 
     get_color, vmin, vmax = _color_mapper_from_terms(nodes, term_pvalues, options.cmap_colors)
 
-    # Shapes (rectángulos)
+    # Shapes (rectangles)
     shapes = []
     hover_x, hover_y, hover_text, customdata = [], [], [], []
 
@@ -436,7 +436,7 @@ def _build_figure(
             f"<br><i>Click: highlight ancestors/descendants</i>"
         )
 
-    # Edges como annotations flecha (manteniendo tu estilo)
+    # Edges as arrow annotations (keeping the original visual style)
     arrow_annotations = []
     for u, v in G.edges():
         x0, y0 = pos[u]
@@ -450,11 +450,11 @@ def _build_figure(
                 showarrow=True,
                 arrowhead=3, arrowsize=1, arrowwidth=1.5, arrowcolor="gray",
                 standoff=6,
-                name=f"edge_{u}__{v}",  # separador seguro para split
+                name=f"edge_{u}__{v}",  # safe separator for splitting later
             )
         )
 
-    # Trace invisible grande para capturar click + hover
+    # Large invisible trace used to capture click + hover events
     node_trace = go.Scatter(
         x=hover_x,
         y=hover_y,
@@ -466,7 +466,7 @@ def _build_figure(
         customdata=customdata,
     )
 
-    # Colorbar "fake" (scatter vacío con colorscale)
+    # "Fake" colorbar (empty scatter with a colorscale)
     colorbar_trace = go.Scatter(
         x=[None], y=[None],
         mode="markers",
@@ -509,11 +509,11 @@ def _build_figure(
 
 def _inject_js(fig: go.Figure, graph_data: Dict[str, dict], options: GoHierarchyOptions) -> str:
     """
-    Convierte figura a HTML e inyecta JS para highlight.
+    Convert the figure to HTML and inject JS for the highlight behavior.
     """
     base_html = fig.to_html(include_plotlyjs=options.include_plotlyjs, full_html=options.full_html)
 
-    # Extraer div id de plotly
+    # Extract the Plotly div id
     import re
     m = re.search(r'<div id="([^"]+)"', base_html)
     if not m:
@@ -618,29 +618,29 @@ def plot_go_hierarchy_html(
     return_html: bool = False,
 ) -> Union[None, go.Figure, str, Tuple[go.Figure, str]]:
     """
-    Construye y exporta un DAG jerárquico por niveles para una ontología GO (BP/MF/CC).
+    Build and export a level-based hierarchical DAG for a GO ontology (BP/MF/CC).
 
-    Parámetros
+    Parameters
     ----------
     gene2terms_or_term2genes:
-        Puede ser:
+        Can be either:
           - gene -> [GO terms]
           - GO term -> [genes]
     term_pvalues:
-        dict[GO term] -> p-value. Si falta un término, se asume 1.0
+        dict[GO term] -> p-value. Terms not present default to 1.0.
     options:
         GoHierarchyOptions
     save_html_to:
-        ruta para guardar HTML (None para no guardar)
+        Path to save the HTML to (None to skip saving).
     return_fig / return_html:
-        modos de retorno.
+        Return modes.
 
-    Retorna
+    Returns
     -------
-      - None por defecto
-      - fig si return_fig=True
-      - html si return_html=True
-      - (fig, html) si ambos True
+      - None by default
+      - fig if return_fig=True
+      - html if return_html=True
+      - (fig, html) if both are True
     """
     _validate_pvalues(term_pvalues)
     _, term2genes = _normalize_gene_terms_input(gene2terms_or_term2genes)
@@ -649,25 +649,25 @@ def plot_go_hierarchy_html(
     _log(f"[GO] Loading OBO from: {obo_path}", options.verbose)
     go_dag = GODag(str(obo_path))
 
-    # 1) Elegir términos target (p-value asc)
+    # 1) Pick target terms (p-value ascending)
     targets = _select_target_terms(go_dag, term2genes, term_pvalues, options)
 
-    # 2) Expandir con ancestros para no cortar jerarquía
+    # 2) Expand with ancestors so the hierarchy isn't cut short
     terms = _expand_with_ancestors(go_dag, targets, options)
     if len(terms) > options.max_total_nodes:
         terms = terms[: options.max_total_nodes]
 
-    # 3) Construir DAG
+    # 3) Build the DAG
     G = _build_hierarchy_digraph(go_dag, terms)
     if G.number_of_nodes() == 0:
         raise ValueError("Empty DAG after building. Check inputs/ontology.")
 
-    # 4) Niveles reales desde raíces del subgrafo
+    # 4) Actual levels from the subgraph's roots
     level = _compute_levels_from_roots(G)
 
-    # 5) Layout determinista por capas
+    # 5) Deterministic layered layout
     def order_key(n: str):
-        # orden estable dentro de capa: primero pvalue (asc), luego id
+        # stable order within a layer: p-value first (ascending), then id
         return (float(term_pvalues.get(n, 1.0)), n)
 
     pos = _layered_layout(
@@ -679,10 +679,10 @@ def plot_go_hierarchy_html(
         order_key=order_key,
     )
 
-    # 6) Figura
+    # 6) Figure
     fig, graph_data = _build_figure(G, pos, term2genes, term_pvalues, options)
 
-    # 7) HTML (con JS)
+    # 7) HTML (with JS)
     html = None
     if save_html_to is not None or return_html:
         html = _inject_js(fig, graph_data, options)

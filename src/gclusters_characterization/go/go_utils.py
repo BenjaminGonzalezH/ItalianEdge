@@ -1,50 +1,35 @@
 """
-go_utils.py
-
-Utility functions for Gene Ontology (GO) data handling.
-
-This module provides:
-
-- Download and extraction of GO resources (GAF, gene_info)
-- Gene identifier mapping (Entrez ↔ Symbol)
-- Parsing of GAF annotation files
-- Gene information loading (NCBI gene_info)
+go_utils: Utility functions for Gene Ontology (GO) data handling. This module provides:
+    - Download and extraction of GO resources (GAF, gene_info)
+    - Gene identifier mapping (Entrez to Symbol)
+    - Gene information loading (NCBI gene_info)
 
 The module is intentionally stateless:
 - No caching is performed
 - All operations are explicit and reproducible
 
-Main Components
----------------
-1. File management:
-   - download_file
-   - gunzip_file
-   - ensure_gaf_file
-   - ensure_gene_info_file
-
-2. Gene mapping:
-   - build_gaf_gene_mappings
-   - map_genes_using_gaf
-   - entrez_to_symbol_ncbi
-
-3. Data loading:
-   - load_gene_info
+Functions
+1. download_file           – Download a file from a URL, with retry and backoff.
+2. gunzip_file             – Extract a .gz file to a destination path.
+3. ensure_gaf_file         – Ensure a species GAF annotation file exists locally, downloading it if missing.
+4. ensure_gene_info_file   – Ensure a species gene_info file exists locally, downloading it if missing.
+5. load_gene_info          – Load an NCBI gene_info file into a DataFrame.
+6. entrez_to_symbol_ncbi   – Convert Entrez IDs to gene symbols using a gene_info file.
 """
 
-from __future__ import annotations
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__  import annotations
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union, Literal
-
+from pathlib     import Path
+from typing      import Dict, List, Optional, Sequence, Union
 import gzip
 import logging
 import shutil
 import time
-
-import pandas as pd
+import pandas  as pd
 import requests
-
 
 logger = logging.getLogger(__name__)
 PathLike = Union[str, Path]
@@ -54,48 +39,48 @@ PathLike = Union[str, Path]
 # Resource definitions
 # ---------------------------------------------------------------------
 
-# GAFs del GO Consortium (current.geneontology.org/annotations/)
-# gene_info por especie en NCBI (ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/...)
+# GAFs from the GO Consortium (current.geneontology.org/annotations/)
+# gene_info per species from NCBI (ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/...)
 #
-# Referencias:
-# - Directorio de annotations: https://current.geneontology.org/annotations/ :contentReference[oaicite:3]{index=3}
-# - gene_info general en NCBI: https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz :contentReference[oaicite:4]{index=4}
-# - Ejemplo species gene_info (H. sapiens): .../GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz :contentReference[oaicite:5]{index=5}
+# References:
+# - Annotations directory: https://current.geneontology.org/annotations/ :contentReference[oaicite:3]{index=3}
+# - General NCBI gene_info: https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz :contentReference[oaicite:4]{index=4}
+# - Example species gene_info (H. sapiens): .../GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz :contentReference[oaicite:5]{index=5}
 
 SPECIES_RESOURCES: Dict[str, Dict[str, str]] = {
-    # Humanos: GOA + NCBI gene_info Mammalia
+    # Human: GOA + NCBI gene_info Mammalia
     "goa_human": {
-        "gaf_gz": "https://current.geneontology.org/annotations/goa_human.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/goa_human.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
     },
     # Mouse (MGI)
     "mgi": {
-        "gaf_gz": "https://current.geneontology.org/annotations/mgi.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/mgi.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz",
     },
     # Fly (FB)
     "fb": {
-        "gaf_gz": "https://current.geneontology.org/annotations/fb.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/fb.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Invertebrates/Drosophila_melanogaster.gene_info.gz",
     },
     # Zebrafish (ZFIN)
     "zfin": {
-        "gaf_gz": "https://current.geneontology.org/annotations/zfin.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/zfin.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Vertebrates_other/Danio_rerio.gene_info.gz",
     },
     # Yeast (SGD)
     "sgd": {
-        "gaf_gz": "https://current.geneontology.org/annotations/sgd.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/sgd.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Fungi/Saccharomyces_cerevisiae.gene_info.gz",
     },
     # Arabidopsis (TAIR)
     "tair": {
-        "gaf_gz": "https://current.geneontology.org/annotations/tair.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/tair.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Plants/Arabidopsis_thaliana.gene_info.gz",
     },
     # WormBase
     "wb": {
-        "gaf_gz": "https://current.geneontology.org/annotations/wb.gaf.gz",
+        "gaf_gz":       "https://current.geneontology.org/annotations/wb.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Invertebrates/Caenorhabditis_elegans.gene_info.gz",
     }
 }

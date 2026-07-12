@@ -1,34 +1,31 @@
 """
-gene_overlap_summary.py
-
-Merges and generalizes the former ``differences_summary.py`` (disjoint /
-symmetric-difference genes) and ``similarities_summary.py`` (shared /
-intersection genes) modules into a single, mode-parameterized API.
+gene_overlap_summary: Merges and generalizes the former ``differences_summary.py`` (disjoint /
+symmetric-difference genes) and ``similarities_summary.py`` (shared / intersection genes) modules 
+into a single, mode-parameterized API.
 
 Functions
----------
-1. compute_gene_overlap_dataframe:
+1. compute_gene_overlap_dataframe -
    Generates a new DataFrame including shared ("intersection") or disjoint
    ("symmetric difference") gene sets for EVERY cluster pair in the input
    DataFrame — no similarity/threshold-based filtering is applied, since all
    solutions in the set are considered.
 
-2. compute_gene_frequencies:
+2. compute_gene_frequencies -
    Count how often each gene appears across the shared/disjoint gene sets.
 
-3. compute_frequency_cutoff:
+3. compute_frequency_cutoff -
    Automatically determine the frequency value that best separates
    "incidental" genes (appearing in few cluster pairs) from "recurrent"
    genes (appearing consistently), using Otsu's method applied to the
    histogram of gene frequencies. Replaces a manually-chosen
    ``min_gene_frequency``.
 
-4. plot_frequency_cutoff:
+4. plot_frequency_cutoff -
    Histogram of gene frequencies with the cutoff from (3) highlighted —
    meant to be called with the same ``freq_df`` and cutoff value used to
    drive ``summarize_genes``, so the cut is visually auditable.
 
-5. summarize_genes:
+5. summarize_genes -
    Summarize gene frequencies, the biological (gene-gene) similarity
    submatrix, and the set co-occurrence Jaccard matrix, restricted to genes
    at or above a frequency cutoff (auto-computed via (3) if not given
@@ -39,13 +36,12 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from typing import Dict, List, Literal, NamedTuple, Optional, Sequence, Set, Tuple
+from typing      import List, Literal, NamedTuple, Optional, Sequence, Set
 from collections import Counter
-import warnings
-
-import numpy as np
-import pandas as pd
+import numpy                as np
+import pandas               as pd
 import plotly.graph_objects as go
+import warnings
 
 OverlapMode = Literal["shared", "disjoint"]
 CutoffMethod = Literal["otsu"]

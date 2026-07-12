@@ -7,9 +7,9 @@ type: software
 abstract: >
   GClusters Characterization is a Python toolkit for the quantitative and
   qualitative characterization of Pareto-optimal gene clustering solutions.
-  It provides ensemble clustering, consensus matrix computation, Jaccard and
-  Rand-based similarity metrics, Gene Ontology enrichment integration, and
-  interactive visualization utilities for downstream biological interpretation.
+  It provides consensus matrix computation, Jaccard and Rand-based similarity
+  metrics, Gene Ontology enrichment integration, and interactive visualization
+  utilities for downstream biological interpretation.
 
 authors:
   - family-names: Inostroza Ponta
@@ -22,7 +22,7 @@ authors:
     given-names: Benjamin
     affiliation: Universidad de Santiago de Chile
     email: benjamin.gonzalez.h@usach.cl
-    orcid: "0009-0005-9796-7799
+    orcid: "0009-0005-9796-7799"
 
 repository-code: https://github.com/BenjaminGonzalezH/ItalianEdge
 
@@ -41,16 +41,16 @@ keywords:
   - semantic similarity
   - GO visualization
 
-preferred-citation:
-  type: article
-  title: "PLACEHOLDER — insert JOSS paper title after submission"
-  authors:
-    - family-names: Inostroza Ponta
-      given-names: Mario
-      affiliation: Universidad de Santiago de Chile
-    - family-names: Gonzalez Hurtado
-      given-names: Benjamin
-      affiliation: Universidad de Santiago de Chile
-  journal: "Working on"
-  doi: "PLACEHOLDER — requires JOSS submission and acceptance"
-  year: 2028
+# preferred-citation:
+#   type: article
+#   title: "PLACEHOLDER — insert JOSS paper title after submission"
+#   authors:
+#     - family-names: Inostroza Ponta
+#       given-names: Mario
+#       affiliation: Universidad de Santiago de Chile
+#     - family-names: Gonzalez Hurtado
+#       given-names: Benjamin
+#       affiliation: Universidad de Santiago de Chile
+#   journal: "PLACEHOLDER — insert journal name after acceptance"
+#   doi: "PLACEHOLDER — requires JOSS submission and acceptance"
+#   year: 2026

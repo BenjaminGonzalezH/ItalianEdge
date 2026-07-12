@@ -1,48 +1,29 @@
 """
-go_enrichment.py
-
-Gene Ontology (GO) enrichment and annotation utilities using g:Profiler.
-
-Description
------------
+go_enrichment: Gene Ontology (GO) enrichment and annotation utilities using g:Profiler.
 This module provides tools to:
-
-• Perform enrichment analysis on a gene set.
-• Map genes to GO terms (annotation).
-• Handle large gene lists using chunking and parallelization.
-• Ensure robustness via retries and stable preprocessing.
-
-Conceptual overview
--------------------
-1. Enrichment:
-   Given a gene list, identify GO terms that are statistically overrepresented.
-
-2. Annotation:
-   Map each gene to its associated GO terms.
-
-Important note:
----------------
-Enrichment queries MUST NOT be chunked, as this alters statistical
-significance and multiple testing correction.
+    • Perform enrichment analysis on a gene set.
+    • Map genes to GO terms (annotation).
+    • Handle large gene lists using chunking and parallelization.
+    • Ensure robustness via retries and stable preprocessing.
 
 Functions
----------
-1. go_enrichment
-2. annotation_from_entrez_ids
-3. GoEnrichment (legacy wrapper)
-4. AnnotationFromEntrezIDs (legacy wrapper)
+1. go_enrichment              – Perform GO enrichment analysis on a gene set.
+2. annotation_from_entrez_ids – Map genes to GO terms using chunked parallel queries.
 """
 
-from dataclasses import dataclass
-from typing import Dict, Iterator, List, Sequence, Tuple, Union
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
+from dataclasses        import dataclass
+from typing             import Dict, Iterator, List, Sequence, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from gprofiler          import GProfiler
 import logging
 import time
 import math
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-import numpy as np
+import numpy  as np
 import pandas as pd
-from gprofiler import GProfiler
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +36,15 @@ class GoEnrichmentOptions:
     """
     Configuration for GO enrichment analysis.
     """
-
-    organism: str = "hsapiens"
+    organism: str            = "hsapiens"
     sources: Tuple[str, ...] = ("GO:BP",)
-    user_threshold: float = 0.05
-    include_evidences: bool = False
-
-    request_retries: int = 3
+    user_threshold: float    = 0.05
+    include_evidences: bool  = False
+    request_retries: int        = 3
     backoff_base_seconds: float = 0.6
-
     compute_gene_ratio: bool = True
-    compute_qscore: bool = True
-    sort_by: str = "p_value"
+    compute_qscore: bool     = True
+    sort_by: str             = "p_value"
 
 
 @dataclass(frozen=True)
@@ -74,13 +52,11 @@ class AnnotationOptions:
     """
     Configuration for GO annotation queries.
     """
-
-    organism: str = "hsapiens"
-    sources: Tuple[str, ...] = ("GO:BP", "GO:CC", "GO:MF")
-    chunk_size: int = 500
-    n_threads: int = 4
-
-    request_retries: int = 3
+    organism: str               = "hsapiens"
+    sources: Tuple[str, ...]    = ("GO:BP", "GO:CC", "GO:MF")
+    chunk_size: int             = 500
+    n_threads: int              = 4
+    request_retries: int        = 3
     backoff_base_seconds: float = 0.6
 
 

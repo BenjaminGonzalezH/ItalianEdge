@@ -1,48 +1,23 @@
 """
-heatmap_holoviews.py
-
-Single-matrix clustered heatmap built on HoloViews + Bokeh, as a lightweight
-alternative to dash_bio.Clustergram.
-
-Why HoloViews instead of dash_bio
-----------------------------------
-dash_bio.Clustergram pulls in ``parmed`` as a hard, unconditional dependency
-(imported eagerly by ``dash_bio/__init__.py``) even though it is never used
-by the Clustergram component itself. ``parmed`` ships no Windows wheels and
-must be compiled from source, which frequently fails outside a fully
-configured MSVC + Windows SDK toolchain.
-
-HoloViews + Bokeh are pure-Python wheels (no compiled extensions to build),
-and — unlike Plotly's ``matches``/``scaleanchor`` axis properties, which only
-approximate synchronization — HoloViews' Bokeh backend shares the *same*
-underlying Bokeh ``Range`` object between plots that share a dimension when
-composed in a ``Layout``. Zooming/panning the heatmap therefore moves the
-dendrogram leaves in perfect lock-step, because both plots are quite
-literally looking at the same range object, not two ranges kept in sync.
-
-Trade-off: this module renders a *single* similarity matrix with a Bokeh
-grid layout (heatmap + optional row/column dendrograms). It does not cover
-the triangular dual-metric heatmaps from ``heatmaps.py`` — HoloViews has no
-built-in triangular-split heatmap element, so those stay on Plotly.
+heatmaps: Single-matrix clustered heatmap built on HoloViews + Bokeh.
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Literal, Union, Tuple, List
-import logging
-
-import numpy as np
+from dataclasses             import dataclass
+from pathlib                 import Path
+from typing                  import Optional, Literal, Union, Tuple, List
 from scipy.cluster.hierarchy import linkage, dendrogram, optimal_leaf_ordering, leaves_list
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance  import squareform
+import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
-PathLike = Union[str, Path]
+PathLike       = Union[str, Path]
 DownsampleMode = Literal["none", "pool_mean", "pool_max"]
-LinkageMethod = Literal["average", "complete", "single", "ward", "weighted", "centroid", "median"]
+LinkageMethod  = Literal["average", "complete", "single", "ward", "weighted", "centroid", "median"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -61,7 +36,7 @@ class HeatmapExportOptions:
         verbose: If True, prints extra status messages (still logs always).
     """
     resources: Literal["cdn", "inline"] = "cdn"
-    verbose: bool = True
+    verbose: bool                       = True
 
 
 @dataclass(frozen=True)
@@ -73,7 +48,7 @@ class HeatmapScaleOptions:
         max_dim: If matrix is larger than this in any dimension, it will be downsampled.
         downsample_mode: pooling strategy ("pool_mean" recommended).
     """
-    max_dim: int = 1200
+    max_dim: int                    = 1200
     downsample_mode: DownsampleMode = "pool_mean"
 
 

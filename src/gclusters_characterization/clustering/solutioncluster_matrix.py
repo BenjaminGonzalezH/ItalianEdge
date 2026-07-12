@@ -1,38 +1,22 @@
 """
-solutioncluster_matrix.py
-
-Utility functions for converting clustering solutions into structured
-cluster representations.
-
-Description
------------
-This module transforms a matrix of clustering solutions into grouped
-cluster representations. Each solution row contains cluster labels
-assigned to a set of genes. The module groups genes belonging to the
-same cluster label.
-
-The implementation focuses on performance and memory efficiency:
-
-• Single-pass grouping algorithm (O(n_genes))
-• Optional multiprocessing using ProcessPoolExecutor
-• Two output formats:
+solutioncluster_matrix: This module transforms a matrix of clustering solutions into grouped
+cluster representations. Each solution row contains cluster labels assigned to a set of genes. 
+The module groups genes belonging to the same cluster label.
+Two output formats:
     - sets of gene identifiers
     - arrays of gene indices (RAM-efficient)
 
-Functionality
--------------
-1. Validate inputs for clustering matrix and gene identifiers.
-2. Convert clustering labels into grouped clusters.
-3. Provide optional parallel processing.
-4. Allow memory-efficient cluster representations.
-
 Functions
 ---------
-1. _validate_inputs
-2. _process_solution_sets
-3. _process_solution_indices
-4. solution_cluster_matrix
+1. _validate_inputs          – Validate the input clustering matrix and gene identifiers.
+2. _process_solution_sets    – Convert one clustering solution into sets of gene identifiers.
+3. _process_solution_indices – Convert one clustering solution into index arrays.
+4. solution_cluster_matrix   – Convert clustering solutions into grouped cluster structures.
 """
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from typing import List, Set, Optional
@@ -88,10 +72,9 @@ def _validate_inputs(matrix: np.ndarray, genes: List[str]) -> None:
 
 def _process_solution_sets(args) -> List[Set[str]]:
     """
-    Convert one clustering solution into sets of gene identifiers.
-
-    Each unique cluster label is transformed into a set containing
-    the gene identifiers assigned to that cluster.
+    Convert one clustering solution into sets of gene identifiers. Each unique 
+    cluster label is transformed into a set containing the gene identifiers 
+    assigned to that cluster.
 
     Parameters
     ----------
@@ -117,11 +100,9 @@ def _process_solution_sets(args) -> List[Set[str]]:
 
 def _process_solution_indices(solution: np.ndarray) -> List[np.ndarray]:
     """
-    Convert one clustering solution into index arrays.
-
-    Instead of storing gene identifiers, this representation stores
-    indices of the genes belonging to each cluster. This reduces memory
-    consumption for large datasets.
+    Convert one clustering solution into index arrays. Instead of storing gene 
+    identifiers, this representation stores indices of the genes belonging to 
+    each cluster. This reduces memory consumption for large datasets.
 
     Parameters
     ----------
@@ -222,9 +203,7 @@ def solution_cluster_matrix(
     else:
 
         if mode == "sets":
-
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-
                 results = list(
                     executor.map(
                         _process_solution_sets,
@@ -235,9 +214,7 @@ def solution_cluster_matrix(
             return results
 
         else:
-
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-
                 results = list(
                     executor.map(
                         _process_solution_indices,

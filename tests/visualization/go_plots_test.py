@@ -40,12 +40,15 @@ class TestGOPlots(unittest.TestCase):
         self.assertIsNotNone(fig)
 
     def test_html_saving(self):
-        """HTML file should be written correctly."""
+        """HTML file should be written correctly, and cleaned up afterward."""
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "plot.html"
+            tmp_path = Path(tmp)
+            path = tmp_path / "plot.html"
             plot_gene_ratio(self.df, save_path=path)
 
             self.assertTrue(path.exists())
+
+        self.assertFalse(tmp_path.exists())
 
     def test_invalid_metric(self):
         """Invalid metric should raise error."""
@@ -84,6 +87,45 @@ class TestGOPlots(unittest.TestCase):
         fig, html = plot_gene_ratio(self.df, return_fig=True, return_html=True)
         self.assertIsNotNone(fig)
         self.assertTrue(isinstance(html, str))
+
+    ########################## Optional "source" column ##########################
+
+    def test_gene_ratio_without_source_column_does_not_raise(self):
+        """
+        The documented schema (name, p_value, gene_ratio, intersection_size,
+        qscore) has no "source" column; plotting must not require it.
+        """
+        self.assertNotIn("source", self.df.columns)
+
+        fig = plot_gene_ratio(self.df, return_fig=True)
+
+        self.assertNotIn("source", fig.data[0].hovertemplate)
+
+    def test_qscore_without_source_column_does_not_raise(self):
+        """Same guarantee as above, for the qscore (bar) plot."""
+        self.assertNotIn("source", self.df.columns)
+
+        fig = plot_qscore(self.df, return_fig=True)
+
+        self.assertNotIn("source", fig.data[0].hovertemplate)
+
+    def test_gene_ratio_includes_source_when_present(self):
+        """When callers do provide a "source" column, it should still show up in the hover."""
+        df_with_source = self.df.copy()
+        df_with_source["source"] = ["GO:BP", "GO:MF", "GO:CC"]
+
+        fig = plot_gene_ratio(df_with_source, return_fig=True)
+
+        self.assertIn("source", fig.data[0].hovertemplate)
+
+    def test_qscore_includes_source_when_present(self):
+        """Same guarantee as above, for the qscore (bar) plot."""
+        df_with_source = self.df.copy()
+        df_with_source["source"] = ["GO:BP", "GO:MF", "GO:CC"]
+
+        fig = plot_qscore(df_with_source, return_fig=True)
+
+        self.assertIn("source", fig.data[0].hovertemplate)
 
 
 if __name__ == "__main__":

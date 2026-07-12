@@ -1,35 +1,33 @@
 """
-go_plots.py
-
-This module provides visualization utilities for Gene Ontology (GO)
+go_plots: This module provides visualization utilities for Gene Ontology (GO)
 enrichment results using interactive Plotly charts.
 
 Functions:
-1. plot_go_metric:
-   Generates a GO plot based on a selected metric.
-
-2. plot_gene_ratio:
-   Generates a scatter plot based on gene ratio.
-
-3. plot_qscore:
-   Generates a bar plot based on q-score.
+1. plot_go_metric - Generates a GO plot based on a selected metric.
+2. plot_gene_ratio - Generates a scatter plot based on gene ratio.
+3. plot_qscore - Generates a bar plot based on q-score.
 """
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Libraries
+# ──────────────────────────────────────────────────────────────────────────────
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Literal, Union, Tuple
+from pathlib     import Path
+from typing      import Optional, Literal, Union
 import logging
-import numpy as np
-import pandas as pd
+import numpy          as np
+import pandas         as pd
 import plotly.express as px
 
 
 logger = logging.getLogger(__name__)
 
-PathLike = Union[str, Path]
+PathLike   = Union[str, Path]
 MetricType = Literal["gene_ratio", "qscore"]
 
-
+# ──────────────────────────────────────────────────────────────
+# Options
+# ──────────────────────────────────────────────────────────────
 @dataclass(frozen=True)
 class GOPlotOptions:
     """
@@ -46,12 +44,15 @@ class GOPlotOptions:
     use_neglog10 : bool
         Apply -log10 transformation to p-values.
     """
-    colorscale: str = "Viridis"
+    colorscale: str      = "Viridis"
     top_n: Optional[int] = 20
-    verbose: bool = True
-    use_neglog10: bool = True
+    verbose: bool        = True
+    use_neglog10: bool   = True
 
 
+# ──────────────────────────────────────────────────────────────
+# Utilities
+# ──────────────────────────────────────────────────────────────
 def _as_path(p: PathLike) -> Path:
     """
     Convert input into a pathlib.Path object.
@@ -184,6 +185,14 @@ def plot_go_metric(
         p_min = plot_df["p_value"].min()
         p_max = plot_df["p_value"].max()
 
+        hover_data = {
+            "intersection_size": True,
+            "p_value": ":.2e",
+            "gene_ratio": ":.3f",
+        }
+        if "source" in plot_df.columns:
+            hover_data["source"] = True
+
         fig = px.scatter(
             plot_df,
             x="gene_ratio",
@@ -193,12 +202,7 @@ def plot_go_metric(
             color_continuous_scale=options.colorscale,
             range_color=[p_min, p_max],
             size_max=40,
-            hover_data={
-                "source": True,
-                "intersection_size": True,
-                "p_value": ":.2e",
-                "gene_ratio": ":.3f",
-            },
+            hover_data=hover_data,
         )
 
         fig.update_traces(
@@ -209,17 +213,22 @@ def plot_go_metric(
             )
         )
     else:
+            bar_df = df.sort_values(metric, ascending=False)
+
+            hover_data = {
+                "p_value": ":.2e",
+                "qscore": ":.3f",
+            }
+            if "source" in bar_df.columns:
+                hover_data["source"] = True
+
             fig = px.bar(
-                df.sort_values(metric, ascending=False),
+                bar_df,
                 x="qscore",
                 y="name",
                 color="neg_log10_p",
                 color_continuous_scale=options.colorscale,
-                hover_data={
-                    "source": True,
-                    "p_value": ":.2e",
-                    "qscore": ":.3f",
-                },
+                hover_data=hover_data,
             )
 
     html = fig.to_html(include_plotlyjs="cdn", full_html=True)
