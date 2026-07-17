@@ -16,9 +16,8 @@ Functions
 3. compute_frequency_cutoff -
    Automatically determine the frequency value that best separates
    "incidental" genes (appearing in few cluster pairs) from "recurrent"
-   genes (appearing consistently), using Otsu's method applied to the
-   histogram of gene frequencies. Replaces a manually-chosen
-   ``min_gene_frequency``.
+   genes (appearing consistently), using the knee/elbow of the
+   rank-frequency curve. Replaces a manually-chosen ``min_gene_frequency``.
 
 4. plot_frequency_cutoff -
    Histogram of gene frequencies with the cutoff from (3) highlighted —
@@ -44,7 +43,7 @@ import plotly.graph_objects as go
 import warnings
 
 OverlapMode = Literal["shared", "disjoint"]
-CutoffMethod = Literal["otsu"]
+CutoffMethod = Literal["knee"]
 
 # Nested-sequence mapping: solution_cluster_matrix[solution_idx][cluster_idx] -> set of genes.
 # This is the same structure produced by ``solution_cluster_matrix()``
@@ -166,73 +165,84 @@ def compute_gene_frequencies(df: pd.DataFrame, gene_column: str) -> pd.DataFrame
 
 def compute_frequency_cutoff(
     freq_df: pd.DataFrame,
-    method: CutoffMethod = "otsu",
+    method: CutoffMethod = "knee",
 ) -> int:
     """
     Automatically determine the frequency cutoff that best separates
     "incidental" genes (appearing in few cluster pairs) from "recurrent"
-    genes (appearing consistently), using Otsu's method on the histogram
-    of gene frequencies.
+    genes (appearing consistently), using the knee/elbow of the
+    rank-frequency curve.
 
-    Otsu's method scans every possible split point of the histogram and
-    picks the one that maximizes the between-class variance (i.e. the
-    split that makes the "low frequency" and "high frequency" groups as
-    internally homogeneous, and as different from each other, as possible).
-    It requires no manually-chosen threshold.
+    Genes are sorted by descending frequency, producing a decreasing,
+    typically L-shaped curve: a short, steep head of a few high-frequency
+    "recurrent" genes, followed by a long, flat tail of low-frequency
+    "incidental" ones. The knee is located as the point of maximum
+    perpendicular distance from the straight chord joining the first and
+    last points of that curve (both axes normalized to [0, 1]) — i.e. the
+    corner where the steep head gives way to the flat tail. The knee marks
+    the onset of the incidental tail, so the cutoff returned is the lowest
+    frequency among the recurrent (pre-knee) genes.
+
+    This requires no manually-chosen threshold and, unlike a
+    bimodal-histogram method (e.g. Otsu), is well suited to the strongly
+    skewed, long-tailed distributions typical of gene frequencies, where
+    most genes appear only once or twice.
 
     Parameters
     ----------
     freq_df : pd.DataFrame
         Output of ``compute_gene_frequencies`` (must contain a "Frequency"
         column).
-    method : {"otsu"}
-        Cutoff-detection method. Only "otsu" is implemented; kept as a
-        parameter for future extension (e.g. a knee/elbow-based method).
+    method : {"knee"}
+        Cutoff-detection method. Only "knee" (the rank-frequency
+        knee/elbow) is implemented; kept as a parameter for future
+        extension.
 
     Returns
     -------
     int
         The cutoff frequency value. Genes with Frequency >= cutoff are
         considered "recurrent" and should be kept; genes below it are
-        considered incidental.
+        considered incidental. Degenerate inputs (empty, all-equal, or
+        all-singleton frequencies, or fewer than three genes) yield no
+        separation and return the minimum frequency, keeping every gene.
     """
-    if method != "otsu":
-        raise ValueError("Only method='otsu' is currently implemented.")
+    if method != "knee":
+        raise ValueError("Only method='knee' is currently implemented.")
 
     if freq_df.empty:
         return 0
 
     frequencies = freq_df["Frequency"].to_numpy().astype(int)
     max_freq = int(frequencies.max())
+    min_freq = int(frequencies.min())
 
-    if max_freq <= 1:
-        return int(frequencies.min())
+    # No meaningful elbow (no spread, or too few points): keep every gene.
+    if max_freq <= 1 or max_freq == min_freq or frequencies.size < 3:
+        return min_freq
 
-    hist = np.bincount(frequencies, minlength=max_freq + 1).astype(np.float64)
-    total = hist.sum()
-    sum_total = (np.arange(len(hist)) * hist).sum()
+    # Rank-frequency curve: frequencies sorted in descending order.
+    freqs_desc = np.sort(frequencies)[::-1].astype(np.float64)
+    n = freqs_desc.size
 
-    sum_b, w_b = 0.0, 0.0
-    best_threshold, max_variance = 1, -1.0
+    # Normalize both axes to [0, 1] so rank and frequency are comparable.
+    x = np.arange(n, dtype=np.float64) / (n - 1)
+    y = (freqs_desc - min_freq) / (max_freq - min_freq)
 
-    for t in range(1, len(hist)):
-        w_b += hist[t - 1]
-        if w_b == 0:
-            continue
-        w_f = total - w_b
-        if w_f == 0:
-            break
+    # Perpendicular distance from each point to the chord joining
+    # (x=0, y=1) and (x=1, y=0) is proportional to |1 - x - y|. Its maximum
+    # is the knee: the corner where the steep head meets the flat tail.
+    distance = np.abs(1.0 - x - y)
+    knee_idx = int(np.argmax(distance))
 
-        sum_b += (t - 1) * hist[t - 1]
-        mean_b = sum_b / w_b
-        mean_f = (sum_total - sum_b) / w_f
+    # Guard the degenerate case where the maximum lands on the first point.
+    if knee_idx == 0:
+        return min_freq
 
-        between_variance = w_b * w_f * (mean_b - mean_f) ** 2
-        if between_variance > max_variance:
-            max_variance = between_variance
-            best_threshold = t
-
-    return best_threshold
+    # Genes before the knee are the recurrent ones; the cutoff is the
+    # lowest frequency among them, so that Frequency >= cutoff keeps exactly
+    # the head of the curve (ties at the cutoff frequency are kept together).
+    return int(freqs_desc[knee_idx - 1])
 
 
 def plot_frequency_cutoff(
@@ -421,9 +431,9 @@ def summarize_genes(
         Square gene-gene similarity matrix.
     min_gene_frequency : int, optional
         Minimum frequency for a gene to be kept. If None (default), it is
-        determined automatically via ``compute_frequency_cutoff`` (Otsu's
-        method) — this is the recommended usage, replacing a manually
-        guessed threshold.
+        determined automatically via ``compute_frequency_cutoff``
+        (knee/elbow method) — this is the recommended usage, replacing a
+        manually guessed threshold.
     top_n_genes_for_plot : int, optional
         Limit the frequency bar plot to the top N selected genes.
     max_genes : int, optional

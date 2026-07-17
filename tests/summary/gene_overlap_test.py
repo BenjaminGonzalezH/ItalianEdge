@@ -3,7 +3,7 @@ Unit tests for the gene_overlap summary module.
 
 Purpose of this file:
 - Validate shared/disjoint gene-set computation for cluster pairs.
-- Validate gene frequency counting and the automatic Otsu cutoff.
+- Validate gene frequency counting and the automatic knee/elbow cutoff.
 - Validate the end-to-end gene summarization pipeline.
 - Validate input validation logic and figure generation.
 """
@@ -102,12 +102,12 @@ class TestGeneFrequencies(unittest.TestCase):
 
 
 class TestFrequencyCutoff(unittest.TestCase):
-    """Test suite validating the automatic (Otsu) frequency cutoff."""
+    """Test suite validating the automatic (knee/elbow) frequency cutoff."""
 
     def test_cutoff_on_bimodal_distribution(self):
         """
-        Confirm Otsu's method separates a clear low-frequency group from a
-        clear high-frequency group.
+        Confirm the knee/elbow method separates a clear low-frequency group
+        from a clear high-frequency group.
         """
 
         freq_df = pd.DataFrame({
@@ -138,7 +138,7 @@ class TestFrequencyCutoff(unittest.TestCase):
         freq_df = pd.DataFrame({"Gene": ["G1"], "Frequency": [1]})
 
         with self.assertRaises(ValueError):
-            compute_frequency_cutoff(freq_df, method="knee")
+            compute_frequency_cutoff(freq_df, method="otsu")
 
     ########################## Figure Tests ##########################
 
