@@ -7,7 +7,7 @@ and verify proper handling of invalid inputs.
 import unittest
 import numpy as np
 
-from gclusters_characterization.clustering.consensus_matrix import consensus_matrix
+from biocluster.clustering.consensus_matrix import consensus_matrix
 
 
 class TestConsensusMatrix(unittest.TestCase):

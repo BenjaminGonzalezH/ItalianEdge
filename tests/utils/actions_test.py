@@ -11,7 +11,7 @@ import pandas as pd
 from pathlib import Path
 import logging
 
-from gclusters_characterization.utils.actions import (
+from biocluster.utils.actions import (
     save_matrix,
     load_matrix,
     save_dataframe,

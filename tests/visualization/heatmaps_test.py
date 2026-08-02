@@ -16,7 +16,7 @@ import os
 import logging
 import numpy as np
 
-from gclusters_characterization.visualization.heatmaps import (
+from biocluster.visualization.heatmaps import (
     plot_clustered_heatmap,
     HeatmapExportOptions,
     HeatmapScaleOptions,

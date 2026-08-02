@@ -15,7 +15,7 @@ import os
 import numpy as np
 import logging
 
-from gclusters_characterization.clustering.he_inconsistency_clustering import (
+from biocluster.clustering.he_inconsistency_clustering import (
     he_inconsistency_clustering,
     compute_inconsistency_clustering,
     InconsistencyClusteringOptions,

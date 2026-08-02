@@ -18,7 +18,7 @@ replicability and ease of manual verification.
 import unittest
 import numpy as np
 
-from gclusters_characterization.clustering.solutioncluster_matrix import (
+from biocluster.clustering.solutioncluster_matrix import (
     solution_cluster_matrix
 )
 

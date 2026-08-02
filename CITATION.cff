@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 
-title: "GClusters Characterization"
+title: "BioCluster"
 message: "If you use this software, please cite it as follows:"
 type: software
 
 abstract: >
-  GClusters Characterization is a Python toolkit for the quantitative and
+  BioCluster is a Python toolkit for the quantitative and
   qualitative characterization of Pareto-optimal gene clustering solutions.
   It provides consensus matrix computation, Jaccard and Rand-based similarity
   metrics, Gene Ontology enrichment integration, and interactive visualization

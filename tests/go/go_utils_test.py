@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from gclusters_characterization.go.go_utils import (
+from biocluster.go.go_utils import (
     download_file,
     gunzip_file,
     ensure_gaf_file,
@@ -63,7 +63,7 @@ def create_dummy_gene_info(path: str):
 
 class TestFileOperations(unittest.TestCase):
 
-    @patch("gclusters_characterization.go.go_utils.requests.get")
+    @patch("biocluster.go.go_utils.requests.get")
     def test_download_file(self, mock_get):
         """Download should write file correctly."""
 
@@ -100,8 +100,8 @@ class TestFileOperations(unittest.TestCase):
 
 class TestEnsureFiles(unittest.TestCase):
 
-    @patch("gclusters_characterization.go.go_utils.download_file")
-    @patch("gclusters_characterization.go.go_utils.gunzip_file")
+    @patch("biocluster.go.go_utils.download_file")
+    @patch("biocluster.go.go_utils.gunzip_file")
     def test_ensure_gaf_download(self, mock_gunzip, mock_download):
         """Ensure GAF downloads when missing."""
 
@@ -146,8 +146,8 @@ class TestEnsureFiles(unittest.TestCase):
         with self.assertRaises(KeyError):
             ensure_gaf_file("invalid_species")
 
-    @patch("gclusters_characterization.go.go_utils.download_file")
-    @patch("gclusters_characterization.go.go_utils.gunzip_file")
+    @patch("biocluster.go.go_utils.download_file")
+    @patch("biocluster.go.go_utils.gunzip_file")
     def test_ensure_gene_info_download(self, mock_gunzip, mock_download):
         """Ensure gene_info downloads."""
 

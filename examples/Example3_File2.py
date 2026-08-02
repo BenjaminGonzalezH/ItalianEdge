@@ -1,5 +1,5 @@
 """
-Reproducible example pipeline for gclusters_characterization.
+Reproducible example pipeline for biocluster.
 
 This script is intended as an executable demonstration of the main package
 components, not as a unit test suite. It improves readability, portability,
@@ -54,28 +54,28 @@ warnings.filterwarnings(
 # PACKAGE IMPORTS
 # ---------------------------------------------------------------------
 
-import gclusters_characterization.utils.read_solution as RD
-import gclusters_characterization.utils.actions as AC
+import biocluster.utils.read_solution as RD
+import biocluster.utils.actions as AC
 
-import gclusters_characterization.clustering.consensus_matrix as CM
-import gclusters_characterization.clustering.he_clustering as HC
-import gclusters_characterization.clustering.jaccard_values as JV
-import gclusters_characterization.clustering.rand_values as RV
-import gclusters_characterization.clustering.solutioncluster_matrix as SCM
+import biocluster.clustering.consensus_matrix as CM
+import biocluster.clustering.he_clustering as HC
+import biocluster.clustering.jaccard_values as JV
+import biocluster.clustering.rand_values as RV
+import biocluster.clustering.solutioncluster_matrix as SCM
 
-import gclusters_characterization.go.mapping_entrez as ME
-import gclusters_characterization.go.go_enrichment as GOeP
-import gclusters_characterization.go.go_utils as Gutils
-import gclusters_characterization.go.gene_similarity as GS
+import biocluster.go.mapping_entrez as ME
+import biocluster.go.go_enrichment as GOeP
+import biocluster.go.go_utils as Gutils
+import biocluster.go.gene_similarity as GS
 
-import gclusters_characterization.visualization.heatmaps as Heat
-import gclusters_characterization.visualization.go_plots as Gplot
-import gclusters_characterization.visualization.go_network as Gnet
-import gclusters_characterization.visualization.go_hierarchical_network as GHnet
+import biocluster.visualization.heatmaps as Heat
+import biocluster.visualization.go_plots as Gplot
+import biocluster.visualization.go_network as Gnet
+import biocluster.visualization.go_hierarchical_network as GHnet
 
-import gclusters_characterization.summary.gene_overlap as GOL
+import biocluster.summary.gene_overlap as GOL
 
-LOGGER = logging.getLogger("gclusters_example")
+LOGGER = logging.getLogger("biocluster_example")
 
 
 # ---------------------------------------------------------------------
@@ -1043,5 +1043,5 @@ def run_pipeline(input_filename: str = "archivo_prueba_3_25_133.csv") -> Pipelin
 
 
 if __name__ == "__main__":
-    requested_input = os.environ.get("GCLUSTERS_INPUT_FILE", "archivo_prueba_2_116_3444.csv")
+    requested_input = os.environ.get("BIOCLUSTER_INPUT_FILE", "archivo_prueba_2_116_3444.csv")
     run_pipeline(input_filename=requested_input)

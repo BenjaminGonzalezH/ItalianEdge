@@ -17,7 +17,7 @@ import pandas as pd
 import logging
 import tempfile
 
-from gclusters_characterization.go.mapping_entrez import (
+from biocluster.go.mapping_entrez import (
     convert_to_entrez_id,
     MappingOptions,
     _min_entrez_str,
@@ -78,7 +78,7 @@ class TestMappingEntrez(unittest.TestCase):
 
     ########################## gProfiler Tests ##########################
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
     def test_gprofiler_mapping(self, mock_gp):
         """
         Validate:
@@ -99,7 +99,7 @@ class TestMappingEntrez(unittest.TestCase):
 
         self.assertEqual(result, ["5", "20"])
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
     def test_gprofiler_missing_columns(self, mock_gp):
         """
         If expected columns are missing, mapping should return NA.
@@ -114,8 +114,8 @@ class TestMappingEntrez(unittest.TestCase):
 
     ########################## MyGene Fallback ##########################
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
-    @patch("gclusters_characterization.go.mapping_entrez.mygene.MyGeneInfo")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.mygene.MyGeneInfo")
     def test_mygene_fallback(self, mock_mg, mock_gp):
         """
         Validate fallback:
@@ -134,8 +134,8 @@ class TestMappingEntrez(unittest.TestCase):
 
         self.assertEqual(result, ["100"])
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
-    @patch("gclusters_characterization.go.mapping_entrez.mygene.MyGeneInfo")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.mygene.MyGeneInfo")
     def test_mygene_all_notfound(self, mock_mg, mock_gp):
         """
         If MyGene returns notfound, result must be NA.
@@ -154,7 +154,7 @@ class TestMappingEntrez(unittest.TestCase):
 
     ########################## Order and NA Handling ##########################
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
     def test_order_preserved(self, mock_gp):
         """
         Output must preserve input order.
@@ -171,7 +171,7 @@ class TestMappingEntrez(unittest.TestCase):
 
         self.assertEqual(result, ["1", "NA", "3"])
 
-    @patch("gclusters_characterization.go.mapping_entrez.GProfiler")
+    @patch("biocluster.go.mapping_entrez.GProfiler")
     def test_custom_na_value(self, mock_gp):
         """
         Custom NA value must be respected.

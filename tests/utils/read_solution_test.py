@@ -9,7 +9,7 @@ import tempfile
 import pandas as pd
 import pickle
 
-from gclusters_characterization.utils.read_solution import (
+from biocluster.utils.read_solution import (
     read_solutions_file,
     _clean_dataframe,
 )

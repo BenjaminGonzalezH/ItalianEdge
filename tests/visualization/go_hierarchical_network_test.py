@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from gclusters_characterization.visualization.go_hierarchical_network import (
+from biocluster.visualization.go_hierarchical_network import (
     GoHierarchyOptions,
     _select_target_terms,
     plot_go_hierarchy_html,
@@ -76,8 +76,8 @@ class TestPlotGoHierarchyHtml(unittest.TestCase):
         }
         self.pvalues = {"GO:1": 0.01, "GO:2": 0.05}  # GO:3 has no p-value
 
-    @patch("gclusters_characterization.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
-    @patch("gclusters_characterization.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
+    @patch("biocluster.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
+    @patch("biocluster.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
     def test_restrict_to_enriched_excludes_non_enriched_term(self, *_):
         fig = plot_go_hierarchy_html(
             self.term2genes,
@@ -96,8 +96,8 @@ class TestPlotGoHierarchyHtml(unittest.TestCase):
         self.assertIn("rect_GO:2", rect_names)
         self.assertNotIn("rect_GO:3", rect_names)
 
-    @patch("gclusters_characterization.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
-    @patch("gclusters_characterization.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
+    @patch("biocluster.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
+    @patch("biocluster.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
     def test_restrict_to_enriched_disabled_includes_all_terms(self, *_):
         fig = plot_go_hierarchy_html(
             self.term2genes,
@@ -114,8 +114,8 @@ class TestPlotGoHierarchyHtml(unittest.TestCase):
         rect_names = {s["name"] for s in fig.layout.shapes}
         self.assertIn("rect_GO:3", rect_names)
 
-    @patch("gclusters_characterization.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
-    @patch("gclusters_characterization.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
+    @patch("biocluster.visualization.go_hierarchical_network._ensure_obo", return_value=Path("go.obo"))
+    @patch("biocluster.visualization.go_hierarchical_network.GODag", return_value=_make_bp_dag())
     def test_all_terms_filtered_out_raises_value_error(self, *_):
         with self.assertRaises(ValueError):
             plot_go_hierarchy_html(

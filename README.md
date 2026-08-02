@@ -1,6 +1,6 @@
-# GClusters Characterization
+# BioCluster
 
-[![PyPI version](https://img.shields.io/pypi/v/gclusters_characterization)](https://pypi.org/project/gclusters_characterization/)
+[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://zenodo.org)
 
@@ -10,7 +10,7 @@ This project was designed to support the analysis of multiple clustering solutio
 
 ## Statement of need
 
-Multi-objective optimization algorithms applied to gene expression data produce a **Pareto front of clustering solutions** rather than a single partition. Existing bioinformatics tools, such as clusterProfiler, WGCNA, and general-purpose clustering libraries, assume a single best solution and provide no infrastructure for comparing, summarizing, or biologically interpreting an entire solution set. GClusters Characterization fills this gap by offering an integrated Python toolkit that computes structural similarity across partitions (Jaccard, Rand, Adjusted Rand), builds consensus representations from those partitions, identifies equivalent clusters across solutions using the Hungarian algorithm, and provides GO enrichment and GO-network visualizations tuned to the multi-solution context. The primary audience is computational biologists and bioinformaticians who apply multi-objective metaheuristics (e.g., NSGA-II, MOEA/D) to transcriptomic clustering and need reproducible, publication-ready downstream analysis.
+Multi-objective optimization algorithms applied to gene expression data produce a **Pareto front of clustering solutions** rather than a single partition. Existing bioinformatics tools, such as clusterProfiler, WGCNA, and general-purpose clustering libraries, assume a single best solution and provide no infrastructure for comparing, summarizing, or biologically interpreting an entire solution set. BioCluster fills this gap by offering an integrated Python toolkit that computes structural similarity across partitions (Jaccard, Rand, Adjusted Rand), builds consensus representations from those partitions, identifies equivalent clusters across solutions using the Hungarian algorithm, and provides GO enrichment and GO-network visualizations tuned to the multi-solution context. The primary audience is computational biologists and bioinformaticians who apply multi-objective metaheuristics (e.g., NSGA-II, MOEA/D) to transcriptomic clustering and need reproducible, publication-ready downstream analysis.
 
 ## Overview
 
@@ -65,7 +65,7 @@ Multi-objective gene clustering commonly produces a **set of non-dominated solut
 Install the latest stable release from PyPI:
 
 ```bash
-pip install gclusters_characterization
+pip install biocluster
 ```
 
 To install from source for development:
@@ -115,7 +115,7 @@ GO enrichment and GO-network functions need two reference files per species: a G
 The package can download and cache them for you:
 
 ```python
-from gclusters_characterization.go.go_utils import ensure_gaf_file, ensure_gene_info_file
+from biocluster.go.go_utils import ensure_gaf_file, ensure_gene_info_file
 
 gaf_path = ensure_gaf_file("tair", out_dir="examples/resources")
 gene_info_path = ensure_gene_info_file("tair", out_dir="examples/resources")
@@ -127,9 +127,9 @@ Supported `species_key` values out of the box: `goa_human` (human), `mgi` (mouse
 
 ```python
 import numpy as np
-from gclusters_characterization.clustering.jaccard_values import jaccard_index_solutions
-from gclusters_characterization.clustering.consensus_matrix import consensus_matrix
-from gclusters_characterization.visualization.heatmaps import plot_clustered_heatmap
+from biocluster.clustering.jaccard_values import jaccard_index_solutions
+from biocluster.clustering.consensus_matrix import consensus_matrix
+from biocluster.visualization.heatmaps import plot_clustered_heatmap
 
 genes = ["GeneA", "GeneB", "GeneC", "GeneD"]
 
@@ -149,11 +149,11 @@ coincidence_matrix, consensus = consensus_matrix(solutions)
 # fig = plot_clustered_heatmap(consensus, genes)
 
 # Automatic hierarchical clustering (no fixed number of groups required)
-# from gclusters_characterization.clustering.he_inconsistency_clustering import he_inconsistency_clustering
+# from biocluster.clustering.he_inconsistency_clustering import he_inconsistency_clustering
 # he_inconsistency_clustering(consensus, genes, save_html_to="inconsistency.html")
 
 # GO analysis (requires local .gaf / .obo files, see "GO reference data" above)
-# from gclusters_characterization.visualization.go_network import plot_go_interaction_network_html
+# from biocluster.visualization.go_network import plot_go_interaction_network_html
 # plot_go_interaction_network_html(gene2terms, term_pvalues, gaf_path, obo_path)
 ```
 
@@ -179,7 +179,7 @@ Full examples (in `examples/`):
 ```
 project_root/
 │
-├── src/gclusters_characterization/
+├── src/biocluster/
 │   ├── clustering/
 │   │   ├── consensus_matrix.py
 │   │   ├── he_clustering.py
@@ -236,7 +236,7 @@ To ensure reproducibility:
 
 ## Related software
 
-GClusters Characterization is positioned alongside but distinct from the following tools:
+BioCluster is positioned alongside but distinct from the following tools:
 
 | Tool | Language | Scope | How this package differs |
 |------|----------|-------|--------------------------|
@@ -262,8 +262,8 @@ Guidelines:
 
 ## Cite
 ```bibtex
-@misc{gclusters_characterization,
-  title        = {GClusters Characterization},
+@misc{biocluster,
+  title        = {BioCluster},
   author       = {Inostroza Ponta, Mario and Gonzalez Hurtado, Benjamin},
   year         = {2026},
   doi          = {PLACEHOLDER — insert Zenodo DOI after registration},

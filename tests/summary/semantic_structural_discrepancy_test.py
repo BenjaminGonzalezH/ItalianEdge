@@ -12,7 +12,7 @@ Purpose of this file:
 import unittest
 import numpy as np
 
-from gclusters_characterization.summary.semantic_structural_discrepancy import (
+from biocluster.summary.semantic_structural_discrepancy import (
     compute_discrepancy_matrix,
     compute_pairwise_discrepancy_profile,
     identify_discrepant_solution_pairs,

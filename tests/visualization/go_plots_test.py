@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 import pandas as pd
 
-from gclusters_characterization.visualization.go_plots import (
+from biocluster.visualization.go_plots import (
     plot_go_metric,
     plot_gene_ratio,
     plot_qscore,

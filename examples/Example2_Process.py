@@ -22,11 +22,11 @@ Functions covered
 """
 
 import numpy                                                             as np
-import gclusters_characterization.clustering.consensus_matrix            as CM
-import gclusters_characterization.clustering.jaccard_values              as JV
-import gclusters_characterization.clustering.rand_values                 as RV
-import gclusters_characterization.clustering.he_clustering               as HC
-import gclusters_characterization.clustering.he_inconsistency_clustering as HIC
+import biocluster.clustering.consensus_matrix            as CM
+import biocluster.clustering.jaccard_values              as JV
+import biocluster.clustering.rand_values                 as RV
+import biocluster.clustering.he_clustering               as HC
+import biocluster.clustering.he_inconsistency_clustering as HIC
 
 
 # ─────────────────────────────────────────────────────────────

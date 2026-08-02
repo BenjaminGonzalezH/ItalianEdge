@@ -26,7 +26,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from gclusters_characterization.clustering.rand_values import (
+from biocluster.clustering.rand_values import (
     rand_index_solutions,
     adjusted_rand_index_solutions,
     rand_index_clusters,

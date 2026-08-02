@@ -15,7 +15,7 @@ import os
 import numpy as np
 import logging
 
-from gclusters_characterization.clustering.he_clustering import (
+from biocluster.clustering.he_clustering import (
     he_clustering,
     compute_hierarchical_clustering,
     ClusteringOptions,

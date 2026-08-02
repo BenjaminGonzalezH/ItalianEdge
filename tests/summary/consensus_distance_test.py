@@ -13,7 +13,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from gclusters_characterization.summary.consensus_distance import (
+from biocluster.summary.consensus_distance import (
     compute_consensus_distance_scores,
     identify_outlier_solutions_vs_consensus,
     get_outlier_solution_indices,

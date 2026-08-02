@@ -14,7 +14,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from gclusters_characterization.summary.gene_overlap import (
+from biocluster.summary.gene_overlap import (
     compute_gene_overlap_dataframe,
     compute_gene_frequencies,
     compute_frequency_cutoff,

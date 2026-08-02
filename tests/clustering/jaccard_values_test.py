@@ -22,7 +22,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from gclusters_characterization.clustering.jaccard_values import (
+from biocluster.clustering.jaccard_values import (
     jaccard_index_solutions,
     jaccard_index_clusters,
     compare_solutions_pair,

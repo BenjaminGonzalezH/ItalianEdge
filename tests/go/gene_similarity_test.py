@@ -23,14 +23,14 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
 
-from gclusters_characterization.go.go_enrichment import (
+from biocluster.go.go_enrichment import (
     go_enrichment,
     annotation_from_entrez_ids,
     GoEnrichmentOptions,
     AnnotationOptions,
     _safe_neglog10,
 )
-from gclusters_characterization.go.gene_similarity import (
+from biocluster.go.gene_similarity import (
     compute_gene_similarity_matrix_by_batch,
     GeneSimilarityOptions,
 )
@@ -67,7 +67,7 @@ class TestGoEnrichment(unittest.TestCase):
         """Prepare a small set of genes including duplicates and invalid values."""
         self.genes = ["1", "2", "3", "3", None, ""]
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_basic_enrichment(self, mock_gp):
         """Ensure enrichment runs and produces expected columns."""
         mock_instance = MagicMock()
@@ -86,7 +86,7 @@ class TestGoEnrichment(unittest.TestCase):
         # Results should be sorted by p-value
         self.assertTrue(df["p_value"].is_monotonic_increasing)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_missing_precision_column(self, mock_gp):
         """Enrichment should still work without 'precision'."""
         df_mock = fake_enrichment_df().drop(columns=["precision"])
@@ -99,7 +99,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_missing_pvalue_column(self, mock_gp):
         """If p_value is missing, qscore should not be computed."""
         df_mock = fake_enrichment_df().drop(columns=["p_value"])
@@ -112,7 +112,7 @@ class TestGoEnrichment(unittest.TestCase):
 
         self.assertNotIn("qscore", df.columns)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_empty_response(self, mock_gp):
         """Empty API response should return an empty DataFrame."""
         mock_instance = MagicMock()
@@ -142,7 +142,7 @@ class TestGoEnrichment(unittest.TestCase):
         with self.assertRaises(ValueError):
             go_enrichment(["1"], options=opts)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_retry_logic(self, mock_gp):
         """Ensure retry mechanism is triggered when API fails."""
         mock_instance = MagicMock()
@@ -174,7 +174,7 @@ class TestAnnotation(unittest.TestCase):
         """Prepare a small gene set for annotation tests."""
         self.genes = ["A", "B", "C", "D"]
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_basic_annotation(self, mock_gp):
         """Annotation should return a gene-to-terms mapping."""
         mock_instance = MagicMock()
@@ -194,7 +194,7 @@ class TestAnnotation(unittest.TestCase):
             self.assertIsInstance(k, str)
             self.assertIsInstance(v, list)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_chunking(self, mock_gp):
         """Annotation should split queries according to chunk size."""
         mock_instance = MagicMock()
@@ -214,7 +214,7 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertEqual(len(calls), 2)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_thread_failure_handling(self, mock_gp):
         """Failures in individual chunks should not crash execution."""
         mock_instance = MagicMock()
@@ -231,7 +231,7 @@ class TestAnnotation(unittest.TestCase):
 
         self.assertIsInstance(result, dict)
 
-    @patch("gclusters_characterization.go.go_enrichment.GProfiler")
+    @patch("biocluster.go.go_enrichment.GProfiler")
     def test_missing_columns(self, mock_gp):
         """Missing expected columns should return empty result."""
         mock_instance = MagicMock()
@@ -289,7 +289,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         mock_go3.build_term_counter.return_value = MagicMock()
         mock_go3.compare_gene_pairs_batch.return_value = scores
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_return_types(self, mock_go3):
         """Function should return a list and an ndarray."""
         self._configure_mock(mock_go3, [0.8, 0.6, 0.7])
@@ -301,7 +301,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         self.assertIsInstance(genes_out, list)
         self.assertIsInstance(sim, np.ndarray)
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_matrix_shape_and_gene_order(self, mock_go3):
         """Similarity matrix must be n×n and genes list must match input order."""
         n = len(self.genes)
@@ -314,7 +314,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         self.assertEqual(sim.shape, (n, n))
         self.assertEqual(genes_out, self.genes)
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_diagonal_is_one(self, mock_go3):
         """Diagonal entries must be 1.0 (self-similarity)."""
         self._configure_mock(mock_go3, [0.4, 0.5, 0.6])
@@ -325,7 +325,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
 
         np.testing.assert_array_equal(np.diag(sim), np.ones(len(self.genes)))
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_matrix_symmetric(self, mock_go3):
         """Similarity matrix must be symmetric (sim[i,j] == sim[j,i])."""
         self._configure_mock(mock_go3, [0.3, 0.7, 0.9])
@@ -336,7 +336,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
 
         np.testing.assert_array_equal(sim, sim.T)
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_scores_correctly_placed(self, mock_go3):
         """Batch scores must map to the correct (i,j) and (j,i) positions.
 
@@ -356,7 +356,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         self.assertAlmostEqual(sim[1, 2], 0.3)
         self.assertAlmostEqual(sim[2, 1], 0.3)
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_single_gene_returns_identity(self, mock_go3):
         """A single gene must yield a 1×1 matrix with value 1.0 and no pairs."""
         self._configure_mock(mock_go3, [])
@@ -369,7 +369,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         self.assertEqual(sim.shape, (1, 1))
         self.assertAlmostEqual(sim[0, 0], 1.0)
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_load_go_terms_called_when_enabled(self, mock_go3):
         """go3.load_go_terms must be called with obo_path when load_go_terms=True."""
         self._configure_mock(mock_go3, [0.5])
@@ -381,7 +381,7 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
 
         mock_go3.load_go_terms.assert_called_once_with(str(self.obo_path))
 
-    @patch("gclusters_characterization.go.gene_similarity.go3")
+    @patch("biocluster.go.gene_similarity.go3")
     def test_load_go_terms_skipped_when_disabled(self, mock_go3):
         """go3.load_go_terms must NOT be called when load_go_terms=False."""
         self._configure_mock(mock_go3, [0.5])
