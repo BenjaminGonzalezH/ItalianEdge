@@ -1,6 +1,6 @@
 # BioCluster
 
-[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/)
+[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/1.0.1/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://zenodo.org)
 
