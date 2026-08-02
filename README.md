@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/)
 [![CI](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml/badge.svg)](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://zenodo.org)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21764404.svg)](https://doi.org/10.5281/zenodo.21764404)
 
 Python package for the quantitative and qualitative characterization of Pareto-optimal gene clustering solutions.
 
