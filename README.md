@@ -1,6 +1,6 @@
 # BioCluster
 
-[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/1.0.2/)
+[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/)
 [![CI](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml/badge.svg)](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://zenodo.org)
@@ -91,10 +91,7 @@ Typical dependencies include:
 - mygene>=3.2,
 - go3>=0.3.0,
 - pyarrow>=14.0,
-- holoviews>=1.23.1,
-- bokeh (required by `holoviews` for the interactive clustered heatmap backend; not installed by a bare `pip install holoviews`, so make sure it's available — see note below)
-
-> **Nota interna (no publicar sin resolver):** `bokeh` no está declarado explícitamente en `pyproject.toml`. `holoviews` por sí solo no lo instala como dependencia obligatoria, y `heatmaps.plot_clustered_heatmap` hace `from bokeh.models import HoverTool` directamente. Recomiendo agregar `"bokeh"` a `dependencies` en `pyproject.toml` antes de publicar, o esa función fallará en una instalación limpia desde PyPI.
+- holoviews>=1.19 (pulls in `bokeh` as a required dependency, used as the interactive clustered heatmap backend)
 
 ## Input format
 The package assumes:

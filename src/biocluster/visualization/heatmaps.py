@@ -5,12 +5,14 @@ heatmaps: Single-matrix clustered heatmap built on HoloViews + Bokeh.
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
+import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Union
 
 import numpy as np
+import pandas as pd
 from scipy.cluster.hierarchy import (
     dendrogram,
     leaves_list,
@@ -109,6 +111,22 @@ def _log_or_print(msg: str, verbose: bool) -> None:
 
 def _as_path(p: PathLike) -> Path:
     return p if isinstance(p, Path) else Path(p)
+
+
+@contextlib.contextmanager
+def _pandas_object_strings():
+    """
+    Disable pandas' pyarrow-backed string dtype for the duration of the
+    context, if the running pandas version supports it (added in 2.1;
+    default since 3.0). HoloViews' internal categorical aggregation calls
+    ``.values.reshape(...)`` on vdim arrays, which the pyarrow-backed
+    string dtype does not implement.
+    """
+    try:
+        with pd.option_context("future.infer_string", False):
+            yield
+    except pd.errors.OptionError:
+        yield
 
 
 def _validate_matrix_2d(matrix: np.ndarray, name: str = "matrix") -> None:
@@ -327,104 +345,110 @@ def plot_clustered_heatmap(
         clustering.cluster_rows and clustering.show_row_dendrogram and row_Z is not None
     )
 
-    # ── 3. Heatmap element ───────────────────────────────────────────────────
-    records = []
-    for i in range(n):
-        for j in range(n):
-            records.append(
-                (j, i, float(z_clustered[i, j]), row_labels[i], col_labels[j])
+    # HoloViews builds its internal Dataset representation (and later
+    # aggregates it for rendering) starting from this point, so the whole
+    # section is scoped by _pandas_object_strings() -- see its docstring.
+    with _pandas_object_strings():
+        # ── 3. Heatmap element ───────────────────────────────────────────────
+        records = []
+        for i in range(n):
+            for j in range(n):
+                records.append(
+                    (j, i, float(z_clustered[i, j]), row_labels[i], col_labels[j])
+                )
+
+        hover = HoverTool(
+            tooltips=[
+                ("Row", "@row_label"),
+                ("Col", "@col_label"),
+                (z_label, "@similarity{0.000}"),
+            ]
+        )
+
+        heat = hv.HeatMap(
+            records,
+            kdims=["leaf_x", "leaf_y"],
+            vdims=["similarity", "row_label", "col_label"],
+        ).opts(
+            cmap=colorscale + "_r" if not colorscale.endswith("_r") else colorscale,
+            colorbar=True,
+            clim=(0.0, 1.0),
+            colorbar_opts={"title": z_label},
+            frame_width=heatmap_size,
+            frame_height=heatmap_size,
+            tools=[hover],
+            xticks=list(enumerate(col_labels)),
+            yticks=list(enumerate(row_labels)),
+            xrotation=45,
+            xlabel=x_label,
+            ylabel=y_label,
+            title=title,
+            line_color=None,
+        )
+
+        dend_size = max(60, int(heatmap_size * clustering.dendrogram_fraction))
+
+        # ── 4. Dendrogram elements (leaf axis shares the SAME dimension name
+        #      as the heatmap, which is what makes HoloViews link ranges) ────
+        col_dend = None
+        if has_col_dend:
+            assert col_Z is not None
+            col_paths = _dendrogram_paths(col_Z, "top")
+            col_dend = hv.Path(col_paths, kdims=["leaf_x", "height_col"]).opts(
+                color=clustering.dendrogram_line_color,
+                line_width=clustering.dendrogram_line_width,
+                frame_width=heatmap_size,
+                frame_height=dend_size,
+                xaxis=None,
+                yaxis=None,
+                title="",
             )
 
-    hover = HoverTool(
-        tooltips=[
-            ("Row", "@row_label"),
-            ("Col", "@col_label"),
-            (z_label, "@similarity{0.000}"),
-        ]
-    )
+        row_dend = None
+        if has_row_dend:
+            assert row_Z is not None
+            row_paths = _dendrogram_paths(row_Z, "left")
+            row_dend = hv.Path(row_paths, kdims=["height_row", "leaf_y"]).opts(
+                color=clustering.dendrogram_line_color,
+                line_width=clustering.dendrogram_line_width,
+                frame_width=dend_size,
+                frame_height=heatmap_size,
+                xaxis=None,
+                yaxis=None,
+                title="",
+            )
 
-    heat = hv.HeatMap(
-        records,
-        kdims=["leaf_x", "leaf_y"],
-        vdims=["similarity", "row_label", "col_label"],
-    ).opts(
-        cmap=colorscale + "_r" if not colorscale.endswith("_r") else colorscale,
-        colorbar=True,
-        clim=(0.0, 1.0),
-        colorbar_opts={"title": z_label},
-        frame_width=heatmap_size,
-        frame_height=heatmap_size,
-        tools=[hover],
-        xticks=list(enumerate(col_labels)),
-        yticks=list(enumerate(row_labels)),
-        xrotation=45,
-        xlabel=x_label,
-        ylabel=y_label,
-        title=title,
-        line_color=None,
-    )
+        # ── 5. Compose grid layout ───────────────────────────────────────────
+        if col_dend is not None and row_dend is not None:
+            blank = hv.Empty()
+            layout = (blank + col_dend + row_dend + heat).cols(2)
+        elif col_dend is not None:
+            layout = (col_dend + heat).cols(1)
+        elif row_dend is not None:
+            layout = (row_dend + heat).cols(2)
+        else:
+            layout = heat
 
-    dend_size = max(60, int(heatmap_size * clustering.dendrogram_fraction))
-
-    # ── 4. Dendrogram elements (leaf axis shares the SAME dimension name as
-    #      the heatmap, which is what makes HoloViews link their ranges) ─────
-    col_dend = None
-    if has_col_dend:
-        assert col_Z is not None
-        col_paths = _dendrogram_paths(col_Z, "top")
-        col_dend = hv.Path(col_paths, kdims=["leaf_x", "height_col"]).opts(
-            color=clustering.dendrogram_line_color,
-            line_width=clustering.dendrogram_line_width,
-            frame_width=heatmap_size,
-            frame_height=dend_size,
-            xaxis=None,
-            yaxis=None,
-            title="",
+        layout = (
+            layout.opts(hv.opts.Layout(shared_axes=True))
+            if hasattr(layout, "opts") and not isinstance(layout, hv.HeatMap)
+            else layout
         )
 
-    row_dend = None
-    if has_row_dend:
-        assert row_Z is not None
-        row_paths = _dendrogram_paths(row_Z, "left")
-        row_dend = hv.Path(row_paths, kdims=["height_row", "leaf_y"]).opts(
-            color=clustering.dendrogram_line_color,
-            line_width=clustering.dendrogram_line_width,
-            frame_width=dend_size,
-            frame_height=heatmap_size,
-            xaxis=None,
-            yaxis=None,
-            title="",
-        )
-
-    # ── 5. Compose grid layout ───────────────────────────────────────────────
-    if col_dend is not None and row_dend is not None:
-        blank = hv.Empty()
-        layout = (blank + col_dend + row_dend + heat).cols(2)
-    elif col_dend is not None:
-        layout = (col_dend + heat).cols(1)
-    elif row_dend is not None:
-        layout = (row_dend + heat).cols(2)
-    else:
-        layout = heat
-
-    layout = (
-        layout.opts(hv.opts.Layout(shared_axes=True))
-        if hasattr(layout, "opts") and not isinstance(layout, hv.HeatMap)
-        else layout
-    )
-
-    # ── 6. Export ────────────────────────────────────────────────────────────
-    html: Optional[str] = None
-    if save_filepath is not None or return_html:
-        renderer = hv.renderer("bokeh")
-        resources = "cdn" if export.resources == "cdn" else "inline"
-        html = renderer.html(layout, resources=resources)
-        if save_filepath is not None:
-            p = _as_path(save_filepath)
-            if p.parent and not p.parent.exists():
-                p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(html, encoding="utf-8")
-            _log_or_print(f"[clustered_heatmap_hv] HTML saved at: {p}", export.verbose)
+        # ── 6. Export ─────────────────────────────────────────────────────
+        html: Optional[str] = None
+        if save_filepath is not None or return_html:
+            renderer = hv.renderer("bokeh")
+            resources = "cdn" if export.resources == "cdn" else "inline"
+            html = renderer.html(layout, resources=resources)
+            if save_filepath is not None:
+                p = _as_path(save_filepath)
+                if p.parent and not p.parent.exists():
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(html, encoding="utf-8")
+                _log_or_print(
+                    f"[clustered_heatmap_hv] HTML saved at: {p}", export.verbose
+                )
 
     if return_fig and return_html:
         return layout, html
