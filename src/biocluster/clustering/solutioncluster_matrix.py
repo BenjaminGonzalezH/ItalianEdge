@@ -1,6 +1,6 @@
 """
 solutioncluster_matrix: This module transforms a matrix of clustering solutions into grouped
-cluster representations. Each solution row contains cluster labels assigned to a set of genes. 
+cluster representations. Each solution row contains cluster labels assigned to a set of genes.
 The module groups genes belonging to the same cluster label.
 Two output formats:
     - sets of gene identifiers
@@ -17,16 +17,17 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from typing import List, Set, Optional
+from typing import Any, Optional
 
+import numpy as np
 
 # ─────────────────────────────────────────────
 # Internal validation
 # ─────────────────────────────────────────────
 
-def _validate_inputs(matrix: np.ndarray, genes: List[str]) -> None:
+
+def _validate_inputs(matrix: np.ndarray, genes: list[str]) -> None:
     """
     Validate the input clustering matrix and gene identifiers.
 
@@ -70,10 +71,11 @@ def _validate_inputs(matrix: np.ndarray, genes: List[str]) -> None:
 # Core grouping logic
 # ─────────────────────────────────────────────
 
-def _process_solution_sets(args) -> List[Set[str]]:
+
+def _process_solution_sets(args) -> list[set[str]]:
     """
-    Convert one clustering solution into sets of gene identifiers. Each unique 
-    cluster label is transformed into a set containing the gene identifiers 
+    Convert one clustering solution into sets of gene identifiers. Each unique
+    cluster label is transformed into a set containing the gene identifiers
     assigned to that cluster.
 
     Parameters
@@ -90,7 +92,7 @@ def _process_solution_sets(args) -> List[Set[str]]:
     """
 
     solution, genes = args
-    clusters = {}
+    clusters: dict[Any, set[str]] = {}
 
     for gene, label in zip(genes, solution):
         clusters.setdefault(label, set()).add(gene)
@@ -98,10 +100,10 @@ def _process_solution_sets(args) -> List[Set[str]]:
     return [clusters[k] for k in sorted(clusters)]
 
 
-def _process_solution_indices(solution: np.ndarray) -> List[np.ndarray]:
+def _process_solution_indices(solution: np.ndarray) -> list[np.ndarray]:
     """
-    Convert one clustering solution into index arrays. Instead of storing gene 
-    identifiers, this representation stores indices of the genes belonging to 
+    Convert one clustering solution into index arrays. Instead of storing gene
+    identifiers, this representation stores indices of the genes belonging to
     each cluster. This reduces memory consumption for large datasets.
 
     Parameters
@@ -115,29 +117,27 @@ def _process_solution_indices(solution: np.ndarray) -> List[np.ndarray]:
         List of arrays containing gene indices per cluster.
     """
 
-    clusters = {}
+    clusters: dict[Any, list[int]] = {}
 
     for idx, label in enumerate(solution):
         clusters.setdefault(label, []).append(idx)
 
-    return [
-        np.array(indices, dtype=np.int32)
-        for indices in clusters.values()
-    ]
+    return [np.array(indices, dtype=np.int32) for indices in clusters.values()]
 
 
 # ─────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────
 
+
 def solution_cluster_matrix(
     matrix: np.ndarray,
-    genes: List[str],
+    genes: list[str],
     *,
     mode: str = "sets",
     parallel: bool = False,
     max_workers: Optional[int] = None,
-) -> List:
+) -> list:
     """
     Convert clustering solutions into grouped cluster structures.
 
@@ -186,15 +186,11 @@ def solution_cluster_matrix(
 
         if mode == "sets":
             return [
-                _process_solution_sets((matrix[i], genes))
-                for i in range(n_solutions)
+                _process_solution_sets((matrix[i], genes)) for i in range(n_solutions)
             ]
 
         else:
-            return [
-                _process_solution_indices(matrix[i])
-                for i in range(n_solutions)
-            ]
+            return [_process_solution_indices(matrix[i]) for i in range(n_solutions)]
 
     # ─────────────────────────────
     # Parallel execution
@@ -207,7 +203,7 @@ def solution_cluster_matrix(
                 results = list(
                     executor.map(
                         _process_solution_sets,
-                        ((matrix[i], genes) for i in range(n_solutions))
+                        ((matrix[i], genes) for i in range(n_solutions)),
                     )
                 )
 
@@ -215,11 +211,11 @@ def solution_cluster_matrix(
 
         else:
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                results = list(
+                index_results = list(
                     executor.map(
                         _process_solution_indices,
-                        (matrix[i] for i in range(n_solutions))
+                        (matrix[i] for i in range(n_solutions)),
                     )
                 )
 
-            return results
+            return index_results

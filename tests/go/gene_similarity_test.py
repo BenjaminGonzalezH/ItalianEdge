@@ -19,47 +19,53 @@ Functions tested:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock
-import pandas as pd
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pandas as pd
 
-from biocluster.go.go_enrichment import (
-    go_enrichment,
-    annotation_from_entrez_ids,
-    GoEnrichmentOptions,
-    AnnotationOptions,
-    _safe_neglog10,
-)
 from biocluster.go.gene_similarity import (
-    compute_gene_similarity_matrix_by_batch,
     GeneSimilarityOptions,
+    compute_gene_similarity_matrix_by_batch,
 )
-
+from biocluster.go.go_enrichment import (
+    AnnotationOptions,
+    GoEnrichmentOptions,
+    _safe_neglog10,
+    annotation_from_entrez_ids,
+    go_enrichment,
+)
 
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
 
+
 def fake_enrichment_df():
     """Create a minimal enrichment result for testing."""
-    return pd.DataFrame({
-        "native": ["GO:0001", "GO:0002"],
-        "p_value": [0.001, 0.01],
-        "precision": [0.5, 0.25],
-    })
+    return pd.DataFrame(
+        {
+            "native": ["GO:0001", "GO:0002"],
+            "p_value": [0.001, 0.01],
+            "precision": [0.5, 0.25],
+        }
+    )
 
 
 def fake_annotation_df(block):
     """Create a minimal annotation response for a gene block."""
-    return pd.DataFrame({
-        "native": ["GO:0001", "GO:0002"],
-        "intersections": [[block[0]], [block[-1]]],
-    })
+    return pd.DataFrame(
+        {
+            "native": ["GO:0001", "GO:0002"],
+            "intersections": [[block[0]], [block[-1]]],
+        }
+    )
 
 
 # --------------------------------------------------
 # Enrichment tests
 # --------------------------------------------------
+
 
 class TestGoEnrichment(unittest.TestCase):
 
@@ -168,6 +174,7 @@ class TestGoEnrichment(unittest.TestCase):
 # Annotation tests
 # --------------------------------------------------
 
+
 class TestAnnotation(unittest.TestCase):
 
     def setUp(self):
@@ -255,6 +262,7 @@ class TestAnnotation(unittest.TestCase):
 # Utility tests
 # --------------------------------------------------
 
+
 class TestUtilities(unittest.TestCase):
 
     def test_safe_neglog10_normal(self):
@@ -276,6 +284,7 @@ class TestUtilities(unittest.TestCase):
 # --------------------------------------------------
 # Gene similarity by batch tests
 # --------------------------------------------------
+
 
 class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
 
@@ -412,7 +421,10 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         opts = GeneSimilarityOptions(ontology="XX")  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             compute_gene_similarity_matrix_by_batch(
-                self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+                self.genes,
+                obo_path=self.obo_path,
+                gaf_path=self.gaf_path,
+                go3_opts=opts,
             )
 
     def test_invalid_groupwise_raises(self):
@@ -420,7 +432,10 @@ class TestComputeGeneSimilarityMatrixByBatch(unittest.TestCase):
         opts = GeneSimilarityOptions(groupwise="bad")  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             compute_gene_similarity_matrix_by_batch(
-                self.genes, obo_path=self.obo_path, gaf_path=self.gaf_path, go3_opts=opts
+                self.genes,
+                obo_path=self.obo_path,
+                gaf_path=self.gaf_path,
+                go3_opts=opts,
             )
 
 

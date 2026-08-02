@@ -11,17 +11,18 @@ Purpose:
 """
 
 ######### Libraries #########
-import unittest
-from unittest.mock import patch, MagicMock
-import pandas as pd
 import logging
 import tempfile
+import unittest
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
 
 from biocluster.go.mapping_entrez import (
-    convert_to_entrez_id,
     MappingOptions,
-    _min_entrez_str,
     _iter_chunks,
+    _min_entrez_str,
+    convert_to_entrez_id,
 )
 
 
@@ -86,10 +87,7 @@ class TestMappingEntrez(unittest.TestCase):
         - Minimum EntrezID is selected
         """
 
-        df = pd.DataFrame({
-            "incoming": ["A", "A", "B"],
-            "converted": ["10", "5", "20"]
-        })
+        df = pd.DataFrame({"incoming": ["A", "A", "B"], "converted": ["10", "5", "20"]})
 
         mock_instance = MagicMock()
         mock_instance.convert.return_value = df
@@ -160,10 +158,7 @@ class TestMappingEntrez(unittest.TestCase):
         Output must preserve input order.
         """
 
-        df = pd.DataFrame({
-            "incoming": ["C", "A"],
-            "converted": ["3", "1"]
-        })
+        df = pd.DataFrame({"incoming": ["C", "A"], "converted": ["3", "1"]})
 
         mock_gp.return_value.convert.return_value = df
 

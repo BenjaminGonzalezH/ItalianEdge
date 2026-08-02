@@ -5,24 +5,33 @@ heatmaps: Single-matrix clustered heatmap built on HoloViews + Bokeh.
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses             import dataclass
-from pathlib                 import Path
-from typing                  import Optional, Literal, Union, Tuple, List
-from scipy.cluster.hierarchy import linkage, dendrogram, optimal_leaf_ordering, leaves_list
-from scipy.spatial.distance  import squareform
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Optional, Union
+
 import numpy as np
+from scipy.cluster.hierarchy import (
+    dendrogram,
+    leaves_list,
+    linkage,
+    optimal_leaf_ordering,
+)
+from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
 
-PathLike       = Union[str, Path]
+PathLike = Union[str, Path]
 DownsampleMode = Literal["none", "pool_mean", "pool_max"]
-LinkageMethod  = Literal["average", "complete", "single", "ward", "weighted", "centroid", "median"]
+LinkageMethod = Literal[
+    "average", "complete", "single", "ward", "weighted", "centroid", "median"
+]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Options
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class HeatmapExportOptions:
@@ -35,8 +44,9 @@ class HeatmapExportOptions:
             (larger, fully standalone/offline).
         verbose: If True, prints extra status messages (still logs always).
     """
+
     resources: Literal["cdn", "inline"] = "cdn"
-    verbose: bool                       = True
+    verbose: bool = True
 
 
 @dataclass(frozen=True)
@@ -48,7 +58,8 @@ class HeatmapScaleOptions:
         max_dim: If matrix is larger than this in any dimension, it will be downsampled.
         downsample_mode: pooling strategy ("pool_mean" recommended).
     """
-    max_dim: int                    = 1200
+
+    max_dim: int = 1200
     downsample_mode: DownsampleMode = "pool_mean"
 
 
@@ -73,6 +84,7 @@ class ClusteringOptions:
         dendrogram_line_color: Colour of dendrogram branches.
         dendrogram_line_width: Stroke width of dendrogram branches (px).
     """
+
     cluster_rows: bool = True
     cluster_cols: bool = True
     linkage_method: LinkageMethod = "average"
@@ -87,6 +99,7 @@ class ClusteringOptions:
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _log_or_print(msg: str, verbose: bool) -> None:
     logger.info(msg)
@@ -111,7 +124,7 @@ def _validate_matrix_2d(matrix: np.ndarray, name: str = "matrix") -> None:
 
 def _pool_downsample(
     matrix: np.ndarray, max_dim: int, mode: DownsampleMode
-) -> Tuple[np.ndarray, int, int]:
+) -> tuple[np.ndarray, int, int]:
     """Downsample by block pooling to keep plots responsive."""
     if mode == "none":
         return matrix, 1, 1
@@ -149,7 +162,7 @@ def _pool_downsample(
 
 def _similarity_to_linkage(
     sim_matrix: np.ndarray, method: str, use_olo: bool
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Convert a square similarity matrix to a scipy linkage matrix + leaf order."""
     dist = np.clip(1.0 - sim_matrix.astype(np.float64), 0.0, 1.0)
     np.fill_diagonal(dist, 0.0)
@@ -163,14 +176,14 @@ def _similarity_to_linkage(
     return Z, order
 
 
-def _dendrogram_paths(Z: np.ndarray, orientation: Literal["top", "left"]) -> List[list]:
+def _dendrogram_paths(Z: np.ndarray, orientation: Literal["top", "left"]) -> list[list]:
     """
     Build a list of polylines (one per branch) describing a dendrogram, in
     the same [0, n-1] leaf coordinate system used by the heatmap.
     """
     ddata = dendrogram(Z, no_plot=True)
     icoord = (np.array(ddata["icoord"]) - 5) / 10.0  # -> [0, n-1] leaf axis
-    dcoord = np.array(ddata["dcoord"])                # height axis
+    dcoord = np.array(ddata["dcoord"])  # height axis
 
     paths = []
     for xs, ys in zip(icoord, dcoord):
@@ -184,6 +197,7 @@ def _dendrogram_paths(Z: np.ndarray, orientation: Literal["top", "left"]) -> Lis
 # ──────────────────────────────────────────────────────────────────────────────
 # Public API
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def plot_clustered_heatmap(
     matrix: np.ndarray,
@@ -306,23 +320,33 @@ def plot_clustered_heatmap(
     row_labels = [tick_labels[i] for i in row_order]
     col_labels = [tick_labels[i] for i in col_order]
 
-    has_col_dend = clustering.cluster_cols and clustering.show_col_dendrogram and col_Z is not None
-    has_row_dend = clustering.cluster_rows and clustering.show_row_dendrogram and row_Z is not None
+    has_col_dend = (
+        clustering.cluster_cols and clustering.show_col_dendrogram and col_Z is not None
+    )
+    has_row_dend = (
+        clustering.cluster_rows and clustering.show_row_dendrogram and row_Z is not None
+    )
 
     # ── 3. Heatmap element ───────────────────────────────────────────────────
     records = []
     for i in range(n):
         for j in range(n):
-            records.append((j, i, float(z_clustered[i, j]), row_labels[i], col_labels[j]))
+            records.append(
+                (j, i, float(z_clustered[i, j]), row_labels[i], col_labels[j])
+            )
 
-    hover = HoverTool(tooltips=[
-        ("Row", "@row_label"),
-        ("Col", "@col_label"),
-        (z_label, "@similarity{0.000}"),
-    ])
+    hover = HoverTool(
+        tooltips=[
+            ("Row", "@row_label"),
+            ("Col", "@col_label"),
+            (z_label, "@similarity{0.000}"),
+        ]
+    )
 
     heat = hv.HeatMap(
-        records, kdims=["leaf_x", "leaf_y"], vdims=["similarity", "row_label", "col_label"]
+        records,
+        kdims=["leaf_x", "leaf_y"],
+        vdims=["similarity", "row_label", "col_label"],
     ).opts(
         cmap=colorscale + "_r" if not colorscale.endswith("_r") else colorscale,
         colorbar=True,
@@ -340,13 +364,13 @@ def plot_clustered_heatmap(
         line_color=None,
     )
 
-    elements = []
     dend_size = max(60, int(heatmap_size * clustering.dendrogram_fraction))
 
     # ── 4. Dendrogram elements (leaf axis shares the SAME dimension name as
     #      the heatmap, which is what makes HoloViews link their ranges) ─────
     col_dend = None
     if has_col_dend:
+        assert col_Z is not None
         col_paths = _dendrogram_paths(col_Z, "top")
         col_dend = hv.Path(col_paths, kdims=["leaf_x", "height_col"]).opts(
             color=clustering.dendrogram_line_color,
@@ -360,6 +384,7 @@ def plot_clustered_heatmap(
 
     row_dend = None
     if has_row_dend:
+        assert row_Z is not None
         row_paths = _dendrogram_paths(row_Z, "left")
         row_dend = hv.Path(row_paths, kdims=["height_row", "leaf_y"]).opts(
             color=clustering.dendrogram_line_color,
@@ -382,7 +407,11 @@ def plot_clustered_heatmap(
     else:
         layout = heat
 
-    layout = layout.opts(hv.opts.Layout(shared_axes=True)) if hasattr(layout, "opts") and not isinstance(layout, hv.HeatMap) else layout
+    layout = (
+        layout.opts(hv.opts.Layout(shared_axes=True))
+        if hasattr(layout, "opts") and not isinstance(layout, hv.HeatMap)
+        else layout
+    )
 
     # ── 6. Export ────────────────────────────────────────────────────────────
     html: Optional[str] = None

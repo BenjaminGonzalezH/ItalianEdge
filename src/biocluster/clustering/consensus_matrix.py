@@ -1,6 +1,6 @@
 """
-consensus_matrix: This module computes a no_coincidence matrix from multiple clustering solutions. 
-The no_coincidence matrix represents how frequently two elements (genes) are assigned to the same 
+consensus_matrix: This module computes a no_coincidence matrix from multiple clustering solutions.
+The no_coincidence matrix represents how frequently two elements (genes) are assigned to the same
 cluster across different clustering solutions.
 
 Functions
@@ -10,23 +10,23 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy as np
-from typing import Tuple
 
+from typing import Any
+
+import numpy as np
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Function
 # ──────────────────────────────────────────────────────────────────────────────
 
-def consensus_matrix(
-    Solutions_Matrix: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+
+def consensus_matrix(Solutions_Matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Compute a no_coincidence matrix from multiple clustering solutions. Each column represents an element 
-    (e.g., gene), and each row represents a clustering solution assigning elements to clusters. The 
+    Compute a no_coincidence matrix from multiple clustering solutions. Each column represents an element
+    (e.g., gene), and each row represents a clustering solution assigning elements to clusters. The
     coincidence matrix stores the proportion of solutions where two elements belong to the same cluster.
 
-    The no_coincidence matrix is defined as: 
+    The no_coincidence matrix is defined as:
         no_coincidence = 1 − coincidence
 
     Parameters
@@ -77,15 +77,15 @@ def consensus_matrix(
     for solution in Solutions_Matrix:
 
         # Group gene indices by cluster label.
-        clusters = {}
+        clusters: dict[Any, list[int]] = {}
 
         for idx, label in enumerate(solution):
             clusters.setdefault(label, []).append(idx)
 
         # Update coincidence counts for each cluster.
         for indices in clusters.values():
-            indices = np.array(indices)
-            coincidence[np.ix_(indices, indices)] += 1
+            indices_arr = np.array(indices)
+            coincidence[np.ix_(indices_arr, indices_arr)] += 1
 
     # Convert counts to proportions.
     coincidence /= n_solutions

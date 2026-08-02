@@ -1,6 +1,6 @@
 """
 he_inconsistency_clustering: This module provides utilities for automatic (inconsistency
--coefficient-based) hierarchical clustering using a distance matrix representation of 
+-coefficient-based) hierarchical clustering using a distance matrix representation of
 elements (e.g., genes).
 
 The module supports:
@@ -22,19 +22,26 @@ Functions:
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses             import dataclass
-from pathlib                 import Path
-from typing                  import List, Optional, Sequence, Tuple, Union, Literal
-from scipy.cluster.hierarchy import linkage, dendrogram, fcluster, cophenet, inconsistent
-from scipy.spatial.distance  import squareform
-from plotly.subplots         import make_subplots
 import logging
 import sys
-import numpy                as np
-import plotly.graph_objects as go
-import matplotlib.colors    as mcolors
-import matplotlib.pyplot    as plt
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Optional, Union
 
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from scipy.cluster.hierarchy import (
+    cophenet,
+    dendrogram,
+    fcluster,
+    inconsistent,
+    linkage,
+)
+from scipy.spatial.distance import squareform
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -45,7 +52,9 @@ logger = logging.getLogger(__name__)
 # Data Types
 # ──────────────────────────────────────────────────────────────────────────────
 PathLike = Union[str, Path]
-LinkageMethod = Literal["single", "complete", "average", "weighted", "centroid", "median", "ward"]
+LinkageMethod = Literal[
+    "single", "complete", "average", "weighted", "centroid", "median", "ward"
+]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -102,6 +111,7 @@ class InconsistencyClusteringOptions:
         verbose : bool
             If ``True``, prints status messages (always logs regardless).
     """
+
     method: LinkageMethod = "average"
     depth: int = 2
     n_candidates: int = 1
@@ -127,6 +137,7 @@ class DendrogramOptions:
         cutoff_color: cutoff line color.
         cutoff_dash: cutoff line dash style.
     """
+
     title: str = "Dendrogram"
     height: int = 1080
     width: int = 1920
@@ -147,6 +158,7 @@ class ExportOptions:
         full_html: if True writes a full HTML document; else a div snippet.
         verbose: if True prints status messages (still logs always).
     """
+
     include_plotlyjs: Union[Literal["cdn", "embed"], bool] = "cdn"
     full_html: bool = False
     verbose: bool = True
@@ -158,6 +170,7 @@ class ExportOptions:
 def _as_path(p: PathLike) -> Path:
     """Ensure the input is converted to a Path object."""
     return p if isinstance(p, Path) else Path(p)
+
 
 def _log_or_print(msg: str, verbose: bool) -> None:
     """
@@ -178,7 +191,7 @@ def _log_or_print(msg: str, verbose: bool) -> None:
         print(msg)
 
 
-def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
+def _validate_genes(genes: Sequence[str], n: int) -> list[str]:
     """
     Validate gene identifiers against the expected matrix size.
 
@@ -203,7 +216,9 @@ def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
         genes = list(genes)
 
     if len(genes) != n:
-        raise ValueError(f"Number of genes ({len(genes)}) does not match matrix size ({n}).")
+        raise ValueError(
+            f"Number of genes ({len(genes)}) does not match matrix size ({n})."
+        )
 
     # Ensure all are strings (best-effort)
     out = [str(g) for g in genes]
@@ -230,7 +245,9 @@ def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
         negative values, or a non-zero diagonal.
     """
     if not isinstance(distance_matrix, np.ndarray):
-        raise TypeError(f"distance_matrix must be a numpy.ndarray, got: {type(distance_matrix)}")
+        raise TypeError(
+            f"distance_matrix must be a numpy.ndarray, got: {type(distance_matrix)}"
+        )
 
     if distance_matrix.ndim != 2:
         raise ValueError(f"distance_matrix must be 2D, got ndim={distance_matrix.ndim}")
@@ -243,7 +260,9 @@ def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
         raise ValueError("Distance matrix must be at least 2x2.")
 
     if not np.issubdtype(distance_matrix.dtype, np.number):
-        raise TypeError(f"distance_matrix must be numeric dtype, got: {distance_matrix.dtype}")
+        raise TypeError(
+            f"distance_matrix must be numeric dtype, got: {distance_matrix.dtype}"
+        )
 
     if np.isnan(distance_matrix).any():
         raise ValueError("Distance matrix contains NaN values.")
@@ -265,7 +284,7 @@ def _build_inconsistency_figure(
     Z: np.ndarray,
     genes: Sequence[str],
     R: np.ndarray,
-    candidates: List[dict],
+    candidates: list[dict],
     opts: DendrogramOptions,
 ) -> go.Figure:
     """
@@ -325,7 +344,8 @@ def _build_inconsistency_figure(
         sys.setrecursionlimit(_prev_limit)
 
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         shared_yaxes=True,
         column_widths=[0.72, 0.28],
         horizontal_spacing=0.03,
@@ -350,11 +370,15 @@ def _build_inconsistency_figure(
 
         fig.add_trace(
             go.Scatter(
-                x=xs, y=ys, mode="lines",
-                line=dict(color=color),
-                hoverinfo="none", showlegend=False,
+                x=xs,
+                y=ys,
+                mode="lines",
+                line={"color": color},
+                hoverinfo="none",
+                showlegend=False,
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
 
     leaf_idx = ddata["leaves"]
@@ -371,21 +395,23 @@ def _build_inconsistency_figure(
         opts.cutoff_color if h in candidate_merge_heights else opts.line_color
         for h in heights
     ]
-    point_sizes = [
-        11 if h in candidate_merge_heights else 6
-        for h in heights
-    ]
+    point_sizes = [11 if h in candidate_merge_heights else 6 for h in heights]
 
     fig.add_trace(
         go.Scatter(
             x=coefficients,
             y=heights,
             mode="markers",
-            marker=dict(color=point_colors, size=point_sizes, line=dict(width=0.5, color="black")),
+            marker={
+                "color": point_colors,
+                "size": point_sizes,
+                "line": {"width": 0.5, "color": "black"},
+            },
             hovertemplate="Altura: %{y:.4f}<br>Coeficiente: %{x:.4f}<extra></extra>",
             showlegend=False,
         ),
-        row=1, col=2,
+        row=1,
+        col=2,
     )
 
     # One reference line + annotation per requested candidate, ranked by
@@ -394,7 +420,6 @@ def _build_inconsistency_figure(
     if opts.show_cutoff:
         x_range_left = [0, 10 * len(leaf_idx)]
         max_coeff = float(np.max(coefficients)) if len(coefficients) else 1.0
-        n_candidates = len(candidates)
 
         for entry in candidates:
             rank = entry["rank"]
@@ -407,31 +432,41 @@ def _build_inconsistency_figure(
 
             fig.add_trace(
                 go.Scatter(
-                    x=x_range_left, y=[cut_h, cut_h], mode="lines",
-                    line=dict(color=opts.cutoff_color, dash=dash, width=width),
+                    x=x_range_left,
+                    y=[cut_h, cut_h],
+                    mode="lines",
+                    line={"color": opts.cutoff_color, "dash": dash, "width": width},
                     opacity=opacity,
-                    hoverinfo="skip", showlegend=False,
+                    hoverinfo="skip",
+                    showlegend=False,
                 ),
-                row=1, col=1,
+                row=1,
+                col=1,
             )
             fig.add_trace(
                 go.Scatter(
-                    x=[0, max_coeff * 1.15], y=[cut_h, cut_h], mode="lines",
-                    line=dict(color=opts.cutoff_color, dash=dash, width=width),
+                    x=[0, max_coeff * 1.15],
+                    y=[cut_h, cut_h],
+                    mode="lines",
+                    line={"color": opts.cutoff_color, "dash": dash, "width": width},
                     opacity=opacity,
-                    hoverinfo="skip", showlegend=False,
+                    hoverinfo="skip",
+                    showlegend=False,
                 ),
-                row=1, col=2,
+                row=1,
+                col=2,
             )
             # Rank/k annotation next to the line in the right panel.
             fig.add_annotation(
-                x=max_coeff * 1.17, y=cut_h,
+                x=max_coeff * 1.17,
+                y=cut_h,
                 text=f"#{rank}: k={entry['k']}",
                 showarrow=False,
                 xanchor="left",
-                font=dict(size=11, color=opts.cutoff_color),
+                font={"size": 11, "color": opts.cutoff_color},
                 opacity=opacity,
-                row=1, col=2,
+                row=1,
+                col=2,
             )
 
     title = opts.title
@@ -449,7 +484,7 @@ def _build_inconsistency_figure(
         height=opts.height,
         width=opts.width,
         hovermode="closest",
-        margin=dict(r=90),  # room for candidate annotations
+        margin={"r": 90},  # room for candidate annotations
     )
     fig.update_xaxes(
         title_text="Genes (Index-Name)",
@@ -457,7 +492,8 @@ def _build_inconsistency_figure(
         tickvals=leaf_positions,
         ticktext=leaf_labels,
         tickangle=opts.tick_angle,
-        row=1, col=1,
+        row=1,
+        col=1,
     )
     fig.update_xaxes(title_text="Coeficiente de inconsistencia", row=1, col=2)
     fig.update_yaxes(title_text="Distancia", row=1, col=1)
@@ -482,7 +518,9 @@ def _figure_to_html(fig: go.Figure, export: ExportOptions) -> str:
     str
         HTML representation of the figure.
     """
-    return fig.to_html(include_plotlyjs=export.include_plotlyjs, full_html=export.full_html)
+    return fig.to_html(
+        include_plotlyjs=export.include_plotlyjs, full_html=export.full_html
+    )
 
 
 def _write_text(filepath: PathLike, content: str) -> Path:
@@ -512,13 +550,14 @@ def _write_text(filepath: PathLike, content: str) -> Path:
 # Dynamic clustering helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _detect_inconsistency_cut(
     Z: np.ndarray,
     depth: int,
     n_candidates: int,
     min_clusters: int,
     max_clusters: Optional[int],
-) -> Tuple[List[Tuple[int, float, float]], np.ndarray]:
+) -> tuple[list[tuple[int, float, float, float]], np.ndarray]:
     """
     Identify candidate cut points in a linkage matrix using the
     inconsistency coefficient.
@@ -574,8 +613,8 @@ def _detect_inconsistency_cut(
     actually separates the two groups it would otherwise have joined.
     """
     heights = Z[:, 2]
-    n_steps = len(heights)          # == n - 1
-    n_leaves = n_steps + 1          # original number of elements
+    n_steps = len(heights)  # == n - 1
+    n_leaves = n_steps + 1  # original number of elements
 
     R = inconsistent(Z, d=depth)
     coefficients = R[:, 3]
@@ -619,8 +658,8 @@ def _detect_inconsistency_cut(
 def compute_inconsistency_clustering(
     distance_matrix: np.ndarray,
     genes: "Sequence[str]",
-    options: "InconsistencyClusteringOptions" = None,
-) -> "Tuple[np.ndarray, np.ndarray, float, List[dict], np.ndarray]":
+    options: "Optional[InconsistencyClusteringOptions]" = None,
+) -> "tuple[np.ndarray, np.ndarray, float, list[dict], np.ndarray]":
     """
     Perform hierarchical clustering with automatic cluster-count detection
     based on the inconsistency coefficient.
@@ -704,12 +743,10 @@ def compute_inconsistency_clustering(
         _validate_distance_matrix(distance_matrix, tol=options.sym_tol)
 
     n = distance_matrix.shape[0]
-    genes_validated = _validate_genes(genes, n)
+    _validate_genes(genes, n)
 
     if n < 3:
-        raise ValueError(
-            "Inconsistency-based clustering requires at least 3 elements."
-        )
+        raise ValueError("Inconsistency-based clustering requires at least 3 elements.")
 
     # Build linkage
     condensed = squareform(distance_matrix, checks=False)
@@ -719,9 +756,9 @@ def compute_inconsistency_clustering(
     cophenetic_corr, _ = cophenet(Z, condensed)
 
     interpretation = (
-        "strong" if cophenetic_corr > 0.75
-        else "moderate" if cophenetic_corr > 0.5
-        else "weak"
+        "strong"
+        if cophenetic_corr > 0.75
+        else "moderate" if cophenetic_corr > 0.5 else "weak"
     )
     _log_or_print(
         f"[inconsistency] Cophenetic correlation: {cophenetic_corr:.4f} ({interpretation})",
@@ -751,15 +788,17 @@ def compute_inconsistency_clustering(
     inconsistency_report = []
     for rank, (k, coeff, cut_height, merge_height) in enumerate(candidates, start=1):
         candidate_labels = fcluster(Z, t=cut_height, criterion="distance")
-        inconsistency_report.append({
-            "rank":         rank,
-            "k":            k,
-            "coefficient":  coeff,
-            "cut_height":   cut_height,
-            "merge_height": merge_height,
-            "labels":       candidate_labels,
-            "selected":     rank == 1,
-        })
+        inconsistency_report.append(
+            {
+                "rank": rank,
+                "k": k,
+                "coefficient": coeff,
+                "cut_height": cut_height,
+                "merge_height": merge_height,
+                "labels": candidate_labels,
+                "selected": rank == 1,
+            }
+        )
 
     # Primary labels returned correspond to the top-ranked (rank 1) candidate.
     labels = inconsistency_report[0]["labels"]
@@ -871,7 +910,7 @@ def he_inconsistency_clustering(
                 )
 
         # Return variants, built dynamically so any combination of flags works
-        outputs: List = [labels]
+        outputs: list = [labels]
         if return_fig:
             outputs.append(fig)
         if return_html:

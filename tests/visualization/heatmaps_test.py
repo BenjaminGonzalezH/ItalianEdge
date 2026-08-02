@@ -10,17 +10,18 @@ Purpose of this file:
 """
 
 ######### Libraries #########
-import unittest
-import tempfile
-import os
 import logging
+import os
+import tempfile
+import unittest
+
 import numpy as np
 
 from biocluster.visualization.heatmaps import (
-    plot_clustered_heatmap,
+    ClusteringOptions,
     HeatmapExportOptions,
     HeatmapScaleOptions,
-    ClusteringOptions,
+    plot_clustered_heatmap,
 )
 
 
@@ -61,7 +62,11 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """
 
         layout = plot_clustered_heatmap(
-            self.matrix, self.labels, save_filepath=None, return_fig=True, export=self.export,
+            self.matrix,
+            self.labels,
+            save_filepath=None,
+            return_fig=True,
+            export=self.export,
         )
 
         self.assertTrue(hasattr(layout, "opts"))
@@ -73,7 +78,11 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """
 
         layout = plot_clustered_heatmap(
-            self.matrix, self.labels, save_filepath=None, return_fig=True, export=self.export,
+            self.matrix,
+            self.labels,
+            save_filepath=None,
+            return_fig=True,
+            export=self.export,
             clustering=ClusteringOptions(cluster_rows=False, cluster_cols=False),
         )
 
@@ -83,7 +92,11 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """Confirm enabling only row clustering still returns a composed Layout."""
 
         layout = plot_clustered_heatmap(
-            self.matrix, self.labels, save_filepath=None, return_fig=True, export=self.export,
+            self.matrix,
+            self.labels,
+            save_filepath=None,
+            return_fig=True,
+            export=self.export,
             clustering=ClusteringOptions(cluster_rows=True, cluster_cols=False),
         )
 
@@ -94,7 +107,11 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """Confirm return_html=True yields a standalone Bokeh HTML string."""
 
         html = plot_clustered_heatmap(
-            self.matrix, self.labels, save_filepath=None, return_html=True, export=self.export,
+            self.matrix,
+            self.labels,
+            save_filepath=None,
+            return_html=True,
+            export=self.export,
         )
 
         self.assertIsInstance(html, str)
@@ -104,8 +121,12 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """Confirm return_fig=True and return_html=True yields a (layout, html) tuple."""
 
         layout, html = plot_clustered_heatmap(
-            self.matrix, self.labels, save_filepath=None,
-            return_fig=True, return_html=True, export=self.export,
+            self.matrix,
+            self.labels,
+            save_filepath=None,
+            return_fig=True,
+            return_html=True,
+            export=self.export,
         )
 
         self.assertTrue(hasattr(layout, "opts"))
@@ -114,7 +135,9 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
     def test_default_return_is_none(self):
         """Confirm the default call (no return flags) returns None."""
 
-        result = plot_clustered_heatmap(self.matrix, self.labels, save_filepath=None, export=self.export)
+        result = plot_clustered_heatmap(
+            self.matrix, self.labels, save_filepath=None, export=self.export
+        )
 
         self.assertIsNone(result)
 
@@ -124,31 +147,41 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         """Confirm a non-ndarray matrix raises TypeError."""
 
         with self.assertRaises(TypeError):
-            plot_clustered_heatmap([[1, 2], [3, 4]], save_filepath=None, export=self.export)
+            plot_clustered_heatmap(
+                [[1, 2], [3, 4]], save_filepath=None, export=self.export
+            )
 
     def test_non_square_matrix_raises(self):
         """Confirm a non-square matrix raises ValueError."""
 
         with self.assertRaises(ValueError):
-            plot_clustered_heatmap(np.zeros((2, 3)), save_filepath=None, export=self.export)
+            plot_clustered_heatmap(
+                np.zeros((2, 3)), save_filepath=None, export=self.export
+            )
 
     def test_too_small_matrix_raises(self):
         """Confirm a 1x1 matrix raises ValueError (needs at least 2 rows/cols)."""
 
         with self.assertRaises(ValueError):
-            plot_clustered_heatmap(np.array([[1.0]]), save_filepath=None, export=self.export)
+            plot_clustered_heatmap(
+                np.array([[1.0]]), save_filepath=None, export=self.export
+            )
 
     def test_labels_length_mismatch_raises(self):
         """Confirm a labels list not matching the matrix size raises ValueError."""
 
         with self.assertRaises(ValueError):
-            plot_clustered_heatmap(self.matrix, self.labels[:2], save_filepath=None, export=self.export)
+            plot_clustered_heatmap(
+                self.matrix, self.labels[:2], save_filepath=None, export=self.export
+            )
 
     def test_empty_matrix_raises(self):
         """Confirm an empty matrix raises ValueError."""
 
         with self.assertRaises(ValueError):
-            plot_clustered_heatmap(np.empty((0, 0)), save_filepath=None, export=self.export)
+            plot_clustered_heatmap(
+                np.empty((0, 0)), save_filepath=None, export=self.export
+            )
 
     ########################## Downsampling Tests ##########################
 
@@ -164,7 +197,10 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
         np.fill_diagonal(big, 1.0)
 
         layout = plot_clustered_heatmap(
-            big, save_filepath=None, return_fig=True, export=self.export,
+            big,
+            save_filepath=None,
+            return_fig=True,
+            export=self.export,
             scale=HeatmapScaleOptions(max_dim=10, downsample_mode="pool_mean"),
         )
 
@@ -183,7 +219,10 @@ class TestPlotClusteredHeatmap(unittest.TestCase):
             filepath = os.path.join(tmpdir, "heatmap.html")
 
             result = plot_clustered_heatmap(
-                self.matrix, self.labels, save_filepath=filepath, export=self.export,
+                self.matrix,
+                self.labels,
+                save_filepath=filepath,
+                export=self.export,
             )
 
             self.assertIsNone(result)

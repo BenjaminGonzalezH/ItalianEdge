@@ -12,41 +12,47 @@ Goals
 """
 
 import unittest
-from unittest.mock import patch, MagicMock
-import pandas as pd
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pandas as pd
 
 from biocluster.go.go_enrichment import (
-    go_enrichment,
-    annotation_from_entrez_ids,
-    GoEnrichmentOptions,
     AnnotationOptions,
+    GoEnrichmentOptions,
     _safe_neglog10,
+    annotation_from_entrez_ids,
+    go_enrichment,
 )
-
 
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
 
+
 def fake_enrichment_df():
-    return pd.DataFrame({
-        "native": ["GO:0001", "GO:0002"],
-        "p_value": [0.001, 0.01],
-        "precision": [0.5, 0.25],
-    })
+    return pd.DataFrame(
+        {
+            "native": ["GO:0001", "GO:0002"],
+            "p_value": [0.001, 0.01],
+            "precision": [0.5, 0.25],
+        }
+    )
 
 
 def fake_annotation_df(block):
-    return pd.DataFrame({
-        "native": ["GO:0001", "GO:0002"],
-        "intersections": [[block[0]], [block[-1]]],
-    })
+    return pd.DataFrame(
+        {
+            "native": ["GO:0001", "GO:0002"],
+            "intersections": [[block[0]], [block[-1]]],
+        }
+    )
 
 
 # ─────────────────────────────────────────────
 # Enrichment tests
 # ─────────────────────────────────────────────
+
 
 class TestGoEnrichment(unittest.TestCase):
 
@@ -152,6 +158,7 @@ class TestGoEnrichment(unittest.TestCase):
 # ─────────────────────────────────────────────
 # Annotation tests
 # ─────────────────────────────────────────────
+
 
 class TestAnnotation(unittest.TestCase):
 
@@ -262,6 +269,7 @@ class TestAnnotation(unittest.TestCase):
 # ─────────────────────────────────────────────
 # Utility tests
 # ─────────────────────────────────────────────
+
 
 class TestUtilities(unittest.TestCase):
 

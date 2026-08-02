@@ -1,6 +1,6 @@
 """
-jaccard_values: Utilities for computing Jaccard similarity across clustering 
-solutions. This module provides functions to compare clustering outputs at 
+jaccard_values: Utilities for computing Jaccard similarity across clustering
+solutions. This module provides functions to compare clustering outputs at
 two levels:
 
 1. Solution-level comparison
@@ -24,19 +24,20 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy  as np
-import pandas as pd
-from typing import List, Set, Tuple, Optional
+from typing import Optional, Union
 
+import numpy as np
+import pandas as pd
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal Functions
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _validate_solution_matrix(matrix: np.ndarray) -> None:
     """
-    Validate a clustering solution matrix. The matrix must represent 
-    multiple clustering solutions where rows correspond to solutions 
+    Validate a clustering solution matrix. The matrix must represent
+    multiple clustering solutions where rows correspond to solutions
     and columns correspond to genes (or items).
 
     Parameters
@@ -64,7 +65,7 @@ def _validate_solution_matrix(matrix: np.ndarray) -> None:
 
 def _upper_triangle_pairs(n: int):
     """
-    Return indices of the upper triangular part of a matrix. These indices 
+    Return indices of the upper triangular part of a matrix. These indices
     represent all unique pairs of elements.
 
     Parameters
@@ -82,7 +83,7 @@ def _upper_triangle_pairs(n: int):
 
 def _solution_to_pair_vector(solution: np.ndarray, tri_indices):
     """
-    Convert a clustering solution into a pairwise membership vector. Each entry 
+    Convert a clustering solution into a pairwise membership vector. Each entry
     indicates whether two genes belong to the same cluster.
 
     Parameters
@@ -105,12 +106,11 @@ def _solution_to_pair_vector(solution: np.ndarray, tri_indices):
 #  Main Functions
 # ──────────────────────────────────────────────────────────────
 
-def jaccard_index_solutions(
-    Solutions_Matrix: np.ndarray
-) -> np.ndarray:
+
+def jaccard_index_solutions(Solutions_Matrix: np.ndarray) -> np.ndarray:
     """
-    Compute the Jaccard similarity between clustering solutions. Each clustering 
-    solution is converted into a vector representing pairwise gene co-membership. 
+    Compute the Jaccard similarity between clustering solutions. Each clustering
+    solution is converted into a vector representing pairwise gene co-membership.
     The Jaccard index is then computed between these vectors.
 
     Parameters
@@ -130,8 +130,7 @@ def jaccard_index_solutions(
 
     # Precompute boolean vectors for each solution
     pair_vectors = [
-        _solution_to_pair_vector(sol, tri_indices)
-        for sol in Solutions_Matrix
+        _solution_to_pair_vector(sol, tri_indices) for sol in Solutions_Matrix
     ]
 
     J = np.eye(n_solutions, dtype=float)
@@ -150,13 +149,11 @@ def jaccard_index_solutions(
 
     return J
 
-def jaccard_index_clusters(
-    Solution1: List[Set],
-    Solution2: List[Set]
-) -> np.ndarray:
+
+def jaccard_index_clusters(Solution1: list[set], Solution2: list[set]) -> np.ndarray:
     """
-    Compute the Jaccard similarity matrix between clusters. Each entry (i, j) 
-    represents the similarity between cluster i from Solution1 and cluster j 
+    Compute the Jaccard similarity matrix between clusters. Each entry (i, j)
+    represents the similarity between cluster i from Solution1 and cluster j
     from Solution2.
 
     The Jaccard similarity is defined as:
@@ -176,9 +173,13 @@ def jaccard_index_clusters(
     numpy.ndarray
         Matrix of cluster similarities with shape (n_clusters1, n_clusters2).
     """
-    if not isinstance(Solution1, list) or not all(isinstance(s, set) for s in Solution1):
+    if not isinstance(Solution1, list) or not all(
+        isinstance(s, set) for s in Solution1
+    ):
         raise TypeError("Solution1 must be list of sets.")
-    if not isinstance(Solution2, list) or not all(isinstance(s, set) for s in Solution2):
+    if not isinstance(Solution2, list) or not all(
+        isinstance(s, set) for s in Solution2
+    ):
         raise TypeError("Solution2 must be list of sets.")
     if not Solution1 or not Solution2:
         raise ValueError("Solutions must not be empty.")
@@ -194,14 +195,13 @@ def jaccard_index_clusters(
 
     return matrix
 
+
 def compare_solutions_pair(
-    idx1: int,
-    idx2: int,
-    solutions: List[List[Set]]
-) -> List[Tuple[int, int, float]]:
+    idx1: int, idx2: int, solutions: list[list[set]]
+) -> list[tuple[int, int, float]]:
     """
-    Identify the best matching clusters between two clustering solutions. The 
-    function computes the Jaccard similarity matrix and greedily matches clusters 
+    Identify the best matching clusters between two clustering solutions. The
+    function computes the Jaccard similarity matrix and greedily matches clusters
     with the highest similarity while avoiding duplicate matches.
 
     Parameters
@@ -246,9 +246,10 @@ def compare_solutions_pair(
 
     return matches
 
+
 def find_equivalent_clusters_jaccard(
-    solutions: List[List[Set]],
-    labels: Optional[List[str]] = None,
+    solutions: list[list[set]],
+    labels: Optional[list[str]] = None,
 ) -> pd.DataFrame:
     """
     Identify equivalent clusters across a collection of clustering solutions.
@@ -272,7 +273,9 @@ def find_equivalent_clusters_jaccard(
         - Cluster 2
         - Jaccard Similarity
     """
-    if not isinstance(solutions, list) or not all(isinstance(sol, list) for sol in solutions):
+    if not isinstance(solutions, list) or not all(
+        isinstance(sol, list) for sol in solutions
+    ):
         raise TypeError("Each solution must be a list of sets.")
 
     if labels is not None and len(labels) != len(solutions):
@@ -280,7 +283,7 @@ def find_equivalent_clusters_jaccard(
             f"labels length ({len(labels)}) must match solutions length ({len(solutions)})."
         )
 
-    def _label(idx: int) -> str:
+    def _label(idx: int) -> Union[str, int]:
         return labels[idx] if labels is not None else idx
 
     rows = []
@@ -290,12 +293,14 @@ def find_equivalent_clusters_jaccard(
             pairs = compare_solutions_pair(idx1, idx2, solutions)
 
             for c1, c2, sim in pairs:
-                rows.append({
-                    "Solution 1": _label(idx1),
-                    "Solution 2": _label(idx2),
-                    "Cluster 1": c1,
-                    "Cluster 2": c2,
-                    "Jaccard Similarity": sim
-                })
+                rows.append(
+                    {
+                        "Solution 1": _label(idx1),
+                        "Solution 2": _label(idx2),
+                        "Cluster 1": c1,
+                        "Cluster 2": c2,
+                        "Jaccard Similarity": sim,
+                    }
+                )
 
     return pd.DataFrame(rows)

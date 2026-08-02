@@ -15,16 +15,19 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from __future__      import annotations
-from dataclasses     import dataclass
-from typing          import Dict, List, Set, Tuple, Literal, Any
-from scipy           import sparse
-from sklearn.metrics import rand_score, adjusted_rand_score
-import numpy  as np
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Literal
+
+import numpy as np
 import pandas as pd
+from scipy import sparse
+from sklearn.metrics import adjusted_rand_score, rand_score
 
 try:
     from joblib import Parallel, delayed
+
     _JOBLIB_AVAILABLE = True
 except Exception:
     Parallel = None
@@ -48,14 +51,15 @@ class _EncodedSolution:
     cluster_sizes : numpy.ndarray
         Size of each cluster.
     """
+
     membership: sparse.csr_matrix
     cluster_sizes: np.ndarray
-
 
 
 # ──────────────────────────────────────────────────────────────
 # Validation helpers
 # ──────────────────────────────────────────────────────────────
+
 
 def _validate_solution_matrix(matrix: np.ndarray) -> None:
     """
@@ -86,7 +90,7 @@ def _validate_solution_matrix(matrix: np.ndarray) -> None:
         raise ValueError("Matrix must contain at least 2 elements.")
 
 
-def _validate_cluster_solutions(solutions: List[List[Set[Any]]]) -> None:
+def _validate_cluster_solutions(solutions: list[list[set[Any]]]) -> None:
     """
     Validate cluster-based solutions.
 
@@ -117,7 +121,9 @@ def _validate_cluster_solutions(solutions: List[List[Set[Any]]]) -> None:
                 raise TypeError("Each cluster must be a set.")
 
 
-def _validate_two_solutions(solution1: List[Set[Any]], solution2: List[Set[Any]]) -> None:
+def _validate_two_solutions(
+    solution1: list[set[Any]], solution2: list[set[Any]]
+) -> None:
     """
     Validate two clustering solutions represented as list[set].
 
@@ -133,10 +139,14 @@ def _validate_two_solutions(solution1: List[Set[Any]], solution2: List[Set[Any]]
     ValueError
         If any input is empty.
     """
-    if not isinstance(solution1, list) or not all(isinstance(s, set) for s in solution1):
+    if not isinstance(solution1, list) or not all(
+        isinstance(s, set) for s in solution1
+    ):
         raise TypeError("Solution1 must be list of sets.")
 
-    if not isinstance(solution2, list) or not all(isinstance(s, set) for s in solution2):
+    if not isinstance(solution2, list) or not all(
+        isinstance(s, set) for s in solution2
+    ):
         raise TypeError("Solution2 must be list of sets.")
 
     if not solution1 or not solution2:
@@ -148,7 +158,9 @@ def _validate_two_solutions(solution1: List[Set[Any]], solution2: List[Set[Any]]
 # ──────────────────────────────────────────────────────────────
 
 
-def _build_global_index(solution1: List[Set[Any]], solution2: List[Set[Any]]) -> Dict[Any, int]:
+def _build_global_index(
+    solution1: list[set[Any]], solution2: list[set[Any]]
+) -> dict[Any, int]:
     """
     Create a stable item-to-column index for two solutions.
 
@@ -171,7 +183,9 @@ def _build_global_index(solution1: List[Set[Any]], solution2: List[Set[Any]]) ->
     return {item: idx for idx, item in enumerate(sorted(universe))}
 
 
-def _encode_solution(solution: List[Set[Any]], item_to_col: Dict[Any, int]) -> _EncodedSolution:
+def _encode_solution(
+    solution: list[set[Any]], item_to_col: dict[Any, int]
+) -> _EncodedSolution:
     """
     Encode one solution into a sparse cluster-membership matrix.
 
@@ -187,9 +201,9 @@ def _encode_solution(solution: List[Set[Any]], item_to_col: Dict[Any, int]) -> _
     _EncodedSolution
         Sparse representation of the solution.
     """
-    rows: List[int] = []
-    cols: List[int] = []
-    data: List[int] = []
+    rows: list[int] = []
+    cols: list[int] = []
+    data: list[int] = []
     cluster_sizes = np.empty(len(solution), dtype=np.int64)
 
     for i, cluster in enumerate(solution):
@@ -232,6 +246,7 @@ def _pairwise_overlap_counts(
 # ──────────────────────────────────────────────────────────────
 # Rand / ARI from contingency counts
 # ──────────────────────────────────────────────────────────────
+
 
 def _comb2(x: np.ndarray) -> np.ndarray:
     """
@@ -283,8 +298,8 @@ def _rand_from_binary_contingency(
     total_pairs = _comb2(n)
 
     # Agreements
-    same_same = _comb2(n11)        # correct
-    diff_diff = n10 * n01          # correct
+    same_same = _comb2(n11)  # correct
+    diff_diff = n10 * n01  # correct
 
     agreements = same_same + diff_diff
 
@@ -337,7 +352,9 @@ def _ari_from_binary_contingency(
     mask = total_comb > 0
 
     expected_index = np.zeros_like(total_comb, dtype=np.float64)
-    expected_index[mask] = (sum_comb_rows[mask] * sum_comb_cols[mask]) / total_comb[mask]
+    expected_index[mask] = (sum_comb_rows[mask] * sum_comb_cols[mask]) / total_comb[
+        mask
+    ]
 
     max_index = 0.5 * (sum_comb_rows + sum_comb_cols)
     denominator = max_index - expected_index
@@ -353,8 +370,8 @@ def _ari_from_binary_contingency(
 
 
 def _cluster_similarity_matrix_fast(
-    solution1: List[Set[Any]],
-    solution2: List[Set[Any]],
+    solution1: list[set[Any]],
+    solution2: list[set[Any]],
     metric: Metric,
 ) -> np.ndarray:
     """
@@ -395,12 +412,13 @@ def _cluster_similarity_matrix_fast(
 # Public API: solutions-level
 # ──────────────────────────────────────────────────────────────
 
-def _pair_score_rand(i: int, j: int, matrix: np.ndarray) -> Tuple[int, int, float]:
+
+def _pair_score_rand(i: int, j: int, matrix: np.ndarray) -> tuple[int, int, float]:
     """Compute one Rand score for a pair of solutions."""
     return i, j, float(rand_score(matrix[i], matrix[j]))
 
 
-def _pair_score_ari(i: int, j: int, matrix: np.ndarray) -> Tuple[int, int, float]:
+def _pair_score_ari(i: int, j: int, matrix: np.ndarray) -> tuple[int, int, float]:
     """Compute one Adjusted Rand score for a pair of solutions."""
     return i, j, float(adjusted_rand_score(matrix[i], matrix[j]))
 
@@ -491,7 +509,10 @@ def adjusted_rand_index_solutions(
 # Public API: clusters-level
 # ──────────────────────────────────────────────────────────────
 
-def rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[Any]]) -> np.ndarray:
+
+def rand_index_clusters(
+    Solution1: list[set[Any]], Solution2: list[set[Any]]
+) -> np.ndarray:
     """
     Compute Rand Index similarity between clusters of two solutions.
 
@@ -511,7 +532,9 @@ def rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[Any]]) ->
     return _cluster_similarity_matrix_fast(Solution1, Solution2, metric="rand")
 
 
-def adjusted_rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[Any]]) -> np.ndarray:
+def adjusted_rand_index_clusters(
+    Solution1: list[set[Any]], Solution2: list[set[Any]]
+) -> np.ndarray:
     """
     Compute Adjusted Rand Index similarity between clusters of two solutions.
 
@@ -535,12 +558,13 @@ def adjusted_rand_index_clusters(Solution1: List[Set[Any]], Solution2: List[Set[
 # Matching utilities
 # ──────────────────────────────────────────────────────────────
 
+
 def compare_solutions_pair(
     idx1: int,
     idx2: int,
-    solutions: List[List[Set[Any]]],
+    solutions: list[list[set[Any]]],
     metric: Metric = "rand",
-) -> List[Tuple[int, int, float]]:
+) -> list[tuple[int, int, float]]:
     """
     Greedily match the most similar clusters between two solutions.
 
@@ -577,9 +601,9 @@ def compare_solutions_pair(
         raise ValueError("metric must be 'rand' or 'adjusted_rand'.")
 
     n1, n2 = M.shape
-    used1: Set[int] = set()
-    used2: Set[int] = set()
-    matches: List[Tuple[int, int, float]] = []
+    used1: set[int] = set()
+    used2: set[int] = set()
+    matches: list[tuple[int, int, float]] = []
 
     flat_order = np.argsort(M, axis=None)[::-1]
 
@@ -601,7 +625,7 @@ def compare_solutions_pair(
 
 
 def find_equivalent_clusters_rand(
-    solutions: List[List[Set[Any]]],
+    solutions: list[list[set[Any]]],
     metric: Metric = "rand",
 ) -> pd.DataFrame:
     """
@@ -627,7 +651,7 @@ def find_equivalent_clusters_rand(
     """
     _validate_cluster_solutions(solutions)
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
 
     for idx1 in range(len(solutions)):
         for idx2 in range(idx1 + 1, len(solutions)):

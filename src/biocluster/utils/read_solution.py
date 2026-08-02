@@ -1,6 +1,6 @@
 """
 read_solution: This module provides utilities to load clustering solution matrices from disk.
-It supports multiple file formats and converts them into a standardized NumPy matrix along 
+It supports multiple file formats and converts them into a standardized NumPy matrix along
 with the list of column names.
 
 Functions
@@ -14,18 +14,18 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-import numpy  as np
-import pandas as pd
 import csv
 from pathlib import Path
-from typing  import Tuple
 
+import numpy as np
+import pandas as pd
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal functions
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _clean_dataframe(df: pd.DataFrame) -> Tuple[np.ndarray, list[str]]:
+
+def _clean_dataframe(df: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
     """
     Validate and normalize a DataFrame before converting it to NumPy.
 
@@ -77,7 +77,7 @@ def _read_csv(filepath: str) -> pd.DataFrame:
     """
 
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             sample = f.read(2048)
             delimiter = csv.Sniffer().sniff(sample).delimiter
     except Exception:
@@ -137,10 +137,11 @@ READERS = {
 # Main API
 # ──────────────────────────────────────────────────────────────────────────────
 
-def read_solutions_file(filepath: str) -> Tuple[np.ndarray, list[str]]:
+
+def read_solutions_file(filepath: str) -> tuple[np.ndarray, list[str]]:
     """
-    Load a solutions file and convert it to a matrix representation. The file format 
-    is inferred from its extension. Supported formats include CSV, fixed-width text, 
+    Load a solutions file and convert it to a matrix representation. The file format
+    is inferred from its extension. Supported formats include CSV, fixed-width text,
     and pickled pandas DataFrames.
 
     Parameters

@@ -4,16 +4,17 @@ go_plots_test.py
 Unit tests for GO plotting module.
 """
 
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
+
 import pandas as pd
 
 from biocluster.visualization.go_plots import (
-    plot_go_metric,
-    plot_gene_ratio,
-    plot_qscore,
     GOPlotOptions,
+    plot_gene_ratio,
+    plot_go_metric,
+    plot_qscore,
 )
 
 
@@ -21,13 +22,15 @@ class TestGOPlots(unittest.TestCase):
 
     def setUp(self):
         """Create minimal valid dataset."""
-        self.df = pd.DataFrame({
-            "name": ["t1", "t2", "t3"],
-            "p_value": [0.01, 0.02, 0.05],
-            "gene_ratio": [0.5, 0.3, 0.1],
-            "intersection_size": [10, 5, 2],
-            "qscore": [2.0, 1.7, 1.3]
-        })
+        self.df = pd.DataFrame(
+            {
+                "name": ["t1", "t2", "t3"],
+                "p_value": [0.01, 0.02, 0.05],
+                "gene_ratio": [0.5, 0.3, 0.1],
+                "intersection_size": [10, 5, 2],
+                "qscore": [2.0, 1.7, 1.3],
+            }
+        )
 
     def test_basic_gene_ratio_plot(self):
         """Gene ratio plot should return figure."""

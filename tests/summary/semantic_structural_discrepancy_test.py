@@ -10,15 +10,16 @@ Purpose of this file:
 
 ######### Libraries #########
 import unittest
+
 import numpy as np
 
 from biocluster.summary.semantic_structural_discrepancy import (
+    DiscrepancyOptions,
+    _hierarchical_order,
     compute_discrepancy_matrix,
     compute_pairwise_discrepancy_profile,
     identify_discrepant_solution_pairs,
     plot_discrepancy_summary,
-    DiscrepancyOptions,
-    _hierarchical_order,
 )
 
 
@@ -31,18 +32,22 @@ class TestComputeDiscrepancyMatrix(unittest.TestCase):
         (Wang high, Jaccard low); solutions 2/3 are the opposite.
         """
 
-        self.wang = np.array([
-            [1.0, 0.9, 0.2, 0.3],
-            [0.9, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.8],
-            [0.3, 0.2, 0.8, 1.0],
-        ])
-        self.jaccard = np.array([
-            [1.0, 0.1, 0.2, 0.3],
-            [0.1, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.1],
-            [0.3, 0.2, 0.1, 1.0],
-        ])
+        self.wang = np.array(
+            [
+                [1.0, 0.9, 0.2, 0.3],
+                [0.9, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.8],
+                [0.3, 0.2, 0.8, 1.0],
+            ]
+        )
+        self.jaccard = np.array(
+            [
+                [1.0, 0.1, 0.2, 0.3],
+                [0.1, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.1],
+                [0.3, 0.2, 0.1, 1.0],
+            ]
+        )
 
     def test_discrepancy_values(self):
         """Confirm discrepancy = wang - jaccard element-wise, off-diagonal."""
@@ -76,18 +81,22 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
     """Test suite validating the per-pair discrepancy profile."""
 
     def setUp(self):
-        self.wang = np.array([
-            [1.0, 0.9, 0.2, 0.3],
-            [0.9, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.8],
-            [0.3, 0.2, 0.8, 1.0],
-        ])
-        self.jaccard = np.array([
-            [1.0, 0.1, 0.2, 0.3],
-            [0.1, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.1],
-            [0.3, 0.2, 0.1, 1.0],
-        ])
+        self.wang = np.array(
+            [
+                [1.0, 0.9, 0.2, 0.3],
+                [0.9, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.8],
+                [0.3, 0.2, 0.8, 1.0],
+            ]
+        )
+        self.jaccard = np.array(
+            [
+                [1.0, 0.1, 0.2, 0.3],
+                [0.1, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.1],
+                [0.3, 0.2, 0.1, 1.0],
+            ]
+        )
         self.labels = ["a", "b", "c", "d"]
 
     def test_profile_columns_and_row_count(self):
@@ -101,7 +110,15 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
         self.assertEqual(len(profile), 6)
         self.assertListEqual(
             list(profile.columns),
-            ["Solution 1", "Solution 2", "wang", "jaccard", "discrepancy", "score", "z_score"],
+            [
+                "Solution 1",
+                "Solution 2",
+                "wang",
+                "jaccard",
+                "discrepancy",
+                "score",
+                "z_score",
+            ],
         )
         self.assertTrue(profile["score"].is_monotonic_decreasing)
 
@@ -110,7 +127,9 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
 
         profile = compute_pairwise_discrepancy_profile(self.wang, self.jaccard)
 
-        row = profile[(profile["Solution 1"] == 0) & (profile["Solution 2"] == 1)].iloc[0]
+        row = profile[(profile["Solution 1"] == 0) & (profile["Solution 2"] == 1)].iloc[
+            0
+        ]
         self.assertAlmostEqual(row["wang"], 0.9)
         self.assertAlmostEqual(row["jaccard"], 0.1)
         self.assertAlmostEqual(row["discrepancy"], 0.8)
@@ -118,12 +137,16 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
     def test_profile_with_labels(self):
         """Confirm optional "label 1"/"label 2" columns are added and correctly aligned."""
 
-        profile = compute_pairwise_discrepancy_profile(self.wang, self.jaccard, labels=self.labels)
+        profile = compute_pairwise_discrepancy_profile(
+            self.wang, self.jaccard, labels=self.labels
+        )
 
         self.assertIn("label 1", profile.columns)
         self.assertIn("label 2", profile.columns)
 
-        row = profile[(profile["Solution 1"] == 0) & (profile["Solution 2"] == 1)].iloc[0]
+        row = profile[(profile["Solution 1"] == 0) & (profile["Solution 2"] == 1)].iloc[
+            0
+        ]
         self.assertEqual(row["label 1"], "a")
         self.assertEqual(row["label 2"], "b")
 
@@ -134,7 +157,9 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
         """
 
         profile = compute_pairwise_discrepancy_profile(
-            self.wang, self.jaccard, options=DiscrepancyOptions(direction="wang_over_jaccard")
+            self.wang,
+            self.jaccard,
+            options=DiscrepancyOptions(direction="wang_over_jaccard"),
         )
 
         top_two = set(zip(profile.head(2)["Solution 1"], profile.head(2)["Solution 2"]))
@@ -147,35 +172,45 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
         """
 
         profile = compute_pairwise_discrepancy_profile(
-            self.wang, self.jaccard, options=DiscrepancyOptions(direction="jaccard_over_wang")
+            self.wang,
+            self.jaccard,
+            options=DiscrepancyOptions(direction="jaccard_over_wang"),
         )
 
-        bottom_two = set(zip(profile.tail(2)["Solution 1"], profile.tail(2)["Solution 2"]))
+        bottom_two = set(
+            zip(profile.tail(2)["Solution 1"], profile.tail(2)["Solution 2"])
+        )
         self.assertEqual(bottom_two, {(0, 1), (2, 3)})
 
     def test_labels_length_mismatch_raises(self):
         """Confirm mismatched labels length raises ValueError."""
 
         with self.assertRaises(ValueError):
-            compute_pairwise_discrepancy_profile(self.wang, self.jaccard, labels=["only_one"])
+            compute_pairwise_discrepancy_profile(
+                self.wang, self.jaccard, labels=["only_one"]
+            )
 
 
 class TestHierarchicalOrder(unittest.TestCase):
     """Test suite validating the hierarchical-clustering row/column order used for the heatmap."""
 
     def setUp(self):
-        self.wang = np.array([
-            [1.0, 0.9, 0.2, 0.3],
-            [0.9, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.8],
-            [0.3, 0.2, 0.8, 1.0],
-        ])
-        self.jaccard = np.array([
-            [1.0, 0.1, 0.2, 0.3],
-            [0.1, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.1],
-            [0.3, 0.2, 0.1, 1.0],
-        ])
+        self.wang = np.array(
+            [
+                [1.0, 0.9, 0.2, 0.3],
+                [0.9, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.8],
+                [0.3, 0.2, 0.8, 1.0],
+            ]
+        )
+        self.jaccard = np.array(
+            [
+                [1.0, 0.1, 0.2, 0.3],
+                [0.1, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.1],
+                [0.3, 0.2, 0.1, 1.0],
+            ]
+        )
 
     def test_order_is_a_valid_permutation(self):
         """Confirm the returned order visits every solution index exactly once."""
@@ -201,18 +236,22 @@ class TestIdentifyDiscrepantSolutionPairs(unittest.TestCase):
     """Test suite validating outlier-pair selection on top of the pairwise profile."""
 
     def setUp(self):
-        self.wang = np.array([
-            [1.0, 0.9, 0.2, 0.3],
-            [0.9, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.8],
-            [0.3, 0.2, 0.8, 1.0],
-        ])
-        self.jaccard = np.array([
-            [1.0, 0.1, 0.2, 0.3],
-            [0.1, 1.0, 0.3, 0.2],
-            [0.2, 0.3, 1.0, 0.1],
-            [0.3, 0.2, 0.1, 1.0],
-        ])
+        self.wang = np.array(
+            [
+                [1.0, 0.9, 0.2, 0.3],
+                [0.9, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.8],
+                [0.3, 0.2, 0.8, 1.0],
+            ]
+        )
+        self.jaccard = np.array(
+            [
+                [1.0, 0.1, 0.2, 0.3],
+                [0.1, 1.0, 0.3, 0.2],
+                [0.2, 0.3, 1.0, 0.1],
+                [0.3, 0.2, 0.1, 1.0],
+            ]
+        )
 
     def test_z_threshold_selection(self):
         """Confirm z-score threshold flags exactly the expected outlier pairs."""
@@ -238,7 +277,9 @@ class TestIdentifyDiscrepantSolutionPairs(unittest.TestCase):
         """Confirm a non-positive top_k raises ValueError."""
 
         with self.assertRaises(ValueError):
-            identify_discrepant_solution_pairs(self.wang, self.jaccard, options=DiscrepancyOptions(top_k=0))
+            identify_discrepant_solution_pairs(
+                self.wang, self.jaccard, options=DiscrepancyOptions(top_k=0)
+            )
 
     ########################## Figure Tests ##########################
 
@@ -294,7 +335,9 @@ class TestIdentifyDiscrepantSolutionPairs(unittest.TestCase):
             self.wang, self.jaccard, options=DiscrepancyOptions(z_threshold=0.5)
         )
 
-        fig = plot_discrepancy_summary(self.wang, self.jaccard, outliers_df, reorder=False)
+        fig = plot_discrepancy_summary(
+            self.wang, self.jaccard, outliers_df, reorder=False
+        )
 
         heatmap = next(t for t in fig.data if type(t).__name__ == "Heatmap")
         self.assertListEqual(list(heatmap.x), ["0", "1", "2", "3"])

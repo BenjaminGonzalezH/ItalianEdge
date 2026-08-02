@@ -8,14 +8,7 @@ error handling, output organization, and biological identifier consistency.
 
 from __future__ import annotations
 
-# ---------------------------------------------------------------------
-# STANDARD LIBRARY IMPORTS
-# ---------------------------------------------------------------------
-
-from dataclasses import dataclass, field
-from pathlib import Path
-from time import perf_counter
-from typing import Any, Callable, Optional
+import contextlib
 import logging
 import multiprocessing
 import os
@@ -23,9 +16,16 @@ import platform
 import warnings
 
 # ---------------------------------------------------------------------
+# STANDARD LIBRARY IMPORTS
+# ---------------------------------------------------------------------
+from dataclasses import dataclass, field
+from pathlib import Path
+from time import perf_counter
+from typing import Any, Callable
+
+# ---------------------------------------------------------------------
 # THIRD-PARTY IMPORTS
 # ---------------------------------------------------------------------
-
 import numpy as np
 import pandas as pd
 
@@ -38,11 +38,9 @@ os.environ.setdefault("LOKY_MAX_CPU_COUNT", "6")
 
 # Python 3.13 + loky/joblib can emit a shutdown-time dummy-thread warning.
 # Using "spawn" tends to be the safest cross-platform option in examples.
-try:
+# Safe to ignore RuntimeError: it only means the context was already initialized.
+with contextlib.suppress(RuntimeError):
     multiprocessing.set_start_method("spawn", force=True)
-except RuntimeError:
-    # Safe when the interpreter has already initialized the context.
-    pass
 
 # This does not solve the root cause in all environments, but reduces noise.
 warnings.filterwarnings(
@@ -54,26 +52,22 @@ warnings.filterwarnings(
 # PACKAGE IMPORTS
 # ---------------------------------------------------------------------
 
-import biocluster.utils.read_solution as RD
-import biocluster.utils.actions as AC
-
 import biocluster.clustering.consensus_matrix as CM
 import biocluster.clustering.he_clustering as HC
 import biocluster.clustering.jaccard_values as JV
 import biocluster.clustering.rand_values as RV
 import biocluster.clustering.solutioncluster_matrix as SCM
-
-import biocluster.go.mapping_entrez as ME
+import biocluster.go.gene_similarity as GS
 import biocluster.go.go_enrichment as GOeP
 import biocluster.go.go_utils as Gutils
-import biocluster.go.gene_similarity as GS
-
-import biocluster.visualization.heatmaps as Heat
-import biocluster.visualization.go_plots as Gplot
-import biocluster.visualization.go_network as Gnet
-import biocluster.visualization.go_hierarchical_network as GHnet
-
+import biocluster.go.mapping_entrez as ME
 import biocluster.summary.gene_overlap as GOL
+import biocluster.utils.actions as AC
+import biocluster.utils.read_solution as RD
+import biocluster.visualization.go_hierarchical_network as GHnet
+import biocluster.visualization.go_network as Gnet
+import biocluster.visualization.go_plots as Gplot
+import biocluster.visualization.heatmaps as Heat
 
 LOGGER = logging.getLogger("biocluster_example")
 
@@ -81,6 +75,7 @@ LOGGER = logging.getLogger("biocluster_example")
 # ---------------------------------------------------------------------
 # CONFIGURATION CLASSES
 # ---------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class PipelinePaths:
@@ -102,7 +97,7 @@ class PipelinePaths:
         cls,
         input_filename: str = "archivo_prueba_2_116_4333.csv",
         file_tag: str = "File_2",
-    ) -> "PipelinePaths":
+    ) -> PipelinePaths:
         """Build default paths relative to the script location."""
         base_dir = Path(__file__).resolve().parent
         return cls(
@@ -141,23 +136,23 @@ class PipelineState:
     """Mutable state container shared across pipeline stages."""
 
     # Raw inputs
-    matrix: Optional[np.ndarray] = None
-    genes_raw: Optional[list[str]] = None
+    matrix: np.ndarray | None = None
+    genes_raw: list[str] | None = None
 
     # Normalized identifiers used through the pipeline
-    genes_for_mapping: Optional[list[str]] = None
-    entrez_ids: Optional[list[Any]] = None
-    gene_symbols: Optional[list[str]] = None
+    genes_for_mapping: list[str] | None = None
+    entrez_ids: list[Any] | None = None
+    gene_symbols: list[str] | None = None
 
     # Consensus / clustering artifacts
-    prop_matrix: Optional[np.ndarray] = None
-    dist_matrix: Optional[np.ndarray] = None
-    consensus_arrays: Optional[np.ndarray] = None
+    prop_matrix: np.ndarray | None = None
+    dist_matrix: np.ndarray | None = None
+    consensus_arrays: np.ndarray | None = None
 
     # Solution-level metrics
-    jaccard_matrix: Optional[np.ndarray] = None
-    rand_matrix: Optional[np.ndarray] = None
-    adjusted_rand_matrix: Optional[np.ndarray] = None
+    jaccard_matrix: np.ndarray | None = None
+    rand_matrix: np.ndarray | None = None
+    adjusted_rand_matrix: np.ndarray | None = None
 
     # Cluster-level structures
     solution_cluster_matrix: Any = None
@@ -166,21 +161,21 @@ class PipelineState:
     adjusted_rand_equivalents_df: Any = None
 
     # GO / biological similarity
-    wang_gene_matrix: Optional[np.ndarray] = None
-    wang_solution_matrix: Optional[np.ndarray] = None
+    wang_gene_matrix: np.ndarray | None = None
+    wang_solution_matrix: np.ndarray | None = None
     wang_enriched_df: Any = None
     df_gene_distance: Any = None
-    gaf_path: Optional[Path] = None
-    gene_info_path: Optional[Path] = None
-    obo_path: Optional[Path] = None
+    gaf_path: Path | None = None
+    gene_info_path: Path | None = None
+    obo_path: Path | None = None
 
     # Summary / representative groups section
     disjoint_genes_df: Any = None
     summary_frequency_df: Any = None
     summary_bio_sub_df: Any = None
     summary_cooc_df: Any = None
-    summary_cluster_bio: Optional[np.ndarray] = None
-    summary_cluster_cooc: Optional[np.ndarray] = None
+    summary_cluster_bio: np.ndarray | None = None
+    summary_cluster_cooc: np.ndarray | None = None
 
     # Auxiliary notes
     notes: list[str] = field(default_factory=list)
@@ -189,6 +184,7 @@ class PipelineState:
 # ---------------------------------------------------------------------
 # ENVIRONMENT FUNCTIONS
 # ---------------------------------------------------------------------
+
 
 def configure_logging(verbose: bool = True) -> None:
     """Configure logging for the example run."""
@@ -266,6 +262,7 @@ def log_threading_warning_explanation(cfg: PipelineConfig) -> None:
 # IDENTIFIER NORMALIZATION
 # ---------------------------------------------------------------------
 
+
 def apply_symbol_fixes(symbols: list[str]) -> list[str]:
     """
     Apply known output symbol replacements after Entrez -> symbol conversion.
@@ -291,7 +288,9 @@ def apply_symbol_fixes(symbols: list[str]) -> list[str]:
     return fixed
 
 
-def prepare_go_resources(paths: PipelinePaths, cfg: PipelineConfig) -> tuple[Path, Path, Path]:
+def prepare_go_resources(
+    paths: PipelinePaths, cfg: PipelineConfig
+) -> tuple[Path, Path, Path]:
     """Ensure GO auxiliary resources are locally available."""
     url_obo = "https://current.geneontology.org/ontology/go.obo"
 
@@ -317,7 +316,9 @@ def prepare_go_resources(paths: PipelinePaths, cfg: PipelineConfig) -> tuple[Pat
     return Path(gaf_path), Path(gene_info_path), Path(obo_file)
 
 
-def prepare_gene_identifiers(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def prepare_gene_identifiers(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """
     Normalize gene identifiers from the beginning of the pipeline.
 
@@ -363,6 +364,7 @@ def prepare_gene_identifiers(paths: PipelinePaths, cfg: PipelineConfig, state: P
 # PIPELINE EXECUTIONS (INPUT)
 # ---------------------------------------------------------------------
 
+
 def load_input_solutions(paths: PipelinePaths, state: PipelineState) -> None:
     """Load the solution matrix and ordered gene list from the input file."""
     if not paths.input_file.exists():
@@ -385,6 +387,7 @@ def load_input_solutions(paths: PipelinePaths, state: PipelineState) -> None:
 # PIPELINE EXECUTIONS (CORE STEPS)
 # ---------------------------------------------------------------------
 
+
 def compute_consensus(paths: PipelinePaths, state: PipelineState) -> None:
     """Compute and save consensus and distance matrices."""
     if state.matrix is None:
@@ -402,7 +405,9 @@ def compute_consensus(paths: PipelinePaths, state: PipelineState) -> None:
     save_matrix(dist_matrix, paths.output_file_dir / "Dist_matrix.csv")
 
 
-def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def run_consensus_clustering(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Run clustering/ensembling methods and append consensus solutions."""
     if (
         state.dist_matrix is None
@@ -415,13 +420,27 @@ def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: P
     genes = state.gene_symbols
 
     options_hierarchical = {
-        "single": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="single", sym_tol=1e-6),
-        "complete": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="complete", sym_tol=1e-6),
-        "average": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="average", sym_tol=1e-6),
-        "weighted": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="weighted", sym_tol=1e-6),
-        "centroid": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="centroid", sym_tol=1e-6),
-        "median": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="median", sym_tol=1e-6),
-        "ward": HC.ClusteringOptions(num_groups=cfg.hierarchical_clusters, method="ward", sym_tol=1e-6),
+        "single": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="single", sym_tol=1e-6
+        ),
+        "complete": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="complete", sym_tol=1e-6
+        ),
+        "average": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="average", sym_tol=1e-6
+        ),
+        "weighted": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="weighted", sym_tol=1e-6
+        ),
+        "centroid": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="centroid", sym_tol=1e-6
+        ),
+        "median": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="median", sym_tol=1e-6
+        ),
+        "ward": HC.ClusteringOptions(
+            num_groups=cfg.hierarchical_clusters, method="ward", sym_tol=1e-6
+        ),
     }
 
     consensus_arrays: list[np.ndarray] = []
@@ -433,7 +452,9 @@ def run_consensus_clustering(paths: PipelinePaths, cfg: PipelineConfig, state: P
             state.dist_matrix,
             genes,
             option,
-            save_html_to=str(paths.output_file_dir / "dendograms" / f"Dendogram_{key}.html"),
+            save_html_to=str(
+                paths.output_file_dir / "dendograms" / f"Dendogram_{key}.html"
+            ),
         )
         consensus_arrays.append(hierarchical_solution)
 
@@ -469,15 +490,28 @@ def compute_solution_metrics(paths: PipelinePaths, state: PipelineState) -> None
         state.matrix,
     )
 
-    save_matrix(state.jaccard_matrix, paths.output_file_dir / "Solutions_metrics" / "jaccard_matrix.csv")
-    save_matrix(state.rand_matrix, paths.output_file_dir / "Solutions_metrics" / "rand_matrix.csv")
-    save_matrix(state.adjusted_rand_matrix, paths.output_file_dir / "Solutions_metrics" / "adjusted_rand_matrix.csv")
+    save_matrix(
+        state.jaccard_matrix,
+        paths.output_file_dir / "Solutions_metrics" / "jaccard_matrix.csv",
+    )
+    save_matrix(
+        state.rand_matrix,
+        paths.output_file_dir / "Solutions_metrics" / "rand_matrix.csv",
+    )
+    save_matrix(
+        state.adjusted_rand_matrix,
+        paths.output_file_dir / "Solutions_metrics" / "adjusted_rand_matrix.csv",
+    )
 
 
-def compute_cluster_equivalences(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def compute_cluster_equivalences(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Build solution-cluster representation and equivalent-cluster tables."""
     if state.matrix is None or state.gene_symbols is None:
-        raise RuntimeError("Matrix and gene symbols are required to compute cluster equivalences.")
+        raise RuntimeError(
+            "Matrix and gene symbols are required to compute cluster equivalences."
+        )
 
     state.solution_cluster_matrix = timed_step(
         "Solution-cluster matrix",
@@ -516,13 +550,18 @@ def compute_cluster_equivalences(paths: PipelinePaths, cfg: PipelineConfig, stat
     )
     AC.save_dataframe(
         state.adjusted_rand_equivalents_df,
-        str(paths.output_file_dir / "Solutions_metrics" / "Adjusted_Rand_Equivalentes.csv"),
+        str(
+            paths.output_file_dir
+            / "Solutions_metrics"
+            / "Adjusted_Rand_Equivalentes.csv"
+        ),
     )
 
 
 # ---------------------------------------------------------------------
 # GO / BIOLOGICAL SIMILARITY SECTION
 # ---------------------------------------------------------------------
+
 
 def compute_global_go_enrichment(paths: PipelinePaths, state: PipelineState) -> None:
     """Run GO enrichment for the full normalized gene list."""
@@ -536,7 +575,11 @@ def compute_global_go_enrichment(paths: PipelinePaths, state: PipelineState) -> 
     )
     AC.save_dataframe(
         go_df,
-        str(paths.output_file_dir / "Go_Enrichment_Results" / "Enrichment_Full_Gene_Set.csv"),
+        str(
+            paths.output_file_dir
+            / "Go_Enrichment_Results"
+            / "Enrichment_Full_Gene_Set.csv"
+        ),
     )
 
 
@@ -546,10 +589,12 @@ def compute_go_similarity_matrices(paths: PipelinePaths, state: PipelineState) -
         raise RuntimeError("GO resources and gene symbols are required.")
 
     go_indexes = {
-        "wang": GS.GeneSimilarityOptions(ontology="BP", measure="wang", groupwise="bma", distance_method="auto"),
-        #"resnik": GS.GeneSimilarityOptions(ontology="MF", measure="resnik", groupwise="hausdorff", distance_method="auto"),
-        #"lin": GS.GeneSimilarityOptions(ontology="CC", measure="lin", groupwise="max", distance_method="auto"),
-        #"simrel": GS.GeneSimilarityOptions(ontology="BP", measure="simrel", groupwise="bma", distance_method="auto"),
+        "wang": GS.GeneSimilarityOptions(
+            ontology="BP", measure="wang", groupwise="bma", distance_method="auto"
+        ),
+        # "resnik": GS.GeneSimilarityOptions(ontology="MF", measure="resnik", groupwise="hausdorff", distance_method="auto"),
+        # "lin": GS.GeneSimilarityOptions(ontology="CC", measure="lin", groupwise="max", distance_method="auto"),
+        # "simrel": GS.GeneSimilarityOptions(ontology="BP", measure="simrel", groupwise="bma", distance_method="auto"),
     }
 
     list_symbols: list[list[str]] = []
@@ -570,7 +615,9 @@ def compute_go_similarity_matrices(paths: PipelinePaths, state: PipelineState) -
         list_symbols.append(ordered_symbols)
         list_matrices.append(gene_matrix)
 
-        df_matrix = pd.DataFrame(gene_matrix, index=ordered_symbols, columns=ordered_symbols)
+        df_matrix = pd.DataFrame(
+            gene_matrix, index=ordered_symbols, columns=ordered_symbols
+        )
         distances_dfs.append(df_matrix)
         AC.save_dataframe(
             df_matrix,
@@ -591,7 +638,9 @@ def compute_solution_go_similarity(paths: PipelinePaths, state: PipelineState) -
         or state.jaccard_equivalents_df is None
         or state.solution_cluster_matrix is None
     ):
-        raise RuntimeError("Wang matrix, symbols, cluster equivalences, and SCM are required.")
+        raise RuntimeError(
+            "Wang matrix, symbols, cluster equivalences, and SCM are required."
+        )
 
     wang_solution_matrix, wang_enriched_df = timed_step(
         "Compute solution GO similarity from dataframe",
@@ -613,7 +662,9 @@ def compute_solution_go_similarity(paths: PipelinePaths, state: PipelineState) -
     )
 
 
-def compute_go_sections(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def compute_go_sections(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Run GO-related enrichment and Wang similarity sections."""
     if state.gene_symbols is None:
         raise RuntimeError("Gene identifiers must be prepared before GO sections.")
@@ -628,7 +679,10 @@ def compute_go_sections(paths: PipelinePaths, cfg: PipelineConfig, state: Pipeli
 # VISUALIZATION SECTION
 # ---------------------------------------------------------------------
 
-def run_go_visualizations(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+
+def run_go_visualizations(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Generate GO visual outputs for the first SCM cluster when available."""
     if state.solution_cluster_matrix is None:
         raise RuntimeError("SCM results are required for GO visualizations.")
@@ -667,7 +721,11 @@ def run_go_visualizations(paths: PipelinePaths, cfg: PipelineConfig, state: Pipe
 
     AC.save_dataframe(
         go_df_cluster,
-        str(paths.output_file_dir / "Go_Enrichment_Results" / "Enrichment_First_Cluster.csv"),
+        str(
+            paths.output_file_dir
+            / "Go_Enrichment_Results"
+            / "Enrichment_First_Cluster.csv"
+        ),
     )
 
     term_pvalues = go_df_cluster.set_index("native")["p_value"].to_dict()
@@ -717,7 +775,9 @@ def run_heatmaps(paths: PipelinePaths, state: PipelineState) -> None:
     Heat.plot_clustered_heatmap(
         state.prop_matrix,
         labels=state.gene_symbols,
-        save_filepath=str(paths.output_file_dir / "Visualizations" / "Prop_matrix.html"),
+        save_filepath=str(
+            paths.output_file_dir / "Visualizations" / "Prop_matrix.html"
+        ),
         x_label="Gene",
         y_label="Gene",
         title="Gene similarity based on co-assignment proportion",
@@ -749,7 +809,10 @@ def run_heatmaps(paths: PipelinePaths, state: PipelineState) -> None:
 # SUMMARY / REPRESENTATIVE GROUPS SECTION
 # ---------------------------------------------------------------------
 
-def compute_summary_inputs(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+
+def compute_summary_inputs(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """
     Compute disjoint/representative group summary inputs.
 
@@ -758,8 +821,14 @@ def compute_summary_inputs(paths: PipelinePaths, cfg: PipelineConfig, state: Pip
     """
     if state.wang_enriched_df is None:
         raise RuntimeError("Wang enriched dataframe is required for summary analysis.")
-    if state.matrix is None or state.gene_symbols is None or state.wang_gene_matrix is None:
-        raise RuntimeError("Matrix, symbols, and Wang gene matrix are required for summary analysis.")
+    if (
+        state.matrix is None
+        or state.gene_symbols is None
+        or state.wang_gene_matrix is None
+    ):
+        raise RuntimeError(
+            "Matrix, symbols, and Wang gene matrix are required for summary analysis."
+        )
 
     matrix_help = timed_step(
         "Auxiliary solution-cluster matrix for summary",
@@ -842,7 +911,9 @@ def run_summary_visualizations(paths: PipelinePaths, state: PipelineState) -> No
     Heat.plot_clustered_heatmap(
         state.summary_cooc_df.to_numpy(),
         labels=state.summary_cooc_df.columns.to_list(),
-        save_filepath=str(paths.output_file_dir / "summary" / "Cooccurrence_matrix.html"),
+        save_filepath=str(
+            paths.output_file_dir / "summary" / "Cooccurrence_matrix.html"
+        ),
     )
 
 
@@ -877,14 +948,18 @@ def compute_summary_clusters(paths: PipelinePaths, state: PipelineState) -> None
     )
 
 
-def run_summary_go_analysis(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def run_summary_go_analysis(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Run GO analysis over the representative groups section."""
     if (
         state.summary_bio_sub_df is None
         or state.summary_cluster_bio is None
         or state.summary_cluster_cooc is None
     ):
-        raise RuntimeError("Summary clusters and matrices are required for GO group analysis.")
+        raise RuntimeError(
+            "Summary clusters and matrices are required for GO group analysis."
+        )
 
     ids = state.summary_bio_sub_df.columns.to_list()
 
@@ -929,31 +1004,44 @@ def run_summary_go_analysis(paths: PipelinePaths, cfg: PipelineConfig, state: Pi
 
     AC.save_dataframe(
         go_df_cluster,
-        filepath=paths.output_file_dir / "summary" / "go_group_analysis" / "Enrichment_summary_group.csv",
+        filepath=paths.output_file_dir
+        / "summary"
+        / "go_group_analysis"
+        / "Enrichment_summary_group.csv",
     )
 
     term_pvalues = go_df_cluster.set_index("native")["p_value"].to_dict()
 
     Gplot.plot_gene_ratio(
         go_df_cluster,
-        save_path=str(paths.output_file_dir / "summary" / "go_group_analysis" / "GR.html"),
+        save_path=str(
+            paths.output_file_dir / "summary" / "go_group_analysis" / "GR.html"
+        ),
     )
     Gplot.plot_qscore(
         go_df_cluster,
-        save_path=str(paths.output_file_dir / "summary" / "go_group_analysis" / "QS.html"),
+        save_path=str(
+            paths.output_file_dir / "summary" / "go_group_analysis" / "QS.html"
+        ),
     )
 
     if state.gaf_path is None or state.obo_path is None:
-        raise FileNotFoundError("GO resources are required for summary GO visualizations.")
+        raise FileNotFoundError(
+            "GO resources are required for summary GO visualizations."
+        )
 
-    network_options = Gnet.GoNetworkOptions(min_genes_per_term=cfg.summary_min_genes_per_term)
+    network_options = Gnet.GoNetworkOptions(
+        min_genes_per_term=cfg.summary_min_genes_per_term
+    )
     Gnet.plot_go_interaction_network_html(
         gene_to_terms,
         term_pvalues,
         gaf_path=str(state.gaf_path),
         obo_path=str(state.obo_path),
         options=network_options,
-        save_html_to=str(paths.output_file_dir / "summary" / "go_group_analysis" / "Net.html"),
+        save_html_to=str(
+            paths.output_file_dir / "summary" / "go_group_analysis" / "Net.html"
+        ),
     )
 
     hierarchy_options = GHnet.GoHierarchyOptions(
@@ -965,11 +1053,15 @@ def run_summary_go_analysis(paths: PipelinePaths, cfg: PipelineConfig, state: Pi
         gene_to_terms,
         term_pvalues,
         options=hierarchy_options,
-        save_html_to=str(paths.output_file_dir / "summary" / "go_group_analysis" / "Tree.html"),
+        save_html_to=str(
+            paths.output_file_dir / "summary" / "go_group_analysis" / "Tree.html"
+        ),
     )
 
 
-def run_summary_section(paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState) -> None:
+def run_summary_section(
+    paths: PipelinePaths, cfg: PipelineConfig, state: PipelineState
+) -> None:
     """Run the full representative/disjoint-groups summary section."""
     compute_summary_inputs(paths, cfg, state)
     run_summary_visualizations(paths, state)
@@ -980,6 +1072,7 @@ def run_summary_section(paths: PipelinePaths, cfg: PipelineConfig, state: Pipeli
 # ---------------------------------------------------------------------
 # OUTPUT SUMMARY
 # ---------------------------------------------------------------------
+
 
 def summarize_outputs(paths: PipelinePaths) -> None:
     """Log the generated files for easier review."""
@@ -1000,6 +1093,7 @@ def summarize_outputs(paths: PipelinePaths) -> None:
 # ---------------------------------------------------------------------
 # MAIN INTERFACE
 # ---------------------------------------------------------------------
+
 
 def run_pipeline(input_filename: str = "archivo_prueba_3_25_133.csv") -> PipelineState:
     """
@@ -1043,5 +1137,7 @@ def run_pipeline(input_filename: str = "archivo_prueba_3_25_133.csv") -> Pipelin
 
 
 if __name__ == "__main__":
-    requested_input = os.environ.get("BIOCLUSTER_INPUT_FILE", "archivo_prueba_2_116_3444.csv")
+    requested_input = os.environ.get(
+        "BIOCLUSTER_INPUT_FILE", "archivo_prueba_2_116_3444.csv"
+    )
     run_pipeline(input_filename=requested_input)

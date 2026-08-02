@@ -4,20 +4,21 @@ These tests validate matrix persistence, loading behavior,
 and DataFrame export functionality across supported formats.
 """
 
-import unittest
+import logging
 import tempfile
+import unittest
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import logging
 
 from biocluster.utils.actions import (
-    save_matrix,
+    MatrixSaveMode,
+    MatrixSaveOptions,
+    ensure_parent_dir,
     load_matrix,
     save_dataframe,
-    ensure_parent_dir,
-    MatrixSaveOptions,
-    MatrixSaveMode,
+    save_matrix,
 )
 
 
@@ -105,10 +106,7 @@ class TestDataFrameIO(unittest.TestCase):
         self.base = Path(self.temp_dir.name)
         logging.disable(logging.CRITICAL)
 
-        self.df = pd.DataFrame({
-            "A": [1, 2],
-            "B": [3, 4]
-        })
+        self.df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
 
     def tearDown(self):
         self.temp_dir.cleanup()

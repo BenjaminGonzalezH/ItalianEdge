@@ -23,16 +23,17 @@ be manually verified if needed.
 ######### Libraries #########
 
 import unittest
+
 import numpy as np
 import pandas as pd
 
 from biocluster.clustering.rand_values import (
-    rand_index_solutions,
-    adjusted_rand_index_solutions,
-    rand_index_clusters,
     adjusted_rand_index_clusters,
+    adjusted_rand_index_solutions,
     compare_solutions_pair,
     find_equivalent_clusters_rand,
+    rand_index_clusters,
+    rand_index_solutions,
 )
 
 
@@ -55,11 +56,13 @@ class TestRandValues(unittest.TestCase):
         """
 
         # Solution-level representation
-        self.solutions_matrix = np.array([
-            [1, 1, 2, 2],  # solution 0
-            [1, 1, 2, 2],  # identical solution
-            [1, 2, 1, 2],  # different clustering
-        ])
+        self.solutions_matrix = np.array(
+            [
+                [1, 1, 2, 2],  # solution 0
+                [1, 1, 2, 2],  # identical solution
+                [1, 2, 1, 2],  # different clustering
+            ]
+        )
 
         # Cluster-level representation
         self.cluster_solutions = [
@@ -178,9 +181,7 @@ class TestRandValues(unittest.TestCase):
 
     def test_compare_solutions_pair_rand(self):
         """Greedy matching must return cluster index pairs."""
-        matches = compare_solutions_pair(
-            0, 2, self.cluster_solutions, metric="rand"
-        )
+        matches = compare_solutions_pair(0, 2, self.cluster_solutions, metric="rand")
 
         self.assertTrue(isinstance(matches, list))
         self.assertTrue(all(len(m) == 3 for m in matches))
@@ -198,9 +199,7 @@ class TestRandValues(unittest.TestCase):
     def test_compare_invalid_metric(self):
         """Invalid metric names must raise ValueError."""
         with self.assertRaises(ValueError):
-            compare_solutions_pair(
-                0, 2, self.cluster_solutions, metric="invalid"
-            )
+            compare_solutions_pair(0, 2, self.cluster_solutions, metric="invalid")
 
     ##########################
     # find_equivalent_clusters_rand
@@ -208,10 +207,7 @@ class TestRandValues(unittest.TestCase):
 
     def test_find_equivalent_clusters_dataframe(self):
         """Summary DataFrame must contain expected columns."""
-        df = find_equivalent_clusters_rand(
-            self.cluster_solutions,
-            metric="rand"
-        )
+        df = find_equivalent_clusters_rand(self.cluster_solutions, metric="rand")
 
         self.assertTrue(isinstance(df, pd.DataFrame))
 
@@ -255,7 +251,9 @@ class TestRandValues(unittest.TestCase):
         actual = float(M[0, 0])
 
         self.assertAlmostEqual(
-            actual, expected, places=9,
+            actual,
+            expected,
+            places=9,
             msg=f"Cluster RI {actual:.9f} != sklearn {expected:.9f}",
         )
 

@@ -10,30 +10,28 @@ Coverage goals:
 - Error handling and edge cases
 """
 
-import unittest
-from unittest.mock import patch, MagicMock
-import tempfile
-import os
 import gzip
-import shutil
+import os
+import tempfile
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
 from biocluster.go.go_utils import (
     download_file,
-    gunzip_file,
     ensure_gaf_file,
     ensure_gene_info_file,
-    load_gene_info,
     entrez_to_symbol_ncbi,
-    DownloadOptions,
+    gunzip_file,
+    load_gene_info,
 )
-
 
 # ---------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------
+
 
 def create_dummy_gz(content: bytes, path: str):
     with gzip.open(path, "wb") as f:
@@ -50,16 +48,14 @@ DB\tGENE2\tSYMBOL2
 
 
 def create_dummy_gene_info(path: str):
-    df = pd.DataFrame({
-        "GeneID": ["1", "2"],
-        "Symbol": ["A", "B"]
-    })
+    df = pd.DataFrame({"GeneID": ["1", "2"], "Symbol": ["A", "B"]})
     df.to_csv(path, sep="\t", index=False)
 
 
 # ---------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------
+
 
 class TestFileOperations(unittest.TestCase):
 
@@ -121,24 +117,15 @@ class TestEnsureFiles(unittest.TestCase):
 
             mock_gunzip.side_effect = fake_gunzip
 
-            result = ensure_gaf_file(
-                "goa_human",
-                out_dir=tmp,
-                download_if_missing=True
-            )
+            result = ensure_gaf_file("goa_human", out_dir=tmp, download_if_missing=True)
 
             self.assertTrue(result.exists())
 
     def test_ensure_gaf_no_download(self):
         """Should fail if file missing and download disabled."""
 
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(FileNotFoundError):
-                ensure_gaf_file(
-                    "goa_human",
-                    out_dir=tmp,
-                    download_if_missing=False
-                )
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(FileNotFoundError):
+            ensure_gaf_file("goa_human", out_dir=tmp, download_if_missing=False)
 
     def test_invalid_species(self):
         """Invalid species should raise."""
@@ -166,9 +153,7 @@ class TestEnsureFiles(unittest.TestCase):
             mock_gunzip.side_effect = fake_gunzip
 
             result = ensure_gene_info_file(
-                "goa_human",
-                out_dir=tmp,
-                download_if_missing=True
+                "goa_human", out_dir=tmp, download_if_missing=True
             )
 
             self.assertTrue(result.exists())
@@ -195,11 +180,7 @@ class TestGeneInfo(unittest.TestCase):
             path = os.path.join(tmp, "gene_info.tsv")
             create_dummy_gene_info(path)
 
-            result = entrez_to_symbol_ncbi(
-                ["1", "999"],
-                path,
-                na_value="NA"
-            )
+            result = entrez_to_symbol_ncbi(["1", "999"], path, na_value="NA")
 
             self.assertEqual(result, ["A", "NA"])
 

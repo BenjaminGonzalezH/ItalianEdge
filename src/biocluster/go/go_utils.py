@@ -20,15 +20,18 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from __future__  import annotations
-from dataclasses import dataclass
-from pathlib     import Path
-from typing      import Dict, List, Optional, Sequence, Union
+from __future__ import annotations
+
 import gzip
 import logging
 import shutil
 import time
-import pandas  as pd
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Union
+
+import pandas as pd
 import requests
 
 logger = logging.getLogger(__name__)
@@ -47,48 +50,49 @@ PathLike = Union[str, Path]
 # - General NCBI gene_info: https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_info.gz :contentReference[oaicite:4]{index=4}
 # - Example species gene_info (H. sapiens): .../GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz :contentReference[oaicite:5]{index=5}
 
-SPECIES_RESOURCES: Dict[str, Dict[str, str]] = {
+SPECIES_RESOURCES: dict[str, dict[str, str]] = {
     # Human: GOA + NCBI gene_info Mammalia
     "goa_human": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/goa_human.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/goa_human.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz",
     },
     # Mouse (MGI)
     "mgi": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/mgi.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/mgi.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Mus_musculus.gene_info.gz",
     },
     # Fly (FB)
     "fb": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/fb.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/fb.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Invertebrates/Drosophila_melanogaster.gene_info.gz",
     },
     # Zebrafish (ZFIN)
     "zfin": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/zfin.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/zfin.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Vertebrates_other/Danio_rerio.gene_info.gz",
     },
     # Yeast (SGD)
     "sgd": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/sgd.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/sgd.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Fungi/Saccharomyces_cerevisiae.gene_info.gz",
     },
     # Arabidopsis (TAIR)
     "tair": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/tair.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/tair.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Plants/Arabidopsis_thaliana.gene_info.gz",
     },
     # WormBase
     "wb": {
-        "gaf_gz":       "https://current.geneontology.org/annotations/wb.gaf.gz",
+        "gaf_gz": "https://current.geneontology.org/annotations/wb.gaf.gz",
         "gene_info_gz": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Invertebrates/Caenorhabditis_elegans.gene_info.gz",
-    }
+    },
 }
 
 
 # ---------------------------------------------------------------------
 # Configuration classes
 # ---------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class DownloadOptions:
@@ -109,6 +113,7 @@ class DownloadOptions:
     chunk_size : int
         Chunk size for streaming downloads.
     """
+
     timeout_seconds: float = 60.0
     retries: int = 3
     backoff_base_seconds: float = 0.6
@@ -128,6 +133,7 @@ class GeneInfoOptions:
     download_if_missing : bool
         Whether gene_info should be downloaded if not found.
     """
+
     na_value: str = "NA"
     download_if_missing: bool = False
 
@@ -135,6 +141,7 @@ class GeneInfoOptions:
 # ---------------------------------------------------------------------
 # Core utilities
 # ---------------------------------------------------------------------
+
 
 def _as_path(p: PathLike) -> Path:
     """Convert input into Path object."""
@@ -149,7 +156,7 @@ def _retry_get(url: str, opts: DownloadOptions) -> requests.Response:
     ------
     RuntimeError if all retries fail.
     """
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
 
     for attempt in range(opts.retries):
         try:
@@ -158,7 +165,7 @@ def _retry_get(url: str, opts: DownloadOptions) -> requests.Response:
             return r
         except Exception as e:
             last_exc = e
-            sleep_s = opts.backoff_base_seconds * (2 ** attempt)
+            sleep_s = opts.backoff_base_seconds * (2**attempt)
 
             logger.warning(
                 "Retry %d/%d for %s after error: %s",
@@ -177,7 +184,10 @@ def _retry_get(url: str, opts: DownloadOptions) -> requests.Response:
 # File operations
 # ---------------------------------------------------------------------
 
-def download_file(url: str, dest: PathLike, opts: DownloadOptions = DownloadOptions()) -> Path:
+
+def download_file(
+    url: str, dest: PathLike, opts: DownloadOptions = DownloadOptions()
+) -> Path:
     """
     Download file from URL.
 
@@ -221,9 +231,8 @@ def gunzip_file(gz_path: PathLike, out_path: PathLike) -> Path:
 
     out_p.parent.mkdir(parents=True, exist_ok=True)
 
-    with gzip.open(gz_p, "rb") as f_in:
-        with open(out_p, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)
+    with gzip.open(gz_p, "rb") as f_in, open(out_p, "wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
 
     return out_p
 
@@ -231,6 +240,7 @@ def gunzip_file(gz_path: PathLike, out_path: PathLike) -> Path:
 # ---------------------------------------------------------------------
 # Resource management
 # ---------------------------------------------------------------------
+
 
 def ensure_gaf_file(
     species_key: str,
@@ -260,7 +270,11 @@ def ensure_gaf_file(
     if not download_if_missing:
         raise FileNotFoundError(gaf_path)
 
-    gz = download_file(SPECIES_RESOURCES[species_key]["gaf_gz"], gaf_path.with_suffix(".gaf.gz"), download_opts)
+    gz = download_file(
+        SPECIES_RESOURCES[species_key]["gaf_gz"],
+        gaf_path.with_suffix(".gaf.gz"),
+        download_opts,
+    )
     gunzip_file(gz, gaf_path)
 
     gz.unlink(missing_ok=True)
@@ -295,7 +309,11 @@ def ensure_gene_info_file(
     if not download_if_missing:
         raise FileNotFoundError(out_path)
 
-    gz = download_file(SPECIES_RESOURCES[species_key]["gene_info_gz"], out_path.with_suffix(".gz"), download_opts)
+    gz = download_file(
+        SPECIES_RESOURCES[species_key]["gene_info_gz"],
+        out_path.with_suffix(".gz"),
+        download_opts,
+    )
     gunzip_file(gz, out_path)
 
     gz.unlink(missing_ok=True)
@@ -306,6 +324,7 @@ def ensure_gene_info_file(
 # Gene mapping
 # ---------------------------------------------------------------------
 
+
 def load_gene_info(gene_info_path: PathLike) -> pd.DataFrame:
     """
     Load gene_info file (NCBI).
@@ -314,11 +333,11 @@ def load_gene_info(gene_info_path: PathLike) -> pd.DataFrame:
 
 
 def entrez_to_symbol_ncbi(
-    entrez_ids: Sequence[Union[str, int]],
+    entrez_ids: Sequence[str | int],
     gene_info_path: PathLike,
     *,
     na_value: str = "NA",
-) -> List[str]:
+) -> list[str]:
     """
     Convert Entrez IDs to gene symbols using gene_info.
     """

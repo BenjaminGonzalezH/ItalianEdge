@@ -21,17 +21,18 @@ Functions covered
 8. compute_inconsistency_clustering (he_inconsistency_clustering.py)
 """
 
-import numpy                                                             as np
-import biocluster.clustering.consensus_matrix            as CM
-import biocluster.clustering.jaccard_values              as JV
-import biocluster.clustering.rand_values                 as RV
-import biocluster.clustering.he_clustering               as HC
-import biocluster.clustering.he_inconsistency_clustering as HIC
+import numpy as np
 
+import biocluster.clustering.consensus_matrix as CM
+import biocluster.clustering.he_clustering as HC
+import biocluster.clustering.he_inconsistency_clustering as HIC
+import biocluster.clustering.jaccard_values as JV
+import biocluster.clustering.rand_values as RV
 
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
+
 
 def _header(name):
     print()
@@ -39,9 +40,11 @@ def _header(name):
     print("FUNCTION: " + name)
     print("=" * 56)
 
+
 def _section(label):
     print()
     print(label + ":")
+
 
 def _result(result_val, expected_val):
     match = np.allclose(result_val, expected_val, atol=1e-9)
@@ -87,20 +90,24 @@ print("     [1, 1, 0, 0],")
 print("     [0, 0, 1, 1],")
 print("     [0, 0, 1, 1]]")
 
-Solutions = np.array([
-    [1, 1, 2, 2],
-    [1, 1, 2, 2],
-    [2, 2, 1, 1],
-])
+Solutions = np.array(
+    [
+        [1, 1, 2, 2],
+        [1, 1, 2, 2],
+        [2, 2, 1, 1],
+    ]
+)
 
 coincidence, consensus = CM.consensus_matrix(Solutions)
 
-expected_coincidence = np.array([
-    [1., 1., 0., 0.],
-    [1., 1., 0., 0.],
-    [0., 0., 1., 1.],
-    [0., 0., 1., 1.],
-])
+expected_coincidence = np.array(
+    [
+        [1.0, 1.0, 0.0, 0.0],
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [0.0, 0.0, 1.0, 1.0],
+    ]
+)
 
 _section("Output  [coincidence matrix]")
 _result(coincidence, expected_coincidence)
@@ -145,17 +152,21 @@ print("  v = |(2,3), (2,4)| = 2  [False in v0, True in v1]")
 print()
 print("  J(Sol0, Sol1) = 2 / (2+2+2) = 2/6 = 0.3333")
 
-Solutions2 = np.array([
-    [1, 1, 1, 2, 2],
-    [1, 1, 2, 2, 2],
-])
+Solutions2 = np.array(
+    [
+        [1, 1, 1, 2, 2],
+        [1, 1, 2, 2, 2],
+    ]
+)
 
 J_sol = JV.jaccard_index_solutions(Solutions2)
 
-expected_J_sol = np.array([
-    [1.0,  1/3],
-    [1/3,  1.0],
-])
+expected_J_sol = np.array(
+    [
+        [1.0, 1 / 3],
+        [1 / 3, 1.0],
+    ]
+)
 
 _section("Output  [Jaccard similarity matrix, off-diagonal = J(Sol0,Sol1)]")
 _result(J_sol, expected_J_sol)
@@ -192,10 +203,12 @@ Sol2_clusters = [{0, 1}, {2, 3, 4}]
 
 J_clust = JV.jaccard_index_clusters(Sol1_clusters, Sol2_clusters)
 
-expected_J_clust = np.array([
-    [2/3,  1/5],
-    [0.0,  2/3],
-])
+expected_J_clust = np.array(
+    [
+        [2 / 3, 1 / 5],
+        [0.0, 2 / 3],
+    ]
+)
 
 _section("Output  [2x2 cluster Jaccard matrix]")
 _result(J_clust, expected_J_clust)
@@ -245,10 +258,12 @@ print("    RI = 1/3 ~ 0.333")
 
 RI_clust = RV.rand_index_clusters(Sol1_clusters, Sol2_clusters)
 
-expected_RI_clust = np.array([
-    [1/3,   4/10],
-    [4/6,   1/3 ],
-])
+expected_RI_clust = np.array(
+    [
+        [1 / 3, 4 / 10],
+        [4 / 6, 1 / 3],
+    ]
+)
 
 _section("Output  [2x2 cluster RI matrix]")
 _result(RI_clust, expected_RI_clust)
@@ -311,10 +326,12 @@ print("    ARI = (1-1)/(2-1) = 0/1 = 0.000")
 
 ARI_clust = RV.adjusted_rand_index_clusters(Sol1_clusters, Sol2_clusters)
 
-expected_ARI_clust = np.array([
-    [0.0,   1/6],
-    [1.0,   0.0],
-])
+expected_ARI_clust = np.array(
+    [
+        [0.0, 1 / 6],
+        [1.0, 0.0],
+    ]
+)
 
 _section("Output  [2x2 cluster ARI matrix]")
 _result(ARI_clust, expected_ARI_clust)
@@ -379,22 +396,28 @@ print("       = [1, 5, 6, 5, 6, 2]           mean = 25/6 ~ 4.1667")
 print("  coph = [1, 5, 5, 5, 5, 2]           mean = 23/6 ~ 3.8333")
 print("  Pearson correlation of (orig, coph) ~ 0.9776")
 
-D = np.array([
-    [0., 1., 5., 6.],
-    [1., 0., 5., 6.],
-    [5., 5., 0., 2.],
-    [6., 6., 2., 0.],
-])
+D = np.array(
+    [
+        [0.0, 1.0, 5.0, 6.0],
+        [1.0, 0.0, 5.0, 6.0],
+        [5.0, 5.0, 0.0, 2.0],
+        [6.0, 6.0, 2.0, 0.0],
+    ]
+)
 genes = ["G0", "G1", "G2", "G3"]
 
-hc_options = HC.ClusteringOptions(num_groups=2, method="single", validate_distance=True, verbose=False)
+hc_options = HC.ClusteringOptions(
+    num_groups=2, method="single", validate_distance=True, verbose=False
+)
 Z, labels, cophenetic_corr = HC.compute_hierarchical_clustering(D, genes, hc_options)
 
-expected_Z = np.array([
-    [0., 1., 1., 2.],
-    [2., 3., 2., 2.],
-    [4., 5., 5., 4.],
-])
+expected_Z = np.array(
+    [
+        [0.0, 1.0, 1.0, 2.0],
+        [2.0, 3.0, 2.0, 2.0],
+        [4.0, 5.0, 5.0, 4.0],
+    ]
+)
 expected_labels = np.array([1, 1, 2, 2])
 expected_cophenetic_corr = 0.9776352896442044
 
@@ -467,9 +490,16 @@ print("  not merge2 (height 5) -> same 2 clusters as section 7:")
 print("  {G0,G1} and {G2,G3}.")
 
 ic_options = HIC.InconsistencyClusteringOptions(
-    method="single", depth=2, n_candidates=1, min_clusters=2, validate_distance=True, verbose=False
+    method="single",
+    depth=2,
+    n_candidates=1,
+    min_clusters=2,
+    validate_distance=True,
+    verbose=False,
 )
-Z_ic, labels_ic, cophenetic_corr_ic, report, R = HIC.compute_inconsistency_clustering(D, genes, ic_options)
+Z_ic, labels_ic, cophenetic_corr_ic, report, R = HIC.compute_inconsistency_clustering(
+    D, genes, ic_options
+)
 best = report[0]
 
 expected_R_coefficients = np.array([0.0, 0.0, 1.12089707663561])

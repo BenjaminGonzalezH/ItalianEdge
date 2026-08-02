@@ -14,16 +14,17 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses        import dataclass
-from typing             import Dict, Iterator, List, Sequence, Tuple, Union
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from gprofiler          import GProfiler
 import logging
-import time
 import math
-import numpy  as np
-import pandas as pd
+import time
+from collections.abc import Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from typing import Union
 
+import numpy as np
+import pandas as pd
+from gprofiler import GProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +32,22 @@ logger = logging.getLogger(__name__)
 # Options
 # ─────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class GoEnrichmentOptions:
     """
     Configuration for GO enrichment analysis.
     """
-    organism: str            = "hsapiens"
-    sources: Tuple[str, ...] = ("GO:BP",)
-    user_threshold: float    = 0.05
-    include_evidences: bool  = False
-    request_retries: int        = 3
+
+    organism: str = "hsapiens"
+    sources: tuple[str, ...] = ("GO:BP",)
+    user_threshold: float = 0.05
+    include_evidences: bool = False
+    request_retries: int = 3
     backoff_base_seconds: float = 0.6
     compute_gene_ratio: bool = True
-    compute_qscore: bool     = True
-    sort_by: str             = "p_value"
+    compute_qscore: bool = True
+    sort_by: str = "p_value"
 
 
 @dataclass(frozen=True)
@@ -52,11 +55,12 @@ class AnnotationOptions:
     """
     Configuration for GO annotation queries.
     """
-    organism: str               = "hsapiens"
-    sources: Tuple[str, ...]    = ("GO:BP", "GO:CC", "GO:MF")
-    chunk_size: int             = 500
-    n_threads: int              = 4
-    request_retries: int        = 3
+
+    organism: str = "hsapiens"
+    sources: tuple[str, ...] = ("GO:BP", "GO:CC", "GO:MF")
+    chunk_size: int = 500
+    n_threads: int = 4
+    request_retries: int = 3
     backoff_base_seconds: float = 0.6
 
 
@@ -64,7 +68,8 @@ class AnnotationOptions:
 # Internal utilities
 # ─────────────────────────────────────────────
 
-def _as_str_list(values: Union[Sequence, np.ndarray]) -> List[str]:
+
+def _as_str_list(values: Union[Sequence, np.ndarray]) -> list[str]:
     """
     Normalize input values to a clean list of strings.
 
@@ -90,14 +95,10 @@ def _as_str_list(values: Union[Sequence, np.ndarray]) -> List[str]:
     if not isinstance(values, (list, tuple, np.ndarray, pd.Series)):
         raise TypeError(f"Expected list/tuple/ndarray/Series, got: {type(values)}")
 
-    return [
-        str(v).strip()
-        for v in values
-        if v is not None and str(v).strip() != ""
-    ]
+    return [str(v).strip() for v in values if v is not None and str(v).strip() != ""]
 
 
-def _dedup_stable(values: List[str]) -> List[str]:
+def _dedup_stable(values: list[str]) -> list[str]:
     """
     Remove duplicates while preserving original order.
 
@@ -119,7 +120,7 @@ def _dedup_stable(values: List[str]) -> List[str]:
     return out
 
 
-def _iter_chunks(seq: Sequence[str], chunk_size: int) -> Iterator[List[str]]:
+def _iter_chunks(seq: Sequence[str], chunk_size: int) -> Iterator[list[str]]:
     """
     Split a sequence into fixed-size chunks.
 
@@ -139,10 +140,16 @@ def _iter_chunks(seq: Sequence[str], chunk_size: int) -> Iterator[List[str]]:
         raise ValueError("chunk_size must be > 0.")
 
     for i in range(0, len(seq), chunk_size):
-        yield list(seq[i:i + chunk_size])
+        yield list(seq[i : i + chunk_size])
 
 
-def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: Tuple[type, ...]):
+def _retry_call(
+    fn,
+    *,
+    retries: int,
+    backoff_base: float,
+    retry_exceptions: tuple[type[BaseException], ...],
+):
     """
     Execute a function with retry logic and exponential backoff.
 
@@ -168,11 +175,14 @@ def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: Tupl
 
         except retry_exceptions as e:
             last_exc = e
-            sleep_s = backoff_base * (2 ** attempt)
+            sleep_s = backoff_base * (2**attempt)
 
             logger.warning(
                 "Retry %d/%d after error: %s (sleep %.2fs)",
-                attempt + 1, retries, e, sleep_s
+                attempt + 1,
+                retries,
+                e,
+                sleep_s,
             )
 
             time.sleep(sleep_s)
@@ -210,6 +220,7 @@ def _safe_neglog10(p: Union[float, int]) -> float:
 # ─────────────────────────────────────────────
 # Enrichment
 # ─────────────────────────────────────────────
+
 
 def go_enrichment(entrez_ids, options=GoEnrichmentOptions()) -> pd.DataFrame:
     """
@@ -285,7 +296,10 @@ def go_enrichment(entrez_ids, options=GoEnrichmentOptions()) -> pd.DataFrame:
 # Annotation
 # ─────────────────────────────────────────────
 
-def annotation_from_entrez_ids(entrez_ids, options=AnnotationOptions()) -> Dict[str, List[str]]:
+
+def annotation_from_entrez_ids(
+    entrez_ids, options=AnnotationOptions()
+) -> dict[str, list[str]]:
     """
     Map genes to GO terms using chunked parallel queries.
 
@@ -344,13 +358,16 @@ def annotation_from_entrez_ids(entrez_ids, options=AnnotationOptions()) -> Dict[
                 n_failed += 1
                 logger.warning(
                     "Annotation chunk failed (%d/%d): %s",
-                    n_failed, n_chunks, exc,
+                    n_failed,
+                    n_chunks,
+                    exc,
                 )
 
     if n_failed:
         logger.warning(
             "%d/%d annotation chunks failed; gene mapping may be incomplete.",
-            n_failed, n_chunks,
+            n_failed,
+            n_chunks,
         )
 
     if not frames:

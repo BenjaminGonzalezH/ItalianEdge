@@ -1,6 +1,6 @@
 """
 gene_overlap_summary: Merges and generalizes the former ``differences_summary.py`` (disjoint /
-symmetric-difference genes) and ``similarities_summary.py`` (shared / intersection genes) modules 
+symmetric-difference genes) and ``similarities_summary.py`` (shared / intersection genes) modules
 into a single, mode-parameterized API.
 
 Functions
@@ -35,12 +35,14 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from typing      import List, Literal, NamedTuple, Optional, Sequence, Set
-from collections import Counter
-import numpy                as np
-import pandas               as pd
-import plotly.graph_objects as go
 import warnings
+from collections import Counter
+from collections.abc import Sequence
+from typing import Literal, NamedTuple, Optional, Union
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 
 OverlapMode = Literal["shared", "disjoint"]
 CutoffMethod = Literal["knee"]
@@ -51,12 +53,13 @@ CutoffMethod = Literal["knee"]
 # integers — NOT a Dict[Tuple[str, str], Set[str]] as the original
 # docstrings suggested (that example didn't match how the code actually
 # indexed it).
-SolutionClusterMatrix = Sequence[Sequence[Set[str]]]
+SolutionClusterMatrix = Sequence[Sequence[set[str]]]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Core function: shared / disjoint genes for every cluster pair
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def compute_gene_overlap_dataframe(
     df: pd.DataFrame,
@@ -105,10 +108,11 @@ def compute_gene_overlap_dataframe(
         genes_1 = solution_cluster_matrix[int(row["Solution 1"])][int(row["Cluster 1"])]
         genes_2 = solution_cluster_matrix[int(row["Solution 2"])][int(row["Cluster 2"])]
 
-        if mode == "shared":
-            overlap = genes_1 & genes_2
-        else:
-            overlap = (genes_1 - genes_2) | (genes_2 - genes_1)
+        overlap = (
+            genes_1 & genes_2
+            if mode == "shared"
+            else (genes_1 - genes_2) | (genes_2 - genes_1)
+        )
 
         overlap_list.append(overlap)
 
@@ -122,7 +126,8 @@ def compute_gene_overlap_dataframe(
 # Frequency counting
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _normalize_gene_sets(df: pd.DataFrame, gene_column: str) -> List[List[str]]:
+
+def _normalize_gene_sets(df: pd.DataFrame, gene_column: str) -> list[list[str]]:
     """Normalize gene collections into clean lists of strings."""
     normalized = []
     for genes in df[gene_column]:
@@ -162,6 +167,7 @@ def compute_gene_frequencies(df: pd.DataFrame, gene_column: str) -> pd.DataFrame
 # ─────────────────────────────────────────────────────────────────────────────
 # Automatic frequency cutoff + companion histogram
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def compute_frequency_cutoff(
     freq_df: pd.DataFrame,
@@ -269,8 +275,8 @@ def plot_frequency_cutoff(
                 x=ranks,
                 y=freqs_desc,
                 mode="lines+markers",
-                marker=dict(color=colors, size=6),
-                line=dict(color="#c0c0c0", width=1),
+                marker={"color": colors, "size": 6},
+                line={"color": "#c0c0c0", "width": 1},
                 hovertemplate="Rank: %{x}<br>Frequency: %{y}<extra></extra>",
             )
         ]
@@ -301,6 +307,7 @@ def plot_frequency_cutoff(
 # Biological submatrix + co-occurrence
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _build_frequency_plot(
     df: pd.DataFrame,
     top_n: Optional[int],
@@ -319,11 +326,9 @@ def _build_frequency_plot(
     # Orden ascendente para que el gen de mayor frecuencia quede arriba
     plot_df = plot_df.sort_values("Frequency", ascending=True)
 
+    colors: Union[str, list[str]]
     if cutoff is not None:
-        colors = [
-            "#1f77b4" if f >= cutoff else "#b0b0b0"
-            for f in plot_df["Frequency"]
-        ]
+        colors = ["#1f77b4" if f >= cutoff else "#b0b0b0" for f in plot_df["Frequency"]]
     else:
         colors = "#1f77b4"
 
@@ -333,9 +338,11 @@ def _build_frequency_plot(
     for _, row in plot_df.iterrows():
         fig.add_shape(
             type="line",
-            x0=0, x1=row["Frequency"],
-            y0=row["Gene"], y1=row["Gene"],
-            line=dict(color="#d8d8d8", width=2),
+            x0=0,
+            x1=row["Frequency"],
+            y0=row["Gene"],
+            y1=row["Gene"],
+            line={"color": "#d8d8d8", "width": 2},
             layer="below",
         )
 
@@ -345,7 +352,11 @@ def _build_frequency_plot(
             x=plot_df["Frequency"],
             y=plot_df["Gene"],
             mode="markers+text",
-            marker=dict(color=colors, size=11, line=dict(color="white", width=1)),
+            marker={
+                "color": colors,
+                "size": 11,
+                "line": {"color": "white", "width": 1},
+            },
             text=plot_df["Frequency"],
             textposition="middle right",
             hovertemplate="Gene: %{y}<br>Frequency: %{x}<extra></extra>",
@@ -368,15 +379,17 @@ def _build_frequency_plot(
         yaxis_title="Gene",
         template="plotly_white",
         height=max(350, 32 * len(plot_df)),  # espacio cómodo por gen
-        margin=dict(l=120, r=60, t=60, b=40),
-        xaxis=dict(range=[0, plot_df["Frequency"].max() * 1.15]),  # espacio para las etiquetas
+        margin={"l": 120, "r": 60, "t": 60, "b": 40},
+        xaxis={
+            "range": [0, plot_df["Frequency"].max() * 1.15]
+        },  # espacio para las etiquetas
     )
     return fig
 
 
 def _extract_biological_submatrix(
-    selected_genes: List[str],
-    gene_ids: List[str],
+    selected_genes: list[str],
+    gene_ids: list[str],
     matrix: np.ndarray,
 ) -> pd.DataFrame:
     """Extract biological similarity submatrix."""
@@ -385,7 +398,9 @@ def _extract_biological_submatrix(
     missing = set(selected_genes) - set(present)
 
     if missing:
-        warnings.warn(f"{len(missing)} genes not found in similarity matrix.")
+        warnings.warn(
+            f"{len(missing)} genes not found in similarity matrix.", stacklevel=2
+        )
 
     if not present:
         return pd.DataFrame()
@@ -396,8 +411,8 @@ def _extract_biological_submatrix(
 
 
 def _compute_cooccurrence_jaccard(
-    gene_sets: List[List[str]],
-    selected_genes: List[str],
+    gene_sets: list[list[str]],
+    selected_genes: list[str],
 ) -> pd.DataFrame:
     """
     Compute co-occurrence Jaccard matrix using vectorized linear algebra.
@@ -432,9 +447,11 @@ def _compute_cooccurrence_jaccard(
 # Main function
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class GeneSummaryResult(NamedTuple):
     """Result of ``summarize_genes``."""
-    selected_genes: List[str]
+
+    selected_genes: list[str]
     similarity_submatrix: pd.DataFrame
     frequency_df: pd.DataFrame
     frequency_figure: go.Figure
@@ -545,7 +562,9 @@ def summarize_genes(
     )
 
     # ── Biological submatrix ─────────────────────────────────────────────────
-    bio_df = _extract_biological_submatrix(selected_genes, gene_ids, gene_similarity_matrix)
+    bio_df = _extract_biological_submatrix(
+        selected_genes, gene_ids, gene_similarity_matrix
+    )
 
     # ── Co-occurrence (vectorized) ───────────────────────────────────────────
     cooc_df = _compute_cooccurrence_jaccard(gene_sets, selected_genes)

@@ -9,18 +9,18 @@ Purpose of this file:
 """
 
 ######### Libraries #########
-import unittest
-import tempfile
-import os
-import numpy as np
 import logging
+import os
+import tempfile
+import unittest
+
+import numpy as np
 
 from biocluster.clustering.he_clustering import (
-    he_clustering,
-    compute_hierarchical_clustering,
     ClusteringOptions,
-    DendrogramOptions,
     ExportOptions,
+    compute_hierarchical_clustering,
+    he_clustering,
 )
 
 
@@ -43,12 +43,14 @@ class TestHeClustering(unittest.TestCase):
 
         self.genes = ["G1", "G2", "G3", "G4"]
 
-        self.distance_matrix = np.array([
-            [0.0, 0.1, 1.0, 1.0],
-            [0.1, 0.0, 1.0, 1.0],
-            [1.0, 1.0, 0.0, 0.2],
-            [1.0, 1.0, 0.2, 0.0],
-        ])
+        self.distance_matrix = np.array(
+            [
+                [0.0, 0.1, 1.0, 1.0],
+                [0.1, 0.0, 1.0, 1.0],
+                [1.0, 1.0, 0.0, 0.2],
+                [1.0, 1.0, 0.2, 0.0],
+            ]
+        )
 
     ########################## Core Clustering Tests ##########################
 
@@ -63,9 +65,7 @@ class TestHeClustering(unittest.TestCase):
         """
 
         Z, labels, cophenetic_corr = compute_hierarchical_clustering(
-            self.distance_matrix,
-            self.genes,
-            ClusteringOptions(num_groups=2)
+            self.distance_matrix, self.genes, ClusteringOptions(num_groups=2)
         )
 
         self.assertEqual(len(labels), 4)
@@ -79,9 +79,7 @@ class TestHeClustering(unittest.TestCase):
         """
 
         labels = he_clustering(
-            self.distance_matrix,
-            self.genes,
-            clustering=ClusteringOptions(num_groups=2)
+            self.distance_matrix, self.genes, clustering=ClusteringOptions(num_groups=2)
         )
 
         self.assertEqual(len(labels), 4)
@@ -93,9 +91,7 @@ class TestHeClustering(unittest.TestCase):
         """
 
         labels = he_clustering(
-            self.distance_matrix,
-            self.genes,
-            clustering=ClusteringOptions(num_groups=1)
+            self.distance_matrix, self.genes, clustering=ClusteringOptions(num_groups=1)
         )
 
         self.assertEqual(len(np.unique(labels)), 1)
@@ -156,7 +152,7 @@ class TestHeClustering(unittest.TestCase):
             self.distance_matrix,
             self.genes,
             clustering=ClusteringOptions(num_groups=2),
-            return_fig=True
+            return_fig=True,
         )
 
         self.assertEqual(len(labels), 4)
@@ -171,7 +167,7 @@ class TestHeClustering(unittest.TestCase):
             self.distance_matrix,
             self.genes,
             clustering=ClusteringOptions(num_groups=2),
-            return_html=True
+            return_html=True,
         )
 
         self.assertEqual(len(labels), 4)
@@ -191,7 +187,7 @@ class TestHeClustering(unittest.TestCase):
                 self.genes,
                 clustering=ClusteringOptions(num_groups=2),
                 save_html_to=filepath,
-                export=ExportOptions(verbose=False)
+                export=ExportOptions(verbose=False),
             )
 
             self.assertTrue(os.path.exists(filepath))
@@ -211,7 +207,7 @@ class TestHeClustering(unittest.TestCase):
             labels = he_clustering(
                 self.distance_matrix,
                 self.genes,
-                clustering=ClusteringOptions(num_groups=2, method=method)
+                clustering=ClusteringOptions(num_groups=2, method=method),
             )
 
             self.assertEqual(len(labels), 4)

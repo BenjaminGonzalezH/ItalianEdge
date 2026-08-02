@@ -15,17 +15,20 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from __future__  import annotations
-from dataclasses import dataclass
-from pathlib     import Path
-from typing      import Dict, List, Optional, Sequence, Union
-from itertools   import combinations
-import networkx             as nx
-import plotly.graph_objects as go
-import matplotlib.colors    as mcolors
-import go3
+from __future__ import annotations
+
 import logging
 import math
+from collections.abc import Sequence
+from dataclasses import dataclass
+from itertools import combinations
+from pathlib import Path
+from typing import Union
+
+import go3
+import matplotlib.colors as mcolors
+import networkx as nx
+import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 PathLike = Union[str, Path]
@@ -35,12 +38,13 @@ PathLike = Union[str, Path]
 # Options
 # ──────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class GoNetworkOptions:
     similarity_threshold: float = 0.7
     min_genes_per_term: int = 1
-    restrict_to_enriched: bool = True      # nuevo
-    significance_threshold: Optional[float] = None  # opcional, ej. 0.05
+    restrict_to_enriched: bool = True  # nuevo
+    significance_threshold: float | None = None  # opcional, ej. 0.05
     max_node_size: float = 40.0
     layout: str = "spring"
     random_state: int = 42
@@ -51,13 +55,14 @@ class GoNetworkOptions:
 # Utilities
 # ──────────────────────────────────────────────────────────────
 
+
 def _log(msg: str, verbose: bool):
     logger.info(msg)
     if verbose:
         print(msg)
 
 
-def _validate_inputs(gene2terms: Dict[str, List[str]], term_pvalues: Dict[str, float]):
+def _validate_inputs(gene2terms: dict[str, list[str]], term_pvalues: dict[str, float]):
     if not isinstance(gene2terms, dict) or not gene2terms:
         raise ValueError("gene2terms must be a non-empty dictionary.")
 
@@ -65,9 +70,9 @@ def _validate_inputs(gene2terms: Dict[str, List[str]], term_pvalues: Dict[str, f
         raise ValueError("term_pvalues must be a dictionary.")
 
 
-def _count_terms(gene2terms: Dict[str, List[str]]) -> Dict[str, int]:
-    term_counts = {}
-    for gene, terms in gene2terms.items():
+def _count_terms(gene2terms: dict[str, list[str]]) -> dict[str, int]:
+    term_counts: dict[str, int] = {}
+    for terms in gene2terms.values():
         for term in terms:
             term_counts.setdefault(term, 0)
             term_counts[term] += 1
@@ -94,7 +99,10 @@ def _build_similarity_graph(
         except Exception:
             continue
 
-    _log(f"[GO] Graph built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.", verbose)
+    _log(
+        f"[GO] Graph built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges.",
+        verbose,
+    )
     return G
 
 
@@ -111,9 +119,9 @@ def _compute_layout(G: nx.Graph, layout: str, random_state: int):
 
 def _build_plotly_figure(
     G: nx.Graph,
-    pos: Dict,
-    term_counts: Dict[str, int],
-    term_pvalues: Dict[str, float],
+    pos: dict,
+    term_counts: dict[str, int],
+    term_pvalues: dict[str, float],
     max_node_size: float,
 ):
 
@@ -121,16 +129,18 @@ def _build_plotly_figure(
         return None
 
     # Color mapping by p-value
-    cmap = mcolors.LinearSegmentedColormap.from_list("pvalue", ["red", "yellow", "green"])
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "pvalue", ["red", "yellow", "green"]
+    )
     pvalues = [term_pvalues.get(t, 0.05) for t in G.nodes()]
     norm = mcolors.Normalize(vmin=min(pvalues), vmax=max(pvalues))
 
     def get_color(term):
-        p = term_pvalues.get(term, None)
+        p = term_pvalues.get(term)
 
         if p is None or (isinstance(p, float) and math.isnan(p)):
             return "#808080"  # color for missing values
-  
+
         return mcolors.to_hex(cmap(norm(term_pvalues.get(term, 0.05))))
 
     # Edges
@@ -147,8 +157,8 @@ def _build_plotly_figure(
         x=edge_x,
         y=edge_y,
         mode="lines",
-        line=dict(width=0.5, color="gray"),
-        hoverinfo="none"
+        line={"width": 0.5, "color": "gray"},
+        hoverinfo="none",
     )
 
     # Nodes
@@ -183,12 +193,12 @@ def _build_plotly_figure(
         text=list(G.nodes()),
         hovertext=hover_text,
         hoverinfo="text",
-        marker=dict(
-            size=node_sizes,
-            color=node_colors,
-            line=dict(width=1, color="black"),
-        ),
-        textposition="top center"
+        marker={
+            "size": node_sizes,
+            "color": node_colors,
+            "line": {"width": 1, "color": "black"},
+        },
+        textposition="top center",
     )
 
     fig = go.Figure(data=[edge_trace, node_trace])
@@ -196,8 +206,8 @@ def _build_plotly_figure(
         title="GO Term Interaction Network",
         showlegend=False,
         hovermode="closest",
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        xaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
+        yaxis={"showgrid": False, "zeroline": False, "showticklabels": False},
         plot_bgcolor="white",
         paper_bgcolor="white",
     )
@@ -209,14 +219,15 @@ def _build_plotly_figure(
 # Public API
 # ──────────────────────────────────────────────────────────────
 
+
 def plot_go_interaction_network_html(
-    gene2terms: Dict[str, List[str]],
-    term_pvalues: Dict[str, float],
+    gene2terms: dict[str, list[str]],
+    term_pvalues: dict[str, float],
     gaf_path: PathLike,
     obo_path: PathLike,
     *,
     options: GoNetworkOptions = GoNetworkOptions(),
-    save_html_to: Optional[PathLike] = None,
+    save_html_to: PathLike | None = None,
     return_fig: bool = False,
     return_html: bool = False,
 ):
@@ -230,8 +241,7 @@ def plot_go_interaction_network_html(
     term_counts = _count_terms(gene2terms)
 
     term_list = [
-        t for t, count in term_counts.items()
-        if count >= options.min_genes_per_term
+        t for t, count in term_counts.items() if count >= options.min_genes_per_term
     ]
 
     # Restringir al universo de términos enriquecidos
@@ -240,7 +250,8 @@ def plot_go_interaction_network_html(
 
     if options.significance_threshold is not None:
         term_list = [
-            t for t in term_list
+            t
+            for t in term_list
             if term_pvalues.get(t, 1.0) <= options.significance_threshold
         ]
 

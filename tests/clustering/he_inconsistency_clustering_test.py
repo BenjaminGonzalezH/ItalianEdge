@@ -9,18 +9,18 @@ Purpose of this file:
 """
 
 ######### Libraries #########
-import unittest
-import tempfile
-import os
-import numpy as np
 import logging
+import os
+import tempfile
+import unittest
+
+import numpy as np
 
 from biocluster.clustering.he_inconsistency_clustering import (
-    he_inconsistency_clustering,
-    compute_inconsistency_clustering,
-    InconsistencyClusteringOptions,
-    DendrogramOptions,
     ExportOptions,
+    InconsistencyClusteringOptions,
+    compute_inconsistency_clustering,
+    he_inconsistency_clustering,
 )
 
 
@@ -43,12 +43,14 @@ class TestHeInconsistencyClustering(unittest.TestCase):
 
         self.genes = ["G1", "G2", "G3", "G4"]
 
-        self.distance_matrix = np.array([
-            [0.0, 0.1, 1.0, 1.0],
-            [0.1, 0.0, 1.0, 1.0],
-            [1.0, 1.0, 0.0, 0.2],
-            [1.0, 1.0, 0.2, 0.0],
-        ])
+        self.distance_matrix = np.array(
+            [
+                [0.0, 0.1, 1.0, 1.0],
+                [0.1, 0.0, 1.0, 1.0],
+                [1.0, 1.0, 0.0, 0.2],
+                [1.0, 1.0, 0.2, 0.0],
+            ]
+        )
 
     def tearDown(self):
         """Re-enable logging so it does not leak into other test modules."""
@@ -82,7 +84,15 @@ class TestHeInconsistencyClustering(unittest.TestCase):
         self.assertEqual(len(report), 1)
         self.assertEqual(
             set(report[0].keys()),
-            {"rank", "k", "coefficient", "cut_height", "merge_height", "labels", "selected"},
+            {
+                "rank",
+                "k",
+                "coefficient",
+                "cut_height",
+                "merge_height",
+                "labels",
+                "selected",
+            },
         )
         self.assertTrue(report[0]["selected"])
 
@@ -122,7 +132,9 @@ class TestHeInconsistencyClustering(unittest.TestCase):
         _, _, _, report, _ = compute_inconsistency_clustering(
             self.distance_matrix,
             self.genes,
-            InconsistencyClusteringOptions(verbose=False, min_clusters=2, max_clusters=2),
+            InconsistencyClusteringOptions(
+                verbose=False, min_clusters=2, max_clusters=2
+            ),
         )
 
         self.assertEqual(report[0]["k"], 2)

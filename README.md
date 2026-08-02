@@ -234,16 +234,30 @@ To ensure reproducibility:
 4. Store outputs instead of recomputing
 5. Record dependency versions
 
-## Related software
+## Code quality & testing
 
-BioCluster is positioned alongside but distinct from the following tools:
+The test suite covers all `clustering`, `go`, `summary`, `utils`, and `visualization` modules: 273 tests, currently at ~89% line coverage.
 
-| Tool | Language | Scope | How this package differs |
-|------|----------|-------|--------------------------|
-| [clusterProfiler](https://bioconductor.org/packages/clusterProfiler/) | R | GO/KEGG enrichment for a single gene list | This package targets multi-solution Pareto fronts and provides structural comparison across partitions, not a single enrichment call |
-| [WGCNA](https://cran.r-project.org/package=WGCNA) | R | Weighted correlation network analysis | WGCNA produces one module assignment; this package consumes multiple solutions and quantifies their agreement |
-| [goatools](https://github.com/tanghaibao/goatools) | Python | GO term analysis and enrichment | goatools is used internally here; this package wraps it with multi-cluster, multi-solution context and interactive visualizations |
-| [scikit-learn](https://scikit-learn.org/) | Python | General-purpose clustering | Provides base algorithms; this package adds bioinformatics-specific consensus, comparison, and GO characterization layers |
+Run the tests:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+Run the tests with coverage:
+
+```bash
+pytest --cov=biocluster --cov-report=term-missing
+```
+
+Linting and static analysis (also available as dev dependencies) — the codebase currently passes all three clean:
+
+```bash
+ruff check .
+black --check .
+mypy src/biocluster
+```
 
 ## Contributing
 

@@ -5,6 +5,7 @@ and verify proper handling of invalid inputs.
 """
 
 import unittest
+
 import numpy as np
 
 from biocluster.clustering.consensus_matrix import consensus_matrix
@@ -15,23 +16,11 @@ class TestConsensusMatrix(unittest.TestCase):
     def setUp(self):
         """Prepare small clustering matrices used across tests."""
 
-        self.matrix = np.array([
-            [0, 1, 1, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 1]
-        ])
+        self.matrix = np.array([[0, 1, 1, 0], [0, 1, 0, 0], [0, 0, 1, 1]])
 
-        self.perfect_consensus = np.array([
-            [1, 1, 0],
-            [1, 1, 0],
-            [1, 1, 0]
-        ])
+        self.perfect_consensus = np.array([[1, 1, 0], [1, 1, 0], [1, 1, 0]])
 
-        self.no_shared = np.array([
-            [1, 2, 3],
-            [4, 5, 6],
-            [7, 8, 9]
-        ])
+        self.no_shared = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 
     # ──────────────────────────────────────────────────────────────────────────
     # Core Behavior
@@ -97,11 +86,7 @@ class TestConsensusMatrix(unittest.TestCase):
 
         coincidence, consensus = consensus_matrix(self.perfect_consensus)
 
-        expected = np.array([
-            [1, 1, 0],
-            [1, 1, 0],
-            [0, 0, 1]
-        ], dtype=float)
+        expected = np.array([[1, 1, 0], [1, 1, 0], [0, 0, 1]], dtype=float)
 
         self.assertTrue(np.allclose(coincidence, expected))
         self.assertTrue(np.allclose(consensus, 1 - expected))

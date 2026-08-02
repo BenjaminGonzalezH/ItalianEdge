@@ -19,14 +19,15 @@ Test coverage includes:
 #############################
 
 import unittest
+
 import numpy as np
 import pandas as pd
 
 from biocluster.clustering.jaccard_values import (
-    jaccard_index_solutions,
-    jaccard_index_clusters,
     compare_solutions_pair,
     find_equivalent_clusters_jaccard,
+    jaccard_index_clusters,
+    jaccard_index_solutions,
 )
 
 
@@ -50,11 +51,13 @@ class TestJaccardValues(unittest.TestCase):
         Solution 2 → cross grouping
         """
 
-        self.solutions_matrix = np.array([
-            [1, 1, 2, 2],
-            [1, 1, 2, 2],
-            [1, 2, 1, 2],
-        ])
+        self.solutions_matrix = np.array(
+            [
+                [1, 1, 2, 2],
+                [1, 1, 2, 2],
+                [1, 2, 1, 2],
+            ]
+        )
 
         self.cluster_solutions = [
             [{0, 1}, {2, 3}],
@@ -144,10 +147,12 @@ class TestJaccardValues(unittest.TestCase):
         across solutions.
         """
 
-        matrix = np.array([
-            [1, 2, 3],
-            [4, 5, 6],
-        ])
+        matrix = np.array(
+            [
+                [1, 2, 3],
+                [4, 5, 6],
+            ]
+        )
 
         J = jaccard_index_solutions(matrix)
 
@@ -166,10 +171,7 @@ class TestJaccardValues(unittest.TestCase):
         has the correct dimensions and valid values.
         """
 
-        M = jaccard_index_clusters(
-            self.cluster_solutions[0],
-            self.cluster_solutions[2]
-        )
+        M = jaccard_index_clusters(self.cluster_solutions[0], self.cluster_solutions[2])
 
         self.assertEqual(M.shape, (2, 2))
         self.assertTrue(np.all(M >= 0))
@@ -183,10 +185,7 @@ class TestJaccardValues(unittest.TestCase):
         perfect similarity along the diagonal.
         """
 
-        M = jaccard_index_clusters(
-            self.cluster_solutions[0],
-            self.cluster_solutions[1]
-        )
+        M = jaccard_index_clusters(self.cluster_solutions[0], self.cluster_solutions[1])
 
         self.assertEqual(M[0, 0], 1.0)
         self.assertEqual(M[1, 1], 1.0)
@@ -223,11 +222,7 @@ class TestJaccardValues(unittest.TestCase):
         matching tuples.
         """
 
-        matches = compare_solutions_pair(
-            0,
-            2,
-            self.cluster_solutions
-        )
+        matches = compare_solutions_pair(0, 2, self.cluster_solutions)
 
         self.assertTrue(isinstance(matches, list))
         self.assertTrue(all(len(t) == 3 for t in matches))
@@ -241,11 +236,7 @@ class TestJaccardValues(unittest.TestCase):
         the number of clusters in either solution.
         """
 
-        matches = compare_solutions_pair(
-            0,
-            2,
-            self.cluster_solutions
-        )
+        matches = compare_solutions_pair(0, 2, self.cluster_solutions)
 
         self.assertLessEqual(len(matches), 2)
 

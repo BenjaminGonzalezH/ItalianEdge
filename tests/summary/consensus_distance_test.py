@@ -10,15 +10,16 @@ Purpose of this file:
 
 ######### Libraries #########
 import unittest
+
 import numpy as np
 import pandas as pd
 
 from biocluster.summary.consensus_distance import (
-    compute_consensus_distance_scores,
-    identify_outlier_solutions_vs_consensus,
-    get_outlier_solution_indices,
-    plot_consensus_distance_summary,
     ConsensusDistanceOptions,
+    compute_consensus_distance_scores,
+    get_outlier_solution_indices,
+    identify_outlier_solutions_vs_consensus,
+    plot_consensus_distance_summary,
 )
 
 
@@ -110,7 +111,9 @@ class TestConsensusDistance(unittest.TestCase):
         """
 
         outliers = identify_outlier_solutions_vs_consensus(
-            self.distances, self.labels, self.solution_matrix,
+            self.distances,
+            self.labels,
+            self.solution_matrix,
             options=ConsensusDistanceOptions(z_threshold=1.0),
         )
 

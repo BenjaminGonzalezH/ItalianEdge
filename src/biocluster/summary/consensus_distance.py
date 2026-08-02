@@ -1,11 +1,11 @@
 """
 consensus_distance_summary: Identify clustering solutions that are significantly distant from a single,
-designated consensus solution (e.g. ``consensus_arrays[best_idx]``), based on a partition-to-partition 
+designated consensus solution (e.g. ``consensus_arrays[best_idx]``), based on a partition-to-partition
 distance measure computed elsewhere (typically 1 - Jaccard between gene co-assignments, via
 ``jaccard_values.jaccard_index_solutions``).
 
 Functions
-1. compute_consensus_distance_scores       - Per-solution distance-to-consensus, plus its z-score relative to the 
+1. compute_consensus_distance_scores       - Per-solution distance-to-consensus, plus its z-score relative to the
                                             distribution of distances across all solutions.
 2. identify_outlier_solutions_vs_consensus - Filter to only the solutions flagged as significantly distant from the
                                             consensus solution — either via z-score threshold, or a fixed top-K.
@@ -17,17 +17,19 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses     import dataclass
-from typing          import List, Optional, Sequence
-from plotly.subplots import make_subplots
-import numpy                as np
-import pandas               as pd
-import plotly.graph_objects as go
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Optional
 
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Options
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class ConsensusDistanceOptions:
@@ -47,13 +49,15 @@ class ConsensusDistanceOptions:
         overriding ``z_threshold`` — matches a fixed "examine the top N
         outliers" workflow instead of a statistical cutoff.
     """
-    z_threshold: float   = 1.5
+
+    z_threshold: float = 1.5
     top_k: Optional[int] = None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Core function
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def compute_consensus_distance_scores(
     distances_to_consensus: Sequence[float],
@@ -92,10 +96,16 @@ def compute_consensus_distance_scores(
     if labels is not None and len(labels) != n:
         raise ValueError(f"labels length ({len(labels)}) must match n solutions ({n}).")
     if solution_matrix is not None and len(solution_matrix) != n:
-        raise ValueError(f"solution_matrix length ({len(solution_matrix)}) must match n solutions ({n}).")
+        raise ValueError(
+            f"solution_matrix length ({len(solution_matrix)}) must match n solutions ({n})."
+        )
 
     std_dist = distances.std()
-    z_score = np.zeros_like(distances) if std_dist == 0 else (distances - distances.mean()) / std_dist
+    z_score = (
+        np.zeros_like(distances)
+        if std_dist == 0
+        else (distances - distances.mean()) / std_dist
+    )
 
     data = {
         "Solution": np.arange(n),
@@ -135,7 +145,9 @@ def identify_outlier_solutions_vs_consensus(
         Subset of ``compute_consensus_distance_scores``'s output, sorted by
         distance descending (most distant first).
     """
-    scores_df = compute_consensus_distance_scores(distances_to_consensus, labels, solution_matrix)
+    scores_df = compute_consensus_distance_scores(
+        distances_to_consensus, labels, solution_matrix
+    )
 
     if options.top_k is not None:
         if options.top_k <= 0:
@@ -145,7 +157,7 @@ def identify_outlier_solutions_vs_consensus(
     return scores_df[scores_df["z_score"] >= options.z_threshold].reset_index(drop=True)
 
 
-def get_outlier_solution_indices(outliers_df: pd.DataFrame) -> List[int]:
+def get_outlier_solution_indices(outliers_df: pd.DataFrame) -> list[int]:
     """
     Sorted list of solution indices from
     ``identify_outlier_solutions_vs_consensus``'s output.
@@ -167,6 +179,7 @@ def get_outlier_solution_indices(outliers_df: pd.DataFrame) -> List[int]:
 # ──────────────────────────────────────────────────────────────────────────────
 # Visualization
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def plot_consensus_distance_summary(
     scores_df: pd.DataFrame,
@@ -205,7 +218,8 @@ def plot_consensus_distance_summary(
     cutoff = outliers_df["distance"].min() if not outliers_df.empty else None
 
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         subplot_titles=(
             f"Ranking de distancia al consenso (rojo = {len(flagged_solutions)} outliers)",
             "Distribución de distancias al consenso",
@@ -223,12 +237,17 @@ def plot_consensus_distance_summary(
             hovertemplate="Solution: %{customdata}<br>Distance: %{y:.3f}<extra></extra>",
             showlegend=False,
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
     fig.add_hline(
-        y=mean_dist, line_dash="dash", line_color="black",
-        annotation_text=f"Media: {mean_dist:.2f}", annotation_position="top right",
-        row=1, col=1,
+        y=mean_dist,
+        line_dash="dash",
+        line_color="black",
+        annotation_text=f"Media: {mean_dist:.2f}",
+        annotation_position="top right",
+        row=1,
+        col=1,
     )
 
     # ── Panel 2: histogram ───────────────────────────────────────────────────
@@ -240,18 +259,27 @@ def plot_consensus_distance_summary(
             opacity=0.75,
             showlegend=False,
         ),
-        row=1, col=2,
+        row=1,
+        col=2,
     )
     fig.add_vline(
-        x=mean_dist, line_dash="dash", line_color="black",
-        annotation_text=f"Media: {mean_dist:.2f}", annotation_position="top",
-        row=1, col=2,
+        x=mean_dist,
+        line_dash="dash",
+        line_color="black",
+        annotation_text=f"Media: {mean_dist:.2f}",
+        annotation_position="top",
+        row=1,
+        col=2,
     )
     if cutoff is not None:
         fig.add_vline(
-            x=cutoff, line_color="#e34948", line_width=2,
-            annotation_text=f"Umbral: {cutoff:.2f}", annotation_position="top left",
-            row=1, col=2,
+            x=cutoff,
+            line_color="#e34948",
+            line_width=2,
+            annotation_text=f"Umbral: {cutoff:.2f}",
+            annotation_position="top left",
+            row=1,
+            col=2,
         )
 
     fig.update_xaxes(title_text="Soluciones (ordenadas por distancia)", row=1, col=1)

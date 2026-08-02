@@ -10,40 +10,46 @@ Functions:
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass
-from pathlib     import Path
-from typing      import List, Sequence, Set, Tuple, Union, Literal
-from itertools   import combinations
 import logging
-import numpy  as np
-import pandas as pd
+from collections.abc import Sequence
+from dataclasses import dataclass
+from itertools import combinations
+from pathlib import Path
+from typing import Literal, Union
+
 import go3
+import numpy as np
+import pandas as pd
 
-
-logger   = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 PathLike = Union[str, Path]
 
-Ontology          = Literal["BP", "MF", "CC"]
-Groupwise         = Literal["bma", "max", "avg", "hausdorff", "simgic"]
-SimilarityMeasure = Literal["resnik", "lin", "jc", "simrel", "iccoef", "graphic", "wang", "topoicsim"]
+Ontology = Literal["BP", "MF", "CC"]
+Groupwise = Literal["bma", "max", "avg", "hausdorff", "simgic"]
+SimilarityMeasure = Literal[
+    "resnik", "lin", "jc", "simrel", "iccoef", "graphic", "wang", "topoicsim"
+]
 DistanceTransform = Literal["auto", "one_minus", "max_minus", "reciprocal"]
 
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GeneSimilarityOptions:
-    ontology: Ontology                 = "BP"
-    measure: SimilarityMeasure         = "wang"
-    groupwise: Groupwise               = "bma"
+    ontology: Ontology = "BP"
+    measure: SimilarityMeasure = "wang"
+    groupwise: Groupwise = "bma"
     distance_method: DistanceTransform = "auto"
-    load_go_terms: bool                = True
-    num_threads_go3: int               = 0  # go3.set_num_threads(0) = auto/default
+    load_go_terms: bool = True
+    num_threads_go3: int = 0  # go3.set_num_threads(0) = auto/default
+
 
 # -----------------------------------------------------------------------------
 # Gene-by-gene similarity
 # -----------------------------------------------------------------------------
+
 
 def compute_gene_similarity_matrix_by_batch(
     genes: Sequence[str],
@@ -51,7 +57,7 @@ def compute_gene_similarity_matrix_by_batch(
     obo_path: Union[str, Path],
     gaf_path: Union[str, Path],
     go3_opts: GeneSimilarityOptions = GeneSimilarityOptions(),
-)-> Tuple[List[str], np.ndarray]:
+) -> tuple[list[str], np.ndarray]:
     if not isinstance(genes, (list, tuple)) or len(genes) == 0:
         raise ValueError("genes must be a non-empty list/tuple of strings.")
 
@@ -59,7 +65,6 @@ def compute_gene_similarity_matrix_by_batch(
         raise ValueError("ontology must be 'BP', 'MF' or 'CC'.")
     if go3_opts.groupwise not in ("bma", "max", "avg", "hausdorff", "simgic"):
         raise ValueError("groupwise must be bma, max,avg, hausdorff, simgic.")
-    
 
     go3.set_num_threads(int(go3_opts.num_threads_go3))
 
@@ -95,20 +100,22 @@ def compute_gene_similarity_matrix_by_batch(
 
     return genes_list, sim
 
+
 # -----------------------------------------------------------------------------
 # Solution-to-solution similarity using ONLY biological information
 # -----------------------------------------------------------------------------
+
 
 def solution_go_similarity_from_dataframe(
     ids: Sequence[str],
     gene_similarity_matrix: np.ndarray,
     similarity_metric: str,
     reference_df: pd.DataFrame,
-    solutions: Sequence[Sequence[Set[str]]],
+    solutions: Sequence[Sequence[set[str]]],
     *,
     na_value: str = "NA",
     normalize_matrix: bool = True,
-) -> Tuple[np.ndarray, pd.DataFrame]:
+) -> tuple[np.ndarray, pd.DataFrame]:
     """
     Compute similarity between clustering solutions using gene-level similarity.
 
@@ -162,7 +169,7 @@ def solution_go_similarity_from_dataframe(
 
     similarity_values = []
 
-    for idx, row in reference_df.iterrows():
+    for _idx, row in reference_df.iterrows():
 
         s1 = int(row["Solution 1"])
         s2 = int(row["Solution 2"])
@@ -172,14 +179,8 @@ def solution_go_similarity_from_dataframe(
         cluster_a = solutions[s1][c1]
         cluster_b = solutions[s2][c2]
 
-        idx_a = [
-            id_to_idx[g] for g in cluster_a
-            if g != na_value and g in id_to_idx
-        ]
-        idx_b = [
-            id_to_idx[g] for g in cluster_b
-            if g != na_value and g in id_to_idx
-        ]
+        idx_a = [id_to_idx[g] for g in cluster_a if g != na_value and g in id_to_idx]
+        idx_b = [id_to_idx[g] for g in cluster_b if g != na_value and g in id_to_idx]
 
         if not idx_a or not idx_b:
             similarity = 0.0

@@ -11,19 +11,20 @@ Functions:
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass
-from pathlib     import Path
-from typing      import Optional, Literal, Union
 import logging
-import numpy          as np
-import pandas         as pd
-import plotly.express as px
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Optional, Union
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
 
 logger = logging.getLogger(__name__)
 
-PathLike   = Union[str, Path]
+PathLike = Union[str, Path]
 MetricType = Literal["gene_ratio", "qscore"]
+
 
 # ──────────────────────────────────────────────────────────────
 # Options
@@ -44,10 +45,11 @@ class GOPlotOptions:
     use_neglog10 : bool
         Apply -log10 transformation to p-values.
     """
-    colorscale: str      = "Viridis"
+
+    colorscale: str = "Viridis"
     top_n: Optional[int] = 20
-    verbose: bool        = True
-    use_neglog10: bool   = True
+    verbose: bool = True
+    use_neglog10: bool = True
 
 
 # ──────────────────────────────────────────────────────────────
@@ -92,15 +94,12 @@ def _validate_go_dataframe(df: pd.DataFrame, required_cols: list[str]):
             if df[col].isna().all():
                 raise ValueError(f"Column '{col}' contains only NaN values.")
 
-    if "p_value" in df.columns:
-        if (df["p_value"] <= 0).any():
-            raise ValueError("p_value must be > 0.")
+    if "p_value" in df.columns and (df["p_value"] <= 0).any():
+        raise ValueError("p_value must be > 0.")
 
 
 def _prepare_dataframe(
-    df: pd.DataFrame,
-    metric: MetricType,
-    options: GOPlotOptions
+    df: pd.DataFrame, metric: MetricType, options: GOPlotOptions
 ) -> pd.DataFrame:
     """
     Prepare dataframe for plotting.
@@ -117,7 +116,7 @@ def _prepare_dataframe(
     # Apply top_n filtering
     if options.top_n is not None:
         sort_col = "p_value" if metric == "gene_ratio" else metric
-        ascending = True if metric == "gene_ratio" else False
+        ascending = metric == "gene_ratio"
         df = df.sort_values(sort_col, ascending=ascending).head(options.top_n)
 
     return df
@@ -180,7 +179,7 @@ def plot_go_metric(
     if metric == "gene_ratio":
         plot_df = df.sort_values("p_value")
 
-        size_ref = 2.0 * plot_df["intersection_size"].max() / (40 ** 2)
+        size_ref = 2.0 * plot_df["intersection_size"].max() / (40**2)
 
         p_min = plot_df["p_value"].min()
         p_max = plot_df["p_value"].max()
@@ -206,30 +205,30 @@ def plot_go_metric(
         )
 
         fig.update_traces(
-            marker=dict(
-                sizemode="area",
-                sizeref=size_ref,
-                sizemin=4,
-            )
+            marker={
+                "sizemode": "area",
+                "sizeref": size_ref,
+                "sizemin": 4,
+            }
         )
     else:
-            bar_df = df.sort_values(metric, ascending=False)
+        bar_df = df.sort_values(metric, ascending=False)
 
-            hover_data = {
-                "p_value": ":.2e",
-                "qscore": ":.3f",
-            }
-            if "source" in bar_df.columns:
-                hover_data["source"] = True
+        hover_data = {
+            "p_value": ":.2e",
+            "qscore": ":.3f",
+        }
+        if "source" in bar_df.columns:
+            hover_data["source"] = True
 
-            fig = px.bar(
-                bar_df,
-                x="qscore",
-                y="name",
-                color="neg_log10_p",
-                color_continuous_scale=options.colorscale,
-                hover_data=hover_data,
-            )
+        fig = px.bar(
+            bar_df,
+            x="qscore",
+            y="name",
+            color="neg_log10_p",
+            color_continuous_scale=options.colorscale,
+            hover_data=hover_data,
+        )
 
     html = fig.to_html(include_plotlyjs="cdn", full_html=True)
 

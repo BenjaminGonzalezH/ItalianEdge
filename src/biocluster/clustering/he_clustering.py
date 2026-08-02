@@ -15,18 +15,19 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses             import dataclass
-from pathlib                 import Path
-from typing                  import  List, Optional, Sequence, Tuple, Union, Literal
-from scipy.cluster.hierarchy import linkage, dendrogram, fcluster, cophenet
-from scipy.spatial.distance  import squareform
 import logging
 import sys
-import numpy                as np
-import plotly.graph_objects as go
-import matplotlib.colors    as mcolors
-import matplotlib.pyplot    as plt
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Optional, Union
 
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.graph_objects as go
+from scipy.cluster.hierarchy import cophenet, dendrogram, fcluster, linkage
+from scipy.spatial.distance import squareform
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -37,7 +38,9 @@ logger = logging.getLogger(__name__)
 # Data Types
 # ──────────────────────────────────────────────────────────────────────────────
 PathLike = Union[str, Path]
-LinkageMethod = Literal["single", "complete", "average", "weighted", "centroid", "median", "ward"]
+LinkageMethod = Literal[
+    "single", "complete", "average", "weighted", "centroid", "median", "ward"
+]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -54,6 +57,7 @@ class ClusteringOptions:
         validate_distance: enable strict distance-matrix checks.
         sym_tol:           tolerance used in symmetry checks (np.allclose).
     """
+
     num_groups: int = 4
     method: LinkageMethod = "single"
     validate_distance: bool = True
@@ -76,6 +80,7 @@ class DendrogramOptions:
         cutoff_color: cutoff line color.
         cutoff_dash:  cutoff line dash style.
     """
+
     title: str = "Dendrogram"
     height: int = 1080
     width: int = 1920
@@ -96,6 +101,7 @@ class ExportOptions:
         full_html:         if True writes a full HTML document; else a div snippet.
         verbose:           if True prints status messages (still logs always).
     """
+
     include_plotlyjs: Union[Literal["cdn", "embed"], bool] = "cdn"
     full_html: bool = False
     verbose: bool = True
@@ -107,6 +113,7 @@ class ExportOptions:
 def _as_path(p: PathLike) -> Path:
     """Ensure the input is converted to a Path object."""
     return p if isinstance(p, Path) else Path(p)
+
 
 def _log_or_print(msg: str, verbose: bool) -> None:
     """
@@ -127,7 +134,7 @@ def _log_or_print(msg: str, verbose: bool) -> None:
         print(msg)
 
 
-def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
+def _validate_genes(genes: Sequence[str], n: int) -> list[str]:
     """
     Validate gene identifiers against the expected matrix size.
 
@@ -152,7 +159,9 @@ def _validate_genes(genes: Sequence[str], n: int) -> List[str]:
         genes = list(genes)
 
     if len(genes) != n:
-        raise ValueError(f"Number of genes ({len(genes)}) does not match matrix size ({n}).")
+        raise ValueError(
+            f"Number of genes ({len(genes)}) does not match matrix size ({n})."
+        )
 
     # Ensure all are strings (best-effort)
     out = [str(g) for g in genes]
@@ -179,7 +188,9 @@ def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
         negative values, or a non-zero diagonal.
     """
     if not isinstance(distance_matrix, np.ndarray):
-        raise TypeError(f"distance_matrix must be a numpy.ndarray, got: {type(distance_matrix)}")
+        raise TypeError(
+            f"distance_matrix must be a numpy.ndarray, got: {type(distance_matrix)}"
+        )
 
     if distance_matrix.ndim != 2:
         raise ValueError(f"distance_matrix must be 2D, got ndim={distance_matrix.ndim}")
@@ -192,7 +203,9 @@ def _validate_distance_matrix(distance_matrix: np.ndarray, tol: float) -> None:
         raise ValueError("Distance matrix must be at least 2x2.")
 
     if not np.issubdtype(distance_matrix.dtype, np.number):
-        raise TypeError(f"distance_matrix must be numeric dtype, got: {distance_matrix.dtype}")
+        raise TypeError(
+            f"distance_matrix must be numeric dtype, got: {distance_matrix.dtype}"
+        )
 
     if np.isnan(distance_matrix).any():
         raise ValueError("Distance matrix contains NaN values.")
@@ -269,7 +282,7 @@ def _build_dendrogram_figure(
             labels=labels,
             color_threshold=cutoff_height,
             above_threshold_color=opts.line_color,
-            no_plot=True
+            no_plot=True,
         )
     finally:
         sys.setrecursionlimit(_prev_limit)
@@ -280,11 +293,7 @@ def _build_dendrogram_figure(
     mpl_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     # Add dendrogram segments
-    for x, y, color in zip(
-        ddata["icoord"],
-        ddata["dcoord"],
-        ddata["color_list"]
-    ):
+    for x, y, color in zip(ddata["icoord"], ddata["dcoord"], ddata["color_list"]):
 
         # Convert matplotlib shorthand colors (C0, C1, ...)
         try:
@@ -306,7 +315,7 @@ def _build_dendrogram_figure(
                 x=xs,
                 y=ys,
                 mode="lines",
-                line=dict(color=color),
+                line={"color": color},
                 hoverinfo="none",
                 showlegend=False,
             )
@@ -327,10 +336,7 @@ def _build_dendrogram_figure(
                 x=x_range,
                 y=[cutoff_height, cutoff_height],
                 mode="lines",
-                line=dict(
-                    color=opts.cutoff_color,
-                    dash=opts.cutoff_dash
-                ),
+                line={"color": opts.cutoff_color, "dash": opts.cutoff_dash},
                 hoverinfo="skip",
                 showlegend=False,
             )
@@ -343,14 +349,14 @@ def _build_dendrogram_figure(
 
     fig.update_layout(
         title=title,
-        xaxis=dict(
-            title="Genes (Index-Name)",
-            tickmode="array",
-            tickvals=leaf_positions,
-            ticktext=leaf_labels,
-            tickangle=opts.tick_angle,
-        ),
-        yaxis=dict(title="Distance"),
+        xaxis={
+            "title": "Genes (Index-Name)",
+            "tickmode": "array",
+            "tickvals": leaf_positions,
+            "ticktext": leaf_labels,
+            "tickangle": opts.tick_angle,
+        },
+        yaxis={"title": "Distance"},
         height=opts.height,
         width=opts.width,
         hovermode="closest",
@@ -375,7 +381,9 @@ def _figure_to_html(fig: go.Figure, export: ExportOptions) -> str:
     str
         HTML representation of the figure.
     """
-    return fig.to_html(include_plotlyjs=export.include_plotlyjs, full_html=export.full_html)
+    return fig.to_html(
+        include_plotlyjs=export.include_plotlyjs, full_html=export.full_html
+    )
 
 
 def _write_text(filepath: PathLike, content: str) -> Path:
@@ -408,7 +416,7 @@ def compute_hierarchical_clustering(
     distance_matrix: np.ndarray,
     genes: Sequence[str],
     options: ClusteringOptions = ClusteringOptions(),
-) -> Tuple[np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, np.ndarray, float]:
     """
     Perform hierarchical clustering and evaluate dendrogram quality.
 
@@ -463,15 +471,15 @@ def compute_hierarchical_clustering(
 
     # information logging.
     interpretation = (
-        "strong" if cophenetic_corr > 0.75
-        else "moderate" if cophenetic_corr > 0.5
-        else "weak"
+        "strong"
+        if cophenetic_corr > 0.75
+        else "moderate" if cophenetic_corr > 0.5 else "weak"
     )
 
     _log_or_print(
-        f"Cophenetic correlation coefficient: {cophenetic_corr:.4f} " +
-        f"({interpretation} clustering structure)",
-        verbose=options.verbose
+        f"Cophenetic correlation coefficient: {cophenetic_corr:.4f} "
+        + f"({interpretation} clustering structure)",
+        verbose=options.verbose,
     )
 
     return Z, labels, cophenetic_corr
@@ -531,7 +539,9 @@ def he_clustering(
 
             if save_html_to is not None:
                 out = _write_text(save_html_to, html)
-                _log_or_print(f"[he_clustering] Dendrogram HTML saved at: {out}", export.verbose)
+                _log_or_print(
+                    f"[he_clustering] Dendrogram HTML saved at: {out}", export.verbose
+                )
 
         # Return variants
         if return_fig and return_html:

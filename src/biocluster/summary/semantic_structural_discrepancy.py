@@ -2,8 +2,8 @@
 semantic_structural_discrepancy: Identify clustering solutions that present higher GO semantic similarity
 (Wang index) than structural similarity (Jaccard index) to other solutions — or vice versa.
 
-The core idea is that two solutions can agree biologically (shared GO terms across their clusters) while 
-assigning genes differently, or assign genes identically while being biologically divergent. Both cases 
+The core idea is that two solutions can agree biologically (shared GO terms across their clusters) while
+assigning genes differently, or assign genes identically while being biologically divergent. Both cases
 are detected via a discrepancy score:
 
     discrepancy[i, j] = wang_similarity[i, j] - jaccard_similarity[i, j]
@@ -43,20 +43,23 @@ plot_discrepancy_summary
 # ─────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ─────────────────────────────────────────────────────────────────────────────
-from __future__      import annotations
-from dataclasses     import dataclass
-from typing          import Literal, Optional, Sequence
-from plotly.subplots import make_subplots
-import numpy                as np
-import pandas               as pd
-import plotly.graph_objects as go
-from scipy.cluster.hierarchy import linkage, leaves_list
-from scipy.spatial.distance import squareform
+from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Literal
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from scipy.cluster.hierarchy import leaves_list, linkage
+from scipy.spatial.distance import squareform
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Options
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class DiscrepancyOptions:
@@ -77,17 +80,17 @@ class DiscrepancyOptions:
         If given, flag exactly the top_k most discrepant solution pairs
         instead of using the z-score cutoff.
     """
+
     direction: Literal["wang_over_jaccard", "jaccard_over_wang"] = "wang_over_jaccard"
     z_threshold: float = 1.5
-    top_k: Optional[int] = None
+    top_k: int | None = None
+
 
 def _hierarchical_order(matrix: np.ndarray) -> np.ndarray:
     """
     Devuelve el orden de índices que agrupa filas/columnas similares,
     usando clustering jerárquico sobre la matriz de discrepancia.
     """
-    n = matrix.shape[0]
-
     # Reemplazar la diagonal NaN por 0 (distancia consigo mismo)
     mat = np.nan_to_num(matrix, nan=0.0)
 
@@ -106,6 +109,7 @@ def _hierarchical_order(matrix: np.ndarray) -> np.ndarray:
 # ─────────────────────────────────────────────────────────────────────────────
 # Core: discrepancy matrix
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def compute_discrepancy_matrix(
     wang_matrix: np.ndarray,
@@ -132,9 +136,7 @@ def compute_discrepancy_matrix(
     jacc = np.asarray(jaccard_matrix, dtype=np.float64)
 
     if wang.shape != jacc.shape:
-        raise ValueError(
-            f"Shape mismatch: wang {wang.shape} vs jaccard {jacc.shape}."
-        )
+        raise ValueError(f"Shape mismatch: wang {wang.shape} vs jaccard {jacc.shape}.")
     if wang.ndim != 2 or wang.shape[0] != wang.shape[1]:
         raise ValueError("Both matrices must be square (n × n).")
 
@@ -147,10 +149,11 @@ def compute_discrepancy_matrix(
 # Per-pair profile
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def compute_pairwise_discrepancy_profile(
     wang_matrix: np.ndarray,
     jaccard_matrix: np.ndarray,
-    labels: Optional[Sequence[str]] = None,
+    labels: Sequence[str] | None = None,
     options: DiscrepancyOptions = DiscrepancyOptions(),
 ) -> pd.DataFrame:
     """
@@ -194,18 +197,17 @@ def compute_pairwise_discrepancy_profile(
 
     std_score = score.std()
     z_score = (
-        np.zeros_like(score) if std_score == 0
-        else (score - score.mean()) / std_score
+        np.zeros_like(score) if std_score == 0 else (score - score.mean()) / std_score
     )
 
     data: dict = {
-        "Solution 1":  rows_idx,
-        "Solution 2":  cols_idx,
-        "wang":        wang[rows_idx, cols_idx],
-        "jaccard":     jacc[rows_idx, cols_idx],
+        "Solution 1": rows_idx,
+        "Solution 2": cols_idx,
+        "wang": wang[rows_idx, cols_idx],
+        "jaccard": jacc[rows_idx, cols_idx],
         "discrepancy": disc_vals,
-        "score":       score,
-        "z_score":     z_score,
+        "score": score,
+        "z_score": z_score,
     }
     if labels is not None:
         label_list = list(labels)
@@ -220,10 +222,11 @@ def compute_pairwise_discrepancy_profile(
 # Outlier selection
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def identify_discrepant_solution_pairs(
     wang_matrix: np.ndarray,
     jaccard_matrix: np.ndarray,
-    labels: Optional[Sequence[str]] = None,
+    labels: Sequence[str] | None = None,
     options: DiscrepancyOptions = DiscrepancyOptions(),
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -242,16 +245,17 @@ def identify_discrepant_solution_pairs(
     outliers_df : pd.DataFrame
         Flagged subset (top-K or z-score ≥ threshold).
     """
-    pairs_df = compute_pairwise_discrepancy_profile(wang_matrix, jaccard_matrix, labels, options)
+    pairs_df = compute_pairwise_discrepancy_profile(
+        wang_matrix, jaccard_matrix, labels, options
+    )
 
     if options.top_k is not None:
         if options.top_k <= 0:
             raise ValueError("options.top_k must be a positive integer.")
         outliers_df = pairs_df.head(options.top_k).reset_index(drop=True)
     else:
-        outliers_df = (
-            pairs_df[pairs_df["z_score"] >= options.z_threshold]
-            .reset_index(drop=True)
+        outliers_df = pairs_df[pairs_df["z_score"] >= options.z_threshold].reset_index(
+            drop=True
         )
 
     return pairs_df, outliers_df
@@ -260,6 +264,7 @@ def identify_discrepant_solution_pairs(
 # ─────────────────────────────────────────────────────────────────────────────
 # Visualization
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def plot_discrepancy_summary(
     wang_matrix: np.ndarray,
@@ -302,30 +307,29 @@ def plot_discrepancy_summary(
     n = disc.shape[0]
     flagged_pairs = (
         set(zip(outliers_df["Solution 1"], outliers_df["Solution 2"]))
-        if not outliers_df.empty else set()
+        if not outliers_df.empty
+        else set()
     )
 
     # ── off-diagonal pairs for scatter ──────────────────────────────────────
     rows_idx, cols_idx = np.triu_indices(n, k=1)
-    wang_vals  = np.asarray(wang_matrix)[rows_idx, cols_idx]
-    jacc_vals  = np.asarray(jaccard_matrix)[rows_idx, cols_idx]
-    disc_vals  = disc[rows_idx, cols_idx]
+    wang_vals = np.asarray(wang_matrix)[rows_idx, cols_idx]
+    jacc_vals = np.asarray(jaccard_matrix)[rows_idx, cols_idx]
+    disc_vals = disc[rows_idx, cols_idx]
     pair_labels = [f"Sol {r} vs Sol {c}" for r, c in zip(rows_idx, cols_idx)]
     is_flagged = [(r, c) in flagged_pairs for r, c in zip(rows_idx, cols_idx)]
     marker_line_colors = ["#e34948" if f else "rgba(0,0,0,0)" for f in is_flagged]
     marker_sizes = [9 if f else 5 for f in is_flagged]
 
     # ── heatmap: orden jerárquico o natural ─────────────────────────────────
-    if reorder and n >= 3:
-        order = _hierarchical_order(disc)
-    else:
-        order = np.arange(n)
+    order = _hierarchical_order(disc) if reorder and n >= 3 else np.arange(n)
 
     disc_ordered = disc[np.ix_(order, order)]
     tick_labels = [str(i) for i in order]  # mantiene el índice real como etiqueta
 
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         subplot_titles=(
             f"Wang vs Jaccard por par de soluciones (rojo = {len(flagged_pairs)} outliers)",
             "Heatmap de discrepancia" + (" (ordenado)" if reorder and n >= 3 else ""),
@@ -339,20 +343,20 @@ def plot_discrepancy_summary(
             x=jacc_vals,
             y=wang_vals,
             mode="markers",
-            marker=dict(
-                color=disc_vals,
-                colorscale="RdBu",
-                cmid=0,
-                size=marker_sizes,
-                opacity=0.75,
-                line=dict(color=marker_line_colors, width=1.5),
-                colorbar=dict(
-                    title="Wang − Jaccard",
-                    x=0.46,
-                    len=0.8,
-                ),
-                showscale=True,
-            ),
+            marker={
+                "color": disc_vals,
+                "colorscale": "RdBu",
+                "cmid": 0,
+                "size": marker_sizes,
+                "opacity": 0.75,
+                "line": {"color": marker_line_colors, "width": 1.5},
+                "colorbar": {
+                    "title": "Wang − Jaccard",
+                    "x": 0.46,
+                    "len": 0.8,
+                },
+                "showscale": True,
+            },
             text=pair_labels,
             hovertemplate=(
                 "%{text}<br>"
@@ -362,19 +366,22 @@ def plot_discrepancy_summary(
             ),
             showlegend=False,
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
     # Diagonal reference line (Wang = Jaccard)
     lim = [0, 1]
     fig.add_trace(
         go.Scatter(
-            x=lim, y=lim,
+            x=lim,
+            y=lim,
             mode="lines",
-            line=dict(color="gray", dash="dash", width=1),
+            line={"color": "gray", "dash": "dash", "width": 1},
             showlegend=False,
             hoverinfo="skip",
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
 
     # Panel 2 · Heatmap (reordenado)
@@ -385,27 +392,33 @@ def plot_discrepancy_summary(
             y=tick_labels,
             colorscale="RdBu",
             zmid=0,
-            colorbar=dict(title="Wang − Jaccard", x=1.01, len=0.8),
+            colorbar={"title": "Wang − Jaccard", "x": 1.01, "len": 0.8},
             hovertemplate=(
-                "Sol %{y} vs Sol %{x}<br>"
-                "Discrepancy: %{z:.3f}<extra></extra>"
+                "Sol %{y} vs Sol %{x}<br>" "Discrepancy: %{z:.3f}<extra></extra>"
             ),
             showscale=True,
         ),
-        row=1, col=2,
+        row=1,
+        col=2,
     )
 
     fig.update_xaxes(title_text="Similitud Jaccard", row=1, col=1)
     fig.update_yaxes(title_text="Similitud Wang (GO)", row=1, col=1)
     fig.update_xaxes(
-        title_text="Solución", tickfont_size=8,
-        categoryorder="array", categoryarray=tick_labels,
-        row=1, col=2,
+        title_text="Solución",
+        tickfont_size=8,
+        categoryorder="array",
+        categoryarray=tick_labels,
+        row=1,
+        col=2,
     )
     fig.update_yaxes(
-        title_text="Solución", tickfont_size=8,
-        categoryorder="array", categoryarray=tick_labels,
-        row=1, col=2,
+        title_text="Solución",
+        tickfont_size=8,
+        categoryorder="array",
+        categoryarray=tick_labels,
+        row=1,
+        col=2,
     )
 
     fig.update_layout(

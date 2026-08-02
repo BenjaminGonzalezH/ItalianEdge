@@ -17,15 +17,17 @@ Functions
 # ──────────────────────────────────────────────────────────────────────────────
 # Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-from dataclasses        import dataclass
-from typing             import Dict, Iterator, List, Optional, Sequence, Union
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from gprofiler          import GProfiler
-import pandas  as pd
-import requests
-import mygene
 import logging
 import time
+from collections.abc import Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from typing import Optional, Union
+
+import mygene
+import pandas as pd
+import requests
+from gprofiler import GProfiler
 
 logger = logging.getLogger(__name__)
 
@@ -60,21 +62,28 @@ class MappingOptions:
         Optional timeout for requests.
     """
 
-    organism_gp: str                 = "hsapiens"
-    tax_id: int                      = 9606
-    scopes_mg: Sequence[str]         = ("symbol", "alias", "tair", "accession", "refseq", "ensembl.gene")
-    na_value: str                    = "NA"
-    n_threads: int                   = 4
-    chunk_size: int                  = 250
-    request_retries: int             = 3
-    backoff_base_seconds: float      = 0.6
+    organism_gp: str = "hsapiens"
+    tax_id: int = 9606
+    scopes_mg: Sequence[str] = (
+        "symbol",
+        "alias",
+        "tair",
+        "accession",
+        "refseq",
+        "ensembl.gene",
+    )
+    na_value: str = "NA"
+    n_threads: int = 4
+    chunk_size: int = 250
+    request_retries: int = 3
+    backoff_base_seconds: float = 0.6
     timeout_seconds: Optional[float] = None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Utilities
 # ──────────────────────────────────────────────────────────────────────────────
-def _iter_chunks(seq: Sequence[str], n: int) -> Iterator[List[str]]:
+def _iter_chunks(seq: Sequence[str], n: int) -> Iterator[list[str]]:
     """
     IterChunks(function): Split a sequence into chunks of size n.
 
@@ -95,10 +104,10 @@ def _iter_chunks(seq: Sequence[str], n: int) -> Iterator[List[str]]:
         raise ValueError("chunk_size must be > 0")
 
     for i in range(0, len(seq), n):
-        yield list(seq[i: i + n])
+        yield list(seq[i : i + n])
 
 
-def _min_entrez_str(values: Union[str, int, float, List, tuple, None]) -> Optional[str]:
+def _min_entrez_str(values: Union[str, int, float, list, tuple, None]) -> Optional[str]:
     """
     MinEntrezStr(function): Return the smallest valid Entrez ID as string.
 
@@ -161,25 +170,25 @@ def _retry_call(fn, *, retries: int, backoff_base: float, retry_exceptions: tupl
             return fn()
         except retry_exceptions as e:
             last_exc = e
-            sleep_s = backoff_base * (2 ** attempt)
+            sleep_s = backoff_base * (2**attempt)
             logger.warning(
                 "Retry %d/%d after error: %s (sleep %.2fs)",
                 attempt + 1,
                 retries,
                 e,
-                sleep_s
+                sleep_s,
             )
             time.sleep(sleep_s)
 
     raise RuntimeError(f"Request failed after {retries} retries") from last_exc
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # gProfiler Mapping
 # ──────────────────────────────────────────────────────────────────────────────
 def _map_with_gprofiler(
-    genes: Sequence[str],
-    options: MappingOptions
-) -> Dict[str, str]:
+    genes: Sequence[str], options: MappingOptions
+) -> dict[str, str]:
     """
     MapWithGProfiler(function): Map genes to Entrez IDs using gProfiler.
 
@@ -204,7 +213,7 @@ def _map_with_gprofiler(
         return gp.convert(
             organism=options.organism_gp,
             query=list(genes),
-            target_namespace="ENTREZGENE_ACC"
+            target_namespace="ENTREZGENE_ACC",
         )
 
     try:
@@ -212,7 +221,7 @@ def _map_with_gprofiler(
             _do,
             retries=options.request_retries,
             backoff_base=options.backoff_base_seconds,
-            retry_exceptions=(requests.exceptions.RequestException, Exception)
+            retry_exceptions=(requests.exceptions.RequestException, Exception),
         )
     except Exception as e:
         logger.warning("gProfiler failed: %s", e)
@@ -225,7 +234,9 @@ def _map_with_gprofiler(
         logger.warning("gProfiler response missing expected columns.")
         return {}
 
-    conv = conversion.loc[conversion["converted"].notna(), ["incoming", "converted"]].copy()
+    conv = conversion.loc[
+        conversion["converted"].notna(), ["incoming", "converted"]
+    ].copy()
     conv["converted_num"] = pd.to_numeric(conv["converted"], errors="coerce")
     conv = conv.dropna(subset=["converted_num"])
 
@@ -239,13 +250,12 @@ def _map_with_gprofiler(
         for _, row in grouped.iterrows()
     }
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MyGene Mapping
 # ──────────────────────────────────────────────────────────────────────────────
 def _query_mygene_chunk(
-    mg: mygene.MyGeneInfo,
-    chunk: Sequence[str],
-    options: MappingOptions
+    mg: mygene.MyGeneInfo, chunk: Sequence[str], options: MappingOptions
 ) -> pd.DataFrame:
     """
     QueryMyGeneChunk(function): Query MyGene for a chunk of genes.
@@ -274,14 +284,14 @@ def _query_mygene_chunk(
             scopes=list(options.scopes_mg),
             fields="entrezgene",
             species=options.tax_id,
-            as_dataframe=True
+            as_dataframe=True,
         )
 
     df = _retry_call(
         _do,
         retries=options.request_retries,
         backoff_base=options.backoff_base_seconds,
-        retry_exceptions=(requests.exceptions.RequestException, Exception)
+        retry_exceptions=(requests.exceptions.RequestException, Exception),
     )
 
     if not isinstance(df, pd.DataFrame) or df.empty:
@@ -298,10 +308,7 @@ def _query_mygene_chunk(
     return df[(~df["notfound"]) & (df["entrezgene"].notnull())].copy()
 
 
-def _map_with_mygene(
-    genes: Sequence[str],
-    options: MappingOptions
-) -> Dict[str, str]:
+def _map_with_mygene(genes: Sequence[str], options: MappingOptions) -> dict[str, str]:
     """
     MapWithMyGene(function): Map genes to Entrez IDs using MyGene.
 
@@ -322,12 +329,14 @@ def _map_with_mygene(
         return {}
 
     mg = mygene.MyGeneInfo()
-    mapping: Dict[str, str] = {}
+    mapping: dict[str, str] = {}
 
     blocks = list(_iter_chunks(list(genes), options.chunk_size))
 
     with ThreadPoolExecutor(max_workers=max(1, int(options.n_threads))) as ex:
-        futures = [ex.submit(_query_mygene_chunk, mg, block, options) for block in blocks]
+        futures = [
+            ex.submit(_query_mygene_chunk, mg, block, options) for block in blocks
+        ]
 
         frames = []
         for fut in as_completed(futures):
@@ -353,13 +362,13 @@ def _map_with_mygene(
 
     return mapping
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Function
 # ──────────────────────────────────────────────────────────────────────────────
 def convert_to_entrez_id(
-    symbol_list: Sequence[str],
-    options: MappingOptions = MappingOptions()
-) -> List[str]:
+    symbol_list: Sequence[str], options: MappingOptions = MappingOptions()
+) -> list[str]:
     """
     ConvertToEntrezID(function): Convert gene symbols to Entrez IDs.
 
@@ -380,7 +389,7 @@ def convert_to_entrez_id(
         raise ValueError("symbol_list must be a non-empty list/tuple of strings.")
 
     genes = [str(g) for g in symbol_list]
-    conversion_dict: Dict[str, str] = {}
+    conversion_dict: dict[str, str] = {}
 
     gp_map = _map_with_gprofiler(genes, options)
     conversion_dict.update(gp_map)
