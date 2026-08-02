@@ -1,0 +1,32 @@
+name: PyPI smoke test
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Every Monday at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install biocluster
+      - name: Run a minimal end-to-end check against the latest PyPI release
+        run: |
+          python -c "
+          import numpy as np
+          from biocluster.clustering.jaccard_values import jaccard_index_solutions
+          from biocluster.clustering.consensus_matrix import consensus_matrix
+
+          solutions = np.array([
+              [0, 0, 1, 1],
+              [1, 1, 0, 0],
+              [0, 2, 2, 1],
+          ])
+
+          jaccard_index_solutions(solutions)
+          consensus_matrix(solutions)
+          print('Smoke test passed.')
+          "

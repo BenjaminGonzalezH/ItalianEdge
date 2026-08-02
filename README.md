@@ -1,6 +1,7 @@
 # BioCluster
 
-[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/1.0.1/)
+[![PyPI version](https://img.shields.io/pypi/v/biocluster)](https://pypi.org/project/biocluster/1.0.2/)
+[![CI](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml/badge.svg)](https://github.com/BenjaminGonzalezH/ItalianEdge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://zenodo.org)
 
@@ -258,6 +259,12 @@ ruff check .
 black --check .
 mypy src/biocluster
 ```
+
+### Automated monitoring
+
+- **CI** (`.github/workflows/ci.yml`): runs the test suite on Python 3.9–3.13 and lints (`ruff`, `black`, `mypy`) on every push to `main` and every pull request.
+- **Dependabot** (`.github/dependabot.yml`): weekly PRs for vulnerable/outdated `pip` and GitHub Actions dependencies.
+- **PyPI smoke test** (`.github/workflows/pypi-smoke-test.yml`): weekly job that installs the latest published release from PyPI and runs a minimal end-to-end check, to catch breakage caused by upstream dependency updates even when nothing changes in this repo.
 
 ## Contributing
 
