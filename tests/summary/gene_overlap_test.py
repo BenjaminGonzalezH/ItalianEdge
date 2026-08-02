@@ -143,14 +143,34 @@ class TestFrequencyCutoff(unittest.TestCase):
     ########################## Figure Tests ##########################
 
     def test_plot_frequency_cutoff_returns_figure(self):
-        """Confirm the cutoff histogram is generated with at least one trace."""
+        """
+        Confirm the rank-frequency curve is generated as a single Scatter
+        trace, sorted by descending frequency, with points at/above the
+        cutoff colored differently from those below it.
+        """
 
         freq_df = pd.DataFrame({"Gene": ["G1", "G2", "G3"], "Frequency": [1, 2, 3]})
 
         fig = plot_frequency_cutoff(freq_df, cutoff=2)
 
         self.assertTrue(hasattr(fig, "to_html"))
-        self.assertGreater(len(fig.data), 0)
+        self.assertEqual(len(fig.data), 1)
+
+        trace = fig.data[0]
+        self.assertEqual(type(trace).__name__, "Scatter")
+        self.assertListEqual(list(trace.x), [1, 2, 3])
+        self.assertListEqual(list(trace.y), [3, 2, 1])
+        self.assertListEqual(list(trace.marker.color), ["#1f77b4", "#1f77b4", "#b0b0b0"])
+
+    def test_plot_frequency_cutoff_knee_vline_position(self):
+        """Confirm the cutoff vline is placed right after the last rank meeting the cutoff."""
+
+        freq_df = pd.DataFrame({"Gene": ["G1", "G2", "G3"], "Frequency": [1, 2, 3]})
+
+        fig = plot_frequency_cutoff(freq_df, cutoff=2)
+
+        self.assertEqual(len(fig.layout.shapes), 1)
+        self.assertAlmostEqual(fig.layout.shapes[0].x0, 2.5)
 
     def test_plot_frequency_cutoff_empty_returns_empty_figure(self):
         """Confirm an empty frequency table short-circuits to an empty Figure."""

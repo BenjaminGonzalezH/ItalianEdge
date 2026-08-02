@@ -251,42 +251,36 @@ def plot_frequency_cutoff(
     title: str = "Gene Frequency Cutoff",
 ) -> go.Figure:
     """
-    Histogram of gene frequencies with the cutoff from
-    ``compute_frequency_cutoff`` highlighted, so the automatic cut can be
-    visually audited before/alongside calling ``summarize_genes``.
-
-    Parameters
-    ----------
-    freq_df : pd.DataFrame
-        Output of ``compute_gene_frequencies``.
-    cutoff : int
-        Cutoff value, typically the output of ``compute_frequency_cutoff``.
-    title : str
-        Figure title.
-
-    Returns
-    -------
-    go.Figure
+    Rank-frequency curve (genes ordenados por frecuencia descendente),
+    igual a la curva que usa compute_frequency_cutoff para hallar el codo.
     """
     if freq_df.empty:
         return go.Figure()
 
-    counts = freq_df["Frequency"].value_counts().sort_index()
-    colors = ["#b0b0b0" if f < cutoff else "#1f77b4" for f in counts.index]
+    frequencies = freq_df["Frequency"].to_numpy().astype(int)
+    freqs_desc = np.sort(frequencies)[::-1]
+    ranks = np.arange(1, freqs_desc.size + 1)
+
+    colors = ["#1f77b4" if f >= cutoff else "#b0b0b0" for f in freqs_desc]
 
     fig = go.Figure(
         data=[
-            go.Bar(
-                x=counts.index,
-                y=counts.values,
-                marker_color=colors,
-                hovertemplate="Frequency: %{x}<br>Genes: %{y}<extra></extra>",
+            go.Scatter(
+                x=ranks,
+                y=freqs_desc,
+                mode="lines+markers",
+                marker=dict(color=colors, size=6),
+                line=dict(color="#c0c0c0", width=1),
+                hovertemplate="Rank: %{x}<br>Frequency: %{y}<extra></extra>",
             )
         ]
     )
 
+    # Posición del codo: último rank cuya frecuencia es >= cutoff
+    knee_rank = int(np.sum(freqs_desc >= cutoff))
+
     fig.add_vline(
-        x=cutoff - 0.5,
+        x=knee_rank + 0.5,
         line_dash="dash",
         line_color="red",
         annotation_text=f"cutoff = {cutoff}",
@@ -295,8 +289,8 @@ def plot_frequency_cutoff(
 
     fig.update_layout(
         title=title,
-        xaxis_title="Gene frequency (# of cluster pairs)",
-        yaxis_title="Number of genes",
+        xaxis_title="Gene rank (sorted by descending frequency)",
+        yaxis_title="Frequency (# of cluster pairs)",
         template="plotly_white",
     )
 
@@ -307,26 +301,75 @@ def plot_frequency_cutoff(
 # Biological submatrix + co-occurrence
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_frequency_plot(df: pd.DataFrame, top_n: Optional[int], label: str) -> go.Figure:
-    """Build Plotly frequency bar plot for the selected genes themselves."""
+def _build_frequency_plot(
+    df: pd.DataFrame,
+    top_n: Optional[int],
+    label: str,
+    cutoff: Optional[int] = None,
+) -> go.Figure:
+    """
+    Build a horizontal lollipop plot of the top-N genes by frequency,
+    highlighting which fall above/below the recurrent-gene cutoff from
+    compute_frequency_cutoff.
+    """
     plot_df = df.copy()
     if top_n is not None:
         plot_df = plot_df.head(top_n)
 
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=plot_df["Gene"],
-                y=plot_df["Frequency"],
-                hovertemplate="Gene: %{x}<br>Frequency: %{y}<extra></extra>",
-            )
+    # Orden ascendente para que el gen de mayor frecuencia quede arriba
+    plot_df = plot_df.sort_values("Frequency", ascending=True)
+
+    if cutoff is not None:
+        colors = [
+            "#1f77b4" if f >= cutoff else "#b0b0b0"
+            for f in plot_df["Frequency"]
         ]
+    else:
+        colors = "#1f77b4"
+
+    fig = go.Figure()
+
+    # Líneas del lollipop (una por gen)
+    for _, row in plot_df.iterrows():
+        fig.add_shape(
+            type="line",
+            x0=0, x1=row["Frequency"],
+            y0=row["Gene"], y1=row["Gene"],
+            line=dict(color="#d8d8d8", width=2),
+            layer="below",
+        )
+
+    # Puntos
+    fig.add_trace(
+        go.Scatter(
+            x=plot_df["Frequency"],
+            y=plot_df["Gene"],
+            mode="markers+text",
+            marker=dict(color=colors, size=11, line=dict(color="white", width=1)),
+            text=plot_df["Frequency"],
+            textposition="middle right",
+            hovertemplate="Gene: %{y}<br>Frequency: %{x}<extra></extra>",
+            showlegend=False,
+        )
     )
+
+    if cutoff is not None:
+        fig.add_vline(
+            x=cutoff,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"cutoff = {cutoff}",
+            annotation_position="top",
+        )
+
     fig.update_layout(
-        title=f"Gene Frequency in {label}",
-        xaxis_title="Gene",
-        yaxis_title="Frequency",
+        title=f"Top {len(plot_df)} Genes by Frequency in {label}",
+        xaxis_title="Frequency (# of cluster pairs)",
+        yaxis_title="Gene",
         template="plotly_white",
+        height=max(350, 32 * len(plot_df)),  # espacio cómodo por gen
+        margin=dict(l=120, r=60, t=60, b=40),
+        xaxis=dict(range=[0, plot_df["Frequency"].max() * 1.15]),  # espacio para las etiquetas
     )
     return fig
 

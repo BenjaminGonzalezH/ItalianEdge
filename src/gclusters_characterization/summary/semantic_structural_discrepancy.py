@@ -50,6 +50,8 @@ from plotly.subplots import make_subplots
 import numpy                as np
 import pandas               as pd
 import plotly.graph_objects as go
+from scipy.cluster.hierarchy import linkage, leaves_list
+from scipy.spatial.distance import squareform
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +80,27 @@ class DiscrepancyOptions:
     direction: Literal["wang_over_jaccard", "jaccard_over_wang"] = "wang_over_jaccard"
     z_threshold: float = 1.5
     top_k: Optional[int] = None
+
+def _hierarchical_order(matrix: np.ndarray) -> np.ndarray:
+    """
+    Devuelve el orden de índices que agrupa filas/columnas similares,
+    usando clustering jerárquico sobre la matriz de discrepancia.
+    """
+    n = matrix.shape[0]
+
+    # Reemplazar la diagonal NaN por 0 (distancia consigo mismo)
+    mat = np.nan_to_num(matrix, nan=0.0)
+
+    # Simetrizar por si acaso (debería serlo, pero por seguridad numérica)
+    mat = (mat + mat.T) / 2
+
+    # Convertir a "distancia": valores similares deben quedar cerca
+    dist = np.abs(mat)  # o (mat.max() - mat) si prefieres otra escala
+    np.fill_diagonal(dist, 0)
+
+    condensed = squareform(dist, checks=False)
+    z = linkage(condensed, method="average")
+    return leaves_list(z)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -243,6 +266,7 @@ def plot_discrepancy_summary(
     jaccard_matrix: np.ndarray,
     outliers_df: pd.DataFrame,
     title: str = "Discrepancia semántica (Wang) vs estructural (Jaccard)",
+    reorder: bool = True,
 ) -> go.Figure:
     """
     Two-panel interactive figure.
@@ -254,7 +278,10 @@ def plot_discrepancy_summary(
         between the two metrics and where the two disagree most.
 
     Panel 2 — Heatmap of the full discrepancy matrix
-        Rows/cols in natural solution order.
+        Rows/cols reordered via hierarchical clustering (when reorder=True
+        and n >= 3) so that solutions with similar discrepancy profiles
+        appear adjacent, revealing block structure. Tick labels keep the
+        original solution index regardless of the new row/column order.
 
     Parameters
     ----------
@@ -263,6 +290,9 @@ def plot_discrepancy_summary(
         Output of ``identify_discrepant_solution_pairs`` (flagged subset).
     title : str
         Overall figure title.
+    reorder : bool
+        If True, reorder the heatmap via hierarchical clustering on the
+        discrepancy matrix. If False, use the natural solution order.
 
     Returns
     -------
@@ -285,14 +315,20 @@ def plot_discrepancy_summary(
     marker_line_colors = ["#e34948" if f else "rgba(0,0,0,0)" for f in is_flagged]
     marker_sizes = [9 if f else 5 for f in is_flagged]
 
-    # ── heatmap (natural solution order) ─────────────────────────────────────
-    tick_labels = [str(i) for i in range(n)]
+    # ── heatmap: orden jerárquico o natural ─────────────────────────────────
+    if reorder and n >= 3:
+        order = _hierarchical_order(disc)
+    else:
+        order = np.arange(n)
+
+    disc_ordered = disc[np.ix_(order, order)]
+    tick_labels = [str(i) for i in order]  # mantiene el índice real como etiqueta
 
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=(
             f"Wang vs Jaccard por par de soluciones (rojo = {len(flagged_pairs)} outliers)",
-            "Heatmap de discrepancia",
+            "Heatmap de discrepancia" + (" (ordenado)" if reorder and n >= 3 else ""),
         ),
         column_widths=[0.5, 0.5],
     )
@@ -341,10 +377,10 @@ def plot_discrepancy_summary(
         row=1, col=1,
     )
 
-    # Panel 2 · Heatmap
+    # Panel 2 · Heatmap (reordenado)
     fig.add_trace(
         go.Heatmap(
-            z=disc,
+            z=disc_ordered,
             x=tick_labels,
             y=tick_labels,
             colorscale="RdBu",
@@ -361,8 +397,16 @@ def plot_discrepancy_summary(
 
     fig.update_xaxes(title_text="Similitud Jaccard", row=1, col=1)
     fig.update_yaxes(title_text="Similitud Wang (GO)", row=1, col=1)
-    fig.update_xaxes(title_text="Solución", tickfont_size=8, row=1, col=2)
-    fig.update_yaxes(title_text="Solución", tickfont_size=8, row=1, col=2)
+    fig.update_xaxes(
+        title_text="Solución", tickfont_size=8,
+        categoryorder="array", categoryarray=tick_labels,
+        row=1, col=2,
+    )
+    fig.update_yaxes(
+        title_text="Solución", tickfont_size=8,
+        categoryorder="array", categoryarray=tick_labels,
+        row=1, col=2,
+    )
 
     fig.update_layout(
         title=title,

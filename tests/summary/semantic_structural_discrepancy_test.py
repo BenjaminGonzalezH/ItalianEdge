@@ -18,6 +18,7 @@ from gclusters_characterization.summary.semantic_structural_discrepancy import (
     identify_discrepant_solution_pairs,
     plot_discrepancy_summary,
     DiscrepancyOptions,
+    _hierarchical_order,
 )
 
 
@@ -159,6 +160,43 @@ class TestPairwiseDiscrepancyProfile(unittest.TestCase):
             compute_pairwise_discrepancy_profile(self.wang, self.jaccard, labels=["only_one"])
 
 
+class TestHierarchicalOrder(unittest.TestCase):
+    """Test suite validating the hierarchical-clustering row/column order used for the heatmap."""
+
+    def setUp(self):
+        self.wang = np.array([
+            [1.0, 0.9, 0.2, 0.3],
+            [0.9, 1.0, 0.3, 0.2],
+            [0.2, 0.3, 1.0, 0.8],
+            [0.3, 0.2, 0.8, 1.0],
+        ])
+        self.jaccard = np.array([
+            [1.0, 0.1, 0.2, 0.3],
+            [0.1, 1.0, 0.3, 0.2],
+            [0.2, 0.3, 1.0, 0.1],
+            [0.3, 0.2, 0.1, 1.0],
+        ])
+
+    def test_order_is_a_valid_permutation(self):
+        """Confirm the returned order visits every solution index exactly once."""
+
+        disc = compute_discrepancy_matrix(self.wang, self.jaccard)
+
+        order = _hierarchical_order(disc)
+
+        self.assertListEqual(sorted(int(i) for i in order), [0, 1, 2, 3])
+
+    def test_order_handles_nan_diagonal(self):
+        """Confirm the NaN diagonal from compute_discrepancy_matrix doesn't break clustering."""
+
+        disc = compute_discrepancy_matrix(self.wang, self.jaccard)
+        self.assertTrue(np.isnan(np.diag(disc)).all())
+
+        order = _hierarchical_order(disc)
+
+        self.assertEqual(len(order), 4)
+
+
 class TestIdentifyDiscrepantSolutionPairs(unittest.TestCase):
     """Test suite validating outlier-pair selection on top of the pairwise profile."""
 
@@ -230,6 +268,51 @@ class TestIdentifyDiscrepantSolutionPairs(unittest.TestCase):
 
         self.assertTrue(outliers_df.empty)
         self.assertTrue(hasattr(fig, "to_html"))
+
+    def test_plot_reorders_heatmap_by_default(self):
+        """
+        Confirm the heatmap panel (reorder=True, the default) reorders rows/
+        columns via hierarchical clustering while keeping the original
+        solution indices as tick labels (as a permutation of 0..n-1).
+        """
+
+        _, outliers_df = identify_discrepant_solution_pairs(
+            self.wang, self.jaccard, options=DiscrepancyOptions(z_threshold=0.5)
+        )
+
+        fig = plot_discrepancy_summary(self.wang, self.jaccard, outliers_df)
+
+        heatmap = next(t for t in fig.data if type(t).__name__ == "Heatmap")
+        self.assertListEqual(sorted(int(v) for v in heatmap.x), [0, 1, 2, 3])
+        self.assertListEqual(list(heatmap.x), list(heatmap.y))
+        self.assertIn("(ordenado)", fig.layout.annotations[1].text)
+
+    def test_plot_reorder_false_keeps_natural_order(self):
+        """Confirm reorder=False keeps the heatmap in natural solution order."""
+
+        _, outliers_df = identify_discrepant_solution_pairs(
+            self.wang, self.jaccard, options=DiscrepancyOptions(z_threshold=0.5)
+        )
+
+        fig = plot_discrepancy_summary(self.wang, self.jaccard, outliers_df, reorder=False)
+
+        heatmap = next(t for t in fig.data if type(t).__name__ == "Heatmap")
+        self.assertListEqual(list(heatmap.x), ["0", "1", "2", "3"])
+        self.assertNotIn("(ordenado)", fig.layout.annotations[1].text)
+
+    def test_plot_reorder_skipped_below_three_solutions(self):
+        """Confirm reordering is skipped (natural order used) when n < 3, even with reorder=True."""
+
+        wang = np.array([[1.0, 0.5], [0.5, 1.0]])
+        jaccard = np.array([[1.0, 0.2], [0.2, 1.0]])
+        _, outliers_df = identify_discrepant_solution_pairs(
+            wang, jaccard, options=DiscrepancyOptions(z_threshold=100.0)
+        )
+
+        fig = plot_discrepancy_summary(wang, jaccard, outliers_df, reorder=True)
+
+        heatmap = next(t for t in fig.data if type(t).__name__ == "Heatmap")
+        self.assertListEqual(list(heatmap.x), ["0", "1"])
 
 
 if __name__ == "__main__":

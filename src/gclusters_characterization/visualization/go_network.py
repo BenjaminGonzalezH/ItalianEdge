@@ -39,8 +39,10 @@ PathLike = Union[str, Path]
 class GoNetworkOptions:
     similarity_threshold: float = 0.7
     min_genes_per_term: int = 1
+    restrict_to_enriched: bool = True      # nuevo
+    significance_threshold: Optional[float] = None  # opcional, ej. 0.05
     max_node_size: float = 40.0
-    layout: str = "spring"  # "spring" or "kamada_kawai"
+    layout: str = "spring"
     random_state: int = 42
     verbose: bool = False
 
@@ -221,22 +223,32 @@ def plot_go_interaction_network_html(
 
     _validate_inputs(gene2terms, term_pvalues)
 
-    # Load GO
     go3.load_go_terms(str(obo_path))
     annotations = go3.load_gaf(str(gaf_path))
     counter = go3.build_term_counter(annotations)
 
-    # Count genes per term
     term_counts = _count_terms(gene2terms)
 
-    # Filter terms
     term_list = [
         t for t, count in term_counts.items()
         if count >= options.min_genes_per_term
     ]
 
+    # Restringir al universo de términos enriquecidos
+    if options.restrict_to_enriched:
+        term_list = [t for t in term_list if t in term_pvalues]
+
+    if options.significance_threshold is not None:
+        term_list = [
+            t for t in term_list
+            if term_pvalues.get(t, 1.0) <= options.significance_threshold
+        ]
+
     if not term_list:
-        raise ValueError("No GO terms passed filtering.")
+        raise ValueError(
+            "No GO terms passed filtering. Check min_genes_per_term, "
+            "restrict_to_enriched, and significance_threshold."
+        )
 
     # Build graph
     G = _build_similarity_graph(

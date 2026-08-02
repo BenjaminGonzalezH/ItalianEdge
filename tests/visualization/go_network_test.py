@@ -9,7 +9,10 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
-from gclusters_characterization.visualization.go_network import plot_go_interaction_network_html
+from gclusters_characterization.visualization.go_network import (
+    plot_go_interaction_network_html,
+    GoNetworkOptions,
+)
 
 
 class TestGoNetwork(unittest.TestCase):
@@ -74,8 +77,6 @@ class TestGoNetwork(unittest.TestCase):
              patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={}), \
              patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9):
 
-            from gclusters_characterization.visualization.go_network import GoNetworkOptions
-
             with self.assertRaises(ValueError):
                 plot_go_interaction_network_html(
                     self.data,
@@ -85,6 +86,82 @@ class TestGoNetwork(unittest.TestCase):
                     options=GoNetworkOptions(layout="invalid"),
                     return_fig=True
                 )
+
+    ########################## restrict_to_enriched / significance_threshold ##########################
+
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_restrict_to_enriched_filters_non_enriched_terms(self, *_):
+        data = {"gene1": ["GO:1", "GO:2", "GO:3"]}
+        pvals = {"GO:1": 0.01, "GO:2": 0.05}  # GO:3 has no p-value, i.e. not enriched
+
+        fig = plot_go_interaction_network_html(
+            data,
+            pvals,
+            "fake.gaf",
+            "fake.obo",
+            options=GoNetworkOptions(restrict_to_enriched=True),
+            return_fig=True,
+        )
+
+        node_names = set(fig.data[1].text)
+        self.assertNotIn("GO:3", node_names)
+        self.assertIn("GO:1", node_names)
+        self.assertIn("GO:2", node_names)
+
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_restrict_to_enriched_disabled_keeps_all_terms(self, *_):
+        data = {"gene1": ["GO:1", "GO:2", "GO:3"]}
+        pvals = {"GO:1": 0.01, "GO:2": 0.05}
+
+        fig = plot_go_interaction_network_html(
+            data,
+            pvals,
+            "fake.gaf",
+            "fake.obo",
+            options=GoNetworkOptions(restrict_to_enriched=False),
+            return_fig=True,
+        )
+
+        self.assertIn("GO:3", set(fig.data[1].text))
+
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_significance_threshold_filters_non_significant_terms(self, *_):
+        fig = plot_go_interaction_network_html(
+            self.data,
+            self.pvals,
+            "fake.gaf",
+            "fake.obo",
+            options=GoNetworkOptions(significance_threshold=0.01),
+            return_fig=True,
+        )
+
+        node_names = set(fig.data[1].text)
+        self.assertIn("GO:1", node_names)
+        self.assertNotIn("GO:2", node_names)
+
+    @patch("gclusters_characterization.visualization.go_network.go3.semantic_similarity", return_value=0.9)
+    @patch("gclusters_characterization.visualization.go_network.go3.build_term_counter", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_gaf", return_value={})
+    @patch("gclusters_characterization.visualization.go_network.go3.load_go_terms")
+    def test_all_terms_filtered_out_raises_value_error(self, *_):
+        with self.assertRaises(ValueError):
+            plot_go_interaction_network_html(
+                self.data,
+                self.pvals,
+                "fake.gaf",
+                "fake.obo",
+                options=GoNetworkOptions(significance_threshold=0.0001),
+                return_fig=True,
+            )
 
 
 if __name__ == "__main__":

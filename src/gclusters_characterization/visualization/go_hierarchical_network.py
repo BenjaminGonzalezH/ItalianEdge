@@ -51,6 +51,8 @@ class GoHierarchyOptions:
     min_genes_per_term: int = 1
     include_ancestors: bool = True             # key for the layered/boxed structure
     max_total_nodes: int    = 600              # final cap (including ancestors)
+    restrict_to_enriched: bool = True
+    significance_threshold: Optional[float] = None
 
     # Layout
     layer_gap_y: float      = 1.0              # vertical distance between levels
@@ -184,13 +186,6 @@ def _select_target_terms(
     term_pvalues: Dict[str, float],
     options: GoHierarchyOptions,
 ) -> List[str]:
-    """
-    Select the terms to plot (targets) before adding ancestors:
-    - exist in the OBO
-    - match the requested ontology
-    - satisfy min_genes_per_term
-    - sorted by p-value ascending
-    """
     candidates = []
     for term, genes in term2genes.items():
         if term not in go_dag:
@@ -200,6 +195,11 @@ def _select_target_terms(
             continue
         if len(genes) < options.min_genes_per_term:
             continue
+        if options.restrict_to_enriched and term not in term_pvalues:  # nuevo
+            continue
+        if options.significance_threshold is not None:  # nuevo, opcional
+            if term_pvalues.get(term, 1.0) > options.significance_threshold:
+                continue
         candidates.append(term)
 
     if not candidates:
