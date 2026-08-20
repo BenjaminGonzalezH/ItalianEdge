@@ -125,9 +125,9 @@ Supported `species_key` values out of the box: `goa_human` (human), `mgi` (mouse
 
 ```python
 import numpy as np
-from biocluster.clustering.jaccard_values import jaccard_index_solutions
+from biocluster.clustering.jaccard_values   import jaccard_index_solutions
 from biocluster.clustering.consensus_matrix import consensus_matrix
-from biocluster.visualization.heatmaps import plot_clustered_heatmap
+from biocluster.visualization.heatmaps      import plot_clustered_heatmap
 
 genes = ["GeneA", "GeneB", "GeneC", "GeneD"]
 
@@ -153,6 +153,165 @@ coincidence_matrix, consensus = consensus_matrix(solutions)
 # GO analysis (requires local .gaf / .obo files, see "GO reference data" above)
 # from biocluster.visualization.go_network import plot_go_interaction_network_html
 # plot_go_interaction_network_html(gene2terms, term_pvalues, gaf_path, obo_path)
+```
+
+## Extended examples
+
+The snippets above only touch two functions. The sections below walk through
+the rest of the toolkit, grouped by module. Snippets marked **(network)**
+call external services (g:Profiler, MyGene.info) or need local GO reference
+files (see [GO reference data](#go-reference-data)) and are not meant to run
+offline.
+
+### Loading and persisting data
+
+```python
+from biocluster.utils.read_solution import read_solutions_file
+from biocluster.utils.actions import (
+    save_matrix, load_matrix, save_dataframe, MatrixSaveOptions, MatrixSaveMode,
+)
+
+# Load a solutions matrix from CSV / fixed-width text / pickle (format inferred from extension)
+matrix, genes = read_solutions_file("examples/resources/solutions.csv")
+
+# Persist a computed matrix (NPY by default; NPZ compressed or CSV also supported)
+save_matrix(matrix, "outputs/solutions.npy")
+save_matrix(matrix, "outputs/solutions.npz", MatrixSaveOptions(mode=MatrixSaveMode.COMPRESSED_NPZ))
+reloaded = load_matrix("outputs/solutions.npz", key="matrix")
+
+# Export any result DataFrame to CSV / Excel / Parquet
+# save_dataframe(some_df, "outputs/results.csv")
+```
+
+### Rand / Adjusted Rand Index
+
+```python
+import numpy as np
+from biocluster.clustering.rand_values import (
+    rand_index_solutions, adjusted_rand_index_solutions, find_equivalent_clusters_rand,
+)
+from biocluster.clustering.solutioncluster_matrix import solution_cluster_matrix
+
+solutions = np.array([
+    [0, 0, 1, 1],
+    [1, 1, 0, 0],
+    [0, 2, 2, 1],
+])
+genes = ["GeneA", "GeneB", "GeneC", "GeneD"]
+
+# Pairwise solution-level similarity (use n_jobs=-1 to parallelize over solution pairs)
+rand_matrix = rand_index_solutions(solutions)
+ari_matrix = adjusted_rand_index_solutions(solutions)
+
+# Group each solution's genes into per-cluster sets, then match clusters across solutions
+clusters_per_solution = solution_cluster_matrix(solutions, genes, mode="sets")
+matches_df = find_equivalent_clusters_rand(clusters_per_solution, metric="adjusted_rand")
+```
+
+### Consensus-distance outlier detection
+
+Flag solutions that are unusually distant from a chosen reference (e.g. consensus) solution.
+
+```python
+from biocluster.clustering.jaccard_values import jaccard_index_solutions
+from biocluster.summary.consensus_distance import (
+    compute_consensus_distance_scores,
+    identify_outlier_solutions_vs_consensus,
+    plot_consensus_distance_summary,
+    ConsensusDistanceOptions,
+)
+
+similarity = jaccard_index_solutions(solutions)
+reference_idx = 0  # e.g. the index of the chosen consensus/reference solution
+distances = 1.0 - similarity[reference_idx]
+
+scores_df = compute_consensus_distance_scores(distances, solution_matrix=solutions)
+outliers_df = identify_outlier_solutions_vs_consensus(
+    distances, solution_matrix=solutions, options=ConsensusDistanceOptions(z_threshold=1.5)
+)
+# fig = plot_consensus_distance_summary(scores_df, outliers_df)
+```
+
+### Gene-overlap and discrepancy analysis
+
+```python
+from biocluster.clustering.jaccard_values import find_equivalent_clusters_jaccard
+from biocluster.summary.gene_overlap import (
+    compute_gene_overlap_dataframe, compute_gene_frequencies,
+    compute_frequency_cutoff, summarize_genes,
+)
+
+matches_df = find_equivalent_clusters_jaccard(clusters_per_solution)
+
+shared_df = compute_gene_overlap_dataframe(matches_df, clusters_per_solution, mode="shared")
+freq_df = compute_gene_frequencies(shared_df, "Shared Genes")
+cutoff = compute_frequency_cutoff(freq_df)  # automatic knee/elbow cutoff, no manual threshold
+
+# Full summary: selected genes, frequency table/plot, and co-occurrence Jaccard matrix
+# (requires a precomputed gene-gene similarity matrix and matching gene_ids, see below)
+# result = summarize_genes(shared_df, "Shared Genes", gene_ids, gene_similarity_matrix)
+```
+
+Semantic (GO/Wang) vs. structural (Jaccard) discrepancy between solution pairs, once a
+Wang similarity matrix is available (see the GO gene-similarity example below):
+
+```python
+from biocluster.summary.semantic_structural_discrepancy import (
+    identify_discrepant_solution_pairs, plot_discrepancy_summary, DiscrepancyOptions,
+)
+
+# pairs_df, outliers_df = identify_discrepant_solution_pairs(
+#     wang_matrix, similarity, options=DiscrepancyOptions(direction="wang_over_jaccard")
+# )
+# fig = plot_discrepancy_summary(wang_matrix, similarity, outliers_df)
+```
+
+### Gene Ontology: mapping, enrichment, and plots (network)
+
+```python
+from biocluster.go.mapping_entrez import convert_to_entrez_id, MappingOptions
+from biocluster.go.go_enrichment import (
+    go_enrichment, annotation_from_entrez_ids, GoEnrichmentOptions,
+)
+from biocluster.visualization.go_plots import plot_gene_ratio, plot_qscore
+
+entrez_ids = convert_to_entrez_id(genes, MappingOptions(organism_gp="hsapiens", tax_id=9606))
+
+enrichment_df = go_enrichment(entrez_ids, GoEnrichmentOptions(organism="hsapiens", sources=("GO:BP",)))
+# fig = plot_gene_ratio(enrichment_df, save_path="outputs/gene_ratio.html")
+# fig = plot_qscore(enrichment_df, save_path="outputs/qscore.html")
+
+gene2terms = annotation_from_entrez_ids(entrez_ids)
+```
+
+### GO semantic similarity and networks (network / requires local .gaf + .obo)
+
+```python
+from biocluster.go.gene_similarity import (
+    compute_gene_similarity_matrix_by_batch, solution_go_similarity_from_dataframe,
+    GeneSimilarityOptions,
+)
+from biocluster.go.go_utils import ensure_gaf_file, download_go_obo
+from biocluster.visualization.go_network import plot_go_interaction_network_html
+from biocluster.visualization.go_hierarchical_network import plot_go_hierarchy_html
+
+gaf_path = ensure_gaf_file("goa_human", out_dir="examples/resources")
+obo_path = download_go_obo(out_dir="examples/resources")
+
+gene_ids, wang_matrix = compute_gene_similarity_matrix_by_batch(
+    genes, obo_path=obo_path, gaf_path=gaf_path,
+    go3_opts=GeneSimilarityOptions(ontology="BP", measure="wang"),
+)
+
+# Aggregate gene-level similarity into a solution-to-solution similarity matrix,
+# reusing the cluster matches found earlier (Jaccard- or Rand-based).
+# solution_wang_matrix, matches_with_scores = solution_go_similarity_from_dataframe(
+#     gene_ids, wang_matrix, "wang", matches_df, clusters_per_solution,
+# )
+
+# term_pvalues would come from `enrichment_df` (e.g. {name: p_value})
+# plot_go_interaction_network_html(gene2terms, term_pvalues, gaf_path, obo_path)
+# plot_go_hierarchy_html(gene2terms, term_pvalues, save_html_to="outputs/go_hierarchy.html")
 ```
 
 ## A complete workflow includes:
@@ -222,8 +381,6 @@ Typical outputs:
 5. GO enrichment tables
 6. GO networks
 7. GO hierarchical DAG visualizations
-8. Reproducibility
-
 
 To ensure reproducibility:
 1. Set random_state where available
@@ -284,13 +441,11 @@ Guidelines:
   title        = {BioCluster},
   author       = {Inostroza Ponta, Mario and Gonzalez Hurtado, Benjamin},
   year         = {2026},
-  doi          = {PLACEHOLDER — insert Zenodo DOI after registration},
+  doi          = {10.5281/zenodo.21764404},
   url          = {https://github.com/BenjaminGonzalezH/ItalianEdge},
   note         = {Python package for characterization of Pareto-optimal gene clustering solutions}
 }
 ```
-
-> **Nota:** este bloque de cita debe coincidir exactamente con la lista de autores de `CITATION.cff`. Si Sofía Paz Lourdes Castro es coautora del proyecto, agrégala en ambos archivos (aquí y en `CITATION.cff`, con afiliación/ORCID); si no, esta versión ya quedó consistente entre ambos.
 
 ## AI-assisted development notice
 

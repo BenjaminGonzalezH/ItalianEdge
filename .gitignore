@@ -58,6 +58,7 @@ coverage.xml
 docs/_build/
 resources/
 examples/results/*
+examples/codeocean_results/
 *.obo
 *.gaf
 *goa_human
